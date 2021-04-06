@@ -98,6 +98,7 @@ class Agent(ABC):
         # Init
         env = self.env if self.envTest is None else self.envTest
         accRew, steps = np.zeros((iters)), np.zeros((iters))
+        maxReturn, minReturn = -np.inf, np.inf
         self.prepareCustomMetric()
         episodeLen = self.config["env"].get("max_length", MAX_EPISODE_LENGTH)
         proc = self.processObs
@@ -119,9 +120,14 @@ class Agent(ABC):
                 if episodeLen > 0 and testSteps >= episodeLen:
                     testDone = True
                 obs = proc(nextObs)
+            # Processing metrics
             accRew[test] = testGain
             steps[test] = testSteps
             self.calculateCustomMetric()
+            if testGain > maxReturn:
+                maxReturn = testGain
+            if testGain < minReturn:
+                minReturn = testGain
         # calculate means and std
         meanAccReward, meanSteps = np.mean(accRew), np.mean(steps)
         stdMean, stdMeanSteps = np.std(accRew), np.std(steps)
@@ -131,6 +137,8 @@ class Agent(ABC):
             self.tbw.add_scalar("test/mean Steps", meanSteps)
             self.tbw.add_scalar("test/std Return", stdMean)
             self.tbw.add_scalar("test/std Steps", stdMeanSteps)
+            self.tbw.add_scalar("test/max Return", maxReturn)
+            self.tbw.add_scalar("test/min Return", minReturn)
         # Returning state
         self.prepareAfterTest()
         # Printing
@@ -143,6 +151,8 @@ class Agent(ABC):
                 "mean_steps": meanSteps, 
                 "std_steps": stdMeanSteps,
                 "custom": self.reportCustomMetric(),
+                "max_return": maxReturn,
+                "min_return": minReturn,
                 }
         
     def processObs(self, obs):

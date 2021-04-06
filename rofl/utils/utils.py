@@ -44,6 +44,13 @@ def createFolder(path:str, mod:str):
     new_dir = goToDir(new_dir)
     return start, new_dir
 
+def timeToStop(actual, expected = None):
+    actual += time.time()
+    stop = False
+    if ((actual % 60) >= expected) and (expected is not None):
+        stop = True
+    return actual, stop
+
 class Tocker:
     def __init__(self):
         self.tick
