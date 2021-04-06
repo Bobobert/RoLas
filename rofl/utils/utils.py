@@ -3,6 +3,7 @@ import sys
 import time
 from torch import save, load, device
 import pickle
+import json
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -10,7 +11,8 @@ def timeFormated() -> str:
     return time.strftime("%H-%M_%d-%b-%y", time.gmtime())
 
 def timeFormatedS() -> str:
-    return time.strftime("%H-%M-%S_%d-%b-%y", time.gmtime())
+    #return time.strftime("%Y-%B-%d-_%H-%M-%S", time.gmtime())
+    return time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime())
 
 def timeDiffFormated(start):
     tock = time.time()
@@ -38,11 +40,47 @@ def goToDir(path):
         os.chdir(path)
     return os.getcwd()
 
-def createFolder(path:str, mod:str):
+def createFolder(path:str, mod:str): # Deprecated
     start = mod + '_' + timeFormated()
     new_dir = os.path.join(path, start)
     new_dir = goToDir(new_dir)
     return start, new_dir
+
+def tbDir(expName:str) -> str:
+    """
+        Returns the default tensorboard direction
+        given the experiment key.
+    """
+    return genDir(expName, "tensorboard")
+
+def expDir(expName:str, envName:str) -> (str, str):
+    """
+        Returns the default folders for the experiment
+        with the environment name description.
+
+        returns
+        -------
+        expdir, tbdir
+    """
+    t = timeFormatedS()
+    return genDir(expName, envName, t), genDir(expName, envName, "tensorboard", t)
+
+def genDir(*args) -> str:
+    dr = os.getenv('HOME')
+    adds = ["rl_results", *args]
+    for s in adds:
+        dr = os.path.join(dr, s)
+    os.makedirs(dr, exist_ok=True)
+    return dr
+
+def saveConfig(config:dict, expDir:str):
+    """
+        Dumps the config dictionary into a 
+        json file.
+    """
+    fh = open(expDir + "/config.json", "w")
+    json.dump(config, fh, indent=4)
+    fh.close()
 
 def timeToStop(results, expected = None):
     tock = time.time()
@@ -50,8 +88,8 @@ def timeToStop(results, expected = None):
     results["time_elapsed"] = diff
     results["time_execution"] += [timeFormatedS()]
     stop = False
-    if ((diff // 60) >= expected) and (expected is not None):
-        stop = True
+    if expected is not None:
+        stop = True if (diff // 60) >= expected else False
     return results, stop
 
 class Tocker:
@@ -195,12 +233,11 @@ class Saver():
     path: str
         Path relative to Home to dump the saved files
     """
-    def __init__(self, envName:str, 
-                    path:str = "PG_results/",
-                    limitTimes:int = 5,
-                    saveFreq:int = 40):
+    def __init__(self, path:str,
+                    limitTimes:int = 10,
+                    saveFreq:int = 30):
         
-        self.startPath, self.dir = createFolder(path, envName)
+        self.dir = path
         self._objRefs_ = []
         self.names = set()
         self.limit = limitTimes

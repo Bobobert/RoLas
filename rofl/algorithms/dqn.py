@@ -8,6 +8,7 @@ config = {
         "lhist":LHIST,
         "memory_size":MEMORY_SIZE,
         "gamma":GAMMA,
+        "max_steps_test":10**4,
         "steps_per_epoch": 4,
         "clip_reward": 1.0,
         "no_op_start": 30, 
@@ -21,7 +22,7 @@ config = {
         "iters_test":20,
         "expected_perfomance": None,
         "max_performance": None,
-        "max_time":15,
+        "max_time": None,
     },
     "policy":{
         "learning_rate":5e-5,
@@ -31,7 +32,7 @@ config = {
         "epsilon_life": 10**6,
         "optimizer": "adam",
         "minibatch_size": 32,
-        "freq_update_target":10**4,
+        "freq_update_target":2500,
         "n_actions":18,
         "double": True,
     },
@@ -67,6 +68,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
         agent.step(randomPi = True)
     # Train the net
     if saver is not None:
+        saver.addObj(trainResults, "training_results")
         saver.start()
     miniBatchSize = config["train"]["mini_batch_size"]
     stepsPerEpoch = config["agent"]["steps_per_epoch"]

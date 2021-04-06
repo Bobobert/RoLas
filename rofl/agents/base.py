@@ -41,7 +41,7 @@ class Agent(ABC):
     environment = None
     policy, config = None, None
     env, envTest = None, None
-    twb = None
+    twb, testCalls = None, 0
     def __init__(self):
         if self.name == "BaseAgent":
             raise NameError("New agent should be called different to BaseAgent")
@@ -97,10 +97,11 @@ class Agent(ABC):
         """
         # Init
         env = self.env if self.envTest is None else self.envTest
-        accRew, steps = np.zeros((iters)), np.zeros((iters))
+        accRew, steps, testReg = np.zeros((iters)), np.zeros((iters)), 0
         maxReturn, minReturn = -np.inf, np.inf
         self.prepareCustomMetric()
         episodeLen = self.config["env"].get("max_length", MAX_EPISODE_LENGTH)
+        testLen, totSteps, stepsDone = self.config["train"].get("max_steps_test", -1), 0, False
         proc = self.processObs
         # Set policy to test mode
         self.prepareTest()
@@ -115,11 +116,20 @@ class Agent(ABC):
                 nextObs, reward, done, _ = env.step(action)
                 testGain += reward
                 testSteps += 1
+                totSteps += 1
                 # Terminal condition for episode
                 testDone = done
                 if episodeLen > 0 and testSteps >= episodeLen:
                     testDone = True
+                ## Condition by max steps per test if valid. 
+                ## Can happen only if there is at least one result score
+                if testLen > 0 and totSteps >= testLen and totSteps != testSteps:
+                    stepsDone = True
+                    break
                 obs = proc(nextObs)
+            # Continuation on max steps test for the main loop
+            if stepsDone and (testDone != True):
+                break
             # Processing metrics
             accRew[test] = testGain
             steps[test] = testSteps
@@ -128,25 +138,27 @@ class Agent(ABC):
                 maxReturn = testGain
             if testGain < minReturn:
                 minReturn = testGain
+            testReg += 1
         # calculate means and std
-        meanAccReward, meanSteps = np.mean(accRew), np.mean(steps)
-        stdMean, stdMeanSteps = np.std(accRew), np.std(steps)
+        meanAccReward, meanSteps = np.mean(accRew[:testReg]), np.mean(steps[:testReg])
+        stdMean, stdMeanSteps = np.std(accRew[:testReg]), np.std(steps[:testReg])
         # Register to tb writer if available
         if self.tbw is not None:
-            self.tbw.add_scalar("test/mean Return", meanAccReward)
-            self.tbw.add_scalar("test/mean Steps", meanSteps)
-            self.tbw.add_scalar("test/std Return", stdMean)
-            self.tbw.add_scalar("test/std Steps", stdMeanSteps)
-            self.tbw.add_scalar("test/max Return", maxReturn)
-            self.tbw.add_scalar("test/min Return", minReturn)
+            self.tbw.add_scalar("test/mean Return", meanAccReward, self.testCalls)
+            self.tbw.add_scalar("test/mean Steps", meanSteps, self.testCalls)
+            self.tbw.add_scalar("test/std Return", stdMean, self.testCalls)
+            self.tbw.add_scalar("test/std Steps", stdMeanSteps, self.testCalls)
+            self.tbw.add_scalar("test/max Return", maxReturn, self.testCalls)
+            self.tbw.add_scalar("test/min Return", minReturn, self.testCalls)
+            self.tbw.add_scalar("test/tests Achieved", testReg, self.testCalls)
         # Returning state
         self.prepareAfterTest()
         # Printing
         if prnt:
             print("Test results mean Return:{%.2f}, mean Steps:{%.2f}, std Return:{%.3f}, std Steps:{%.3f}" % (\
                 meanAccReward, meanSteps, stdMean, stdMeanSteps))
-
-        return {"mean_return": meanAccReward,
+        # Generating results
+        results = {"mean_return": meanAccReward,
                 "std_return": stdMean,
                 "mean_steps": meanSteps, 
                 "std_steps": stdMeanSteps,
@@ -154,6 +166,8 @@ class Agent(ABC):
                 "max_return": maxReturn,
                 "min_return": minReturn,
                 }
+        self.testCalls += 1
+        return results
         
     def processObs(self, obs, reset:bool = False):
         """

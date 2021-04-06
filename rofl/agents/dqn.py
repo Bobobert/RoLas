@@ -189,12 +189,12 @@ class dqnAtariAgent(Agent):
         self.obsShape = (lhist, obsShape[0], obsShape[1])
         self.clipReward = config["agent"].get("clip_reward", 0.0)
         self.noOpSteps = config["agent"].get("no_op_start", 0)
-        #self.stepsPerEpoch = config["agent"]["steps_per_epoch"]
+        self.noOpAction = noOpSample(self.envTest) if self.noOpSteps > 0 else None
         self.frameSize = obsShape
         self.tbw, self.tqdm = tbw, useTQDM
 
         self.fixedTrajectory = None
-        self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
+        self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = F_NDTYPE_DEFT), None, None
         super(dqnAtariAgent, self).__init__()
 
     def processObs(self, obs, reset: bool = False):
@@ -208,7 +208,7 @@ class dqnAtariAgent(Agent):
             self.frameStack = np.roll(self.frameStack, 1, axis = 0)
         self.lastFrame = YChannelResize(obs, size = self.frameSize)
         self.frameStack[0] = self.lastFrame
-        newObs = torch.from_numpy(self.frameStack).to(self.device).float()
+        newObs = torch.from_numpy(self.frameStack).to(self.device)
         return newObs.unsqueeze(0).div(255)
 
     def prepareTest(self):
@@ -259,7 +259,7 @@ class dqnAtariAgent(Agent):
             # No op, no actions when starting
             if self.noOpSteps > 0:
                 for _ in range(random.randint(1, self.noOpSteps)):
-                    frame, _, _, _ = env.step(noOpSample(env))
+                    frame, _, _, _ = env.step(self.noOpAction)
             obs = proc(frame, True)
         else:
             obs = self.lastObs
@@ -287,7 +287,7 @@ class dqnAtariAgent(Agent):
             model_out = self.policy.dqnOnline(self.fixedTrajectory)
             mean = torch.mean(model_out.max(1).values).item()
         if self.tbw is not None:
-            self.tbw.add_scalar("test/Q-mean", mean)
+            self.tbw.add_scalar("test/mean max Q", mean, self.testCalls)
         return mean
 
     def reset(self):

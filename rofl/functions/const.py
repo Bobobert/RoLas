@@ -47,7 +47,7 @@ LHIST = 4
 FRAME_SIZE = [84,84]
 GAMMA = 0.99
 
-# GX
+### GX ###
 ALPHA = 0.15
 LINEWDT = 2
 CLRRDM = "red"
