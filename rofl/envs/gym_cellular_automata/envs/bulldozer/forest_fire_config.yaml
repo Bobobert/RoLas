@@ -1,0 +1,75 @@
+cell_states: 4
+
+cell_symbols:
+  empty: 0
+  tree:  1
+  fire:  2
+  burnt: 3
+cell_type: 'uint8'
+
+grid_shape:
+  n_row: 32
+  n_col: 32
+
+ca_params:
+  fires: 1
+  init_p_tree: 0.9
+  wind_speed: 15
+  wind_direction: 30 # In deegres
+  wind_c1: 10
+
+# Modifier's effects
+# Change FIRE to EMPTY
+effects:
+  tree: 'empty'
+
+end_bulldozer:
+  fire: 1
+
+actions:
+  up_left:    2
+  up:         3
+  up_right:   4
+  left:       5
+  not_move:   0
+  right:      6
+  down_left:  7
+  down:       8
+  down_right: 9
+  cut:        1
+action_type: 'uint8'
+
+# Time that each thing consumes
+# MDP does a transition after every change 
+# from the Bulldozer or the CA rules, but keeps
+# interal time to track the evolution
+# suppose a unit is 30 min
+mdp_internal_times:
+  lattice:        4
+  bulldozer_move: 1
+  bulldozer_cut:  1
+
+rewards:
+  per_empty: 0.0
+  per_burnt: -0.5
+  per_tree:  -1.0
+  per_fire: 0.0
+  cut:  0.0
+  alive: 0.0
+
+reward_mode: "ratio" #hit
+
+# Cellular Automata rendering options.
+cell_colors:
+  empty: '#ddd1d3ff' # Gray
+  tree:  '#a9c499ff' # Green
+  fire:  '#dfa4a0ff' # Red
+  burnt: '#EFD19FFF' # Brown
+
+plot_title: 'Forest Fire Bulldozer Environment'
+plot_font:  'Lato' 
+
+obs_mode: 
+  mode: "follow"
+  shapeRow: 32
+  shapeCol: 32
