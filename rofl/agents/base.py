@@ -109,7 +109,7 @@ class Agent(ABC):
         for test in range(iters):
             testDone, testGain, testSteps = False, 0.0, 0
             obs = env.reset()
-            obs = proc(obs)
+            obs = proc(obs, reset = True)
             while not testDone:
                 action = self.policy.getAction(obs)
                 nextObs, reward, done, _ = env.step(action)
@@ -155,10 +155,20 @@ class Agent(ABC):
                 "min_return": minReturn,
                 }
         
-    def processObs(self, obs):
+    def processObs(self, obs, reset:bool = False):
         """
             If the agent needs to process the observation of the
             environment. Write it here
+
+            parameters
+            ----------
+            obs
+                The observations as they come from the environment. 
+                Usually ndarray's.
+
+            reset: bool
+                If needed a flag that this observation is from a new
+                trajectory. As to reset the pipeline or not effect.
         """
         return obs
 

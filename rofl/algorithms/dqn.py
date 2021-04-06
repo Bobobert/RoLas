@@ -1,3 +1,4 @@
+from rofl import Agent, Policy
 from rofl.functions.const import *
 from rofl.functions.stop import testEvaluation
 from tqdm import tqdm
@@ -50,7 +51,7 @@ config = {
     },
 }
 
-def train(config, agent, policy, saver = None):
+def train(config:dict, agent:Agent, policy:Policy, saver = None):
     trainResults = None
     # Generate fixed trajectory
     sizeTrajectory = config["train"]["fixed_q_trajectory"]
@@ -64,7 +65,6 @@ def train(config, agent, policy, saver = None):
     I = tqdm(range(sizeInitMemory), desc="Filling memory replay")
     for _ in I:
         agent.step(randomPi = True)
-    agent.memory.showBuffer()
     # Train the net
     if saver is not None:
         saver.start()
@@ -73,19 +73,26 @@ def train(config, agent, policy, saver = None):
     freqTest = config["train"]["freq_test"]
     p = stepsPerEpoch / miniBatchSize
     epochs, stop = config["train"]["epochs"], False
-    I = tqdm(range(epochs), unit = "update", desc = "Training Policy")
+    I = tqdm(range(epochs + 1), unit = "update", desc = "Training Policy")
     ## Train loop
     for epoch in I:
+        # Train step
         miniBatch = agent.getBatch(miniBatchSize, p)
         policy.update(miniBatch)
+        # Check for test
         if epoch % freqTest == 0:
             I.write("Testing ...")
-            trainResults, stop = testEvaluation(config, agent, trainResults)
+            results, trainResults, stop = testEvaluation(config, agent, trainResults)
+            I.write("Test results {}".format(results))
             I.clear()
+        # Stop condition
+        if stop:
+            if saver is not None:
+                saver.saveAll()
+            break
+        # Check the saver status
         if saver is not None:
             saver.check()
-        if stop:
-            break
 
     return trainResults
     

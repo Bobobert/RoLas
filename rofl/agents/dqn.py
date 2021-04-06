@@ -194,16 +194,16 @@ class dqnAtariAgent(Agent):
         self.tbw, self.tqdm = tbw, useTQDM
 
         self.fixedTrajectory = None
-        self.frameStack, self.lastObs, self.lastFrame = None, None, None
+        self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
         super(dqnAtariAgent, self).__init__()
 
-    def processObs(self, obs):
+    def processObs(self, obs, reset: bool = False):
         """
             If the agent needs to process the observation of the
             environment. Write it here
         """
-        if self.frameStack is None:
-            self.frameStack = np.zeros(self.obsShape, dtype = np.uint8)
+        if reset:
+            self.frameStack.fill(0.0)
         else:
             self.frameStack = np.roll(self.frameStack, 1, axis = 0)
         self.lastFrame = YChannelResize(obs, size = self.frameSize)
@@ -216,14 +216,15 @@ class dqnAtariAgent(Agent):
             If the agent needs to prepare to save or load 
             anything before a test. Write it here
         """
-        self.frameStack = None
+        #self.frameStack = None
+        None
     
     def prepareAfterTest(self):
         """
             If the agent needs to prepare to save or load 
             anything after a test. Write it here
         """
-        self.frameStack = None
+        #self.frameStack = None
         self.done = True
 
     def getBatch(self, size:int, proportion: float = 1.0):
@@ -241,6 +242,8 @@ class dqnAtariAgent(Agent):
         I = range(ceil(size * proportion))
         if self.tqdm:
             I = tqdm(I, desc="Generating batch")
+        # Do steps for batch
+        self.policy.test = False
         for i in I:
             self.step()
         return self.memory.sample(size)
@@ -252,14 +255,12 @@ class dqnAtariAgent(Agent):
         env, proc, pi = self.env, self.processObs, self.policy
         # Prepare state
         if self.done:
-            self.lastFrame = None
             frame = env.reset()
+            # No op, no actions when starting
             if self.noOpSteps > 0:
-                noOps = random.randint(1, self.noOpSteps)
-                for _ in range(noOps):
+                for _ in range(random.randint(1, self.noOpSteps)):
                     frame, _, _, _ = env.step(noOpSample(env))
-            obs = proc(frame)
-            pi.test = False
+            obs = proc(frame, True)
         else:
             obs = self.lastObs
         frame = self.lastFrame
