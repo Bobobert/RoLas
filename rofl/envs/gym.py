@@ -17,7 +17,7 @@ def atariEnvMaker(config):
     def ENV(seed = None):
         if seed is not None and seed < 0:
             seed = None
-        env = AtariEnv(name, obs_type = "image")
+        env = AtariEnv(name, obs_type = "image", frameskip = config["env"].get("frameskip", 4))
         seeds = env.seed(seed)
         return env, seeds
 

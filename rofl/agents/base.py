@@ -14,9 +14,9 @@ class Agent(ABC):
     Optionals:
     - tensorboard writer in .tbw
     
-    Methods:
-    - currentState: returns a dict
-    - loadState: Loads a state dict
+    Main Methods:
+    - getBatch: With a size and proportion, returns a
+        trajectory dict
     - processObs: if required process the actual observation
         returns the new observation or the same
     - test: executes a test, returns results
@@ -24,9 +24,18 @@ class Agent(ABC):
         a test, if not does nothing
     - prepareAfterTest: Continuation to prepareTest, if necesary, 
         set agent state after a test
-    - getBatch: With a size and proportion, returns a
-        trajectory dict
     - reset: resets the state to start over
+
+    Other methods: (in progress)
+    - prepareCustomMetric: if needed, the agent can have a custom
+        method to calculate a metric while testing only. In training
+        can be writen inside the policy. This method will be called 
+        each time .test is called 
+    - calculateCustomMetric: if needed the previous one, this is called
+        at the end of each test for the terminal state.
+    - reportCustomMetric: return the custom metric
+    - currentState: returns a dict
+    - loadState: Loads a state dict
     """
     name = "BaseAgent"
     environment = None
@@ -89,6 +98,7 @@ class Agent(ABC):
         # Init
         env = self.env if self.envTest is None else self.envTest
         accRew, steps = np.zeros((iters)), np.zeros((iters))
+        self.prepareCustomMetric()
         episodeLen = self.config["env"].get("max_length", MAX_EPISODE_LENGTH)
         proc = self.processObs
         # Set policy to test mode
@@ -105,13 +115,13 @@ class Agent(ABC):
                 testGain += reward
                 testSteps += 1
                 # Terminal condition for episode
+                testDone = done
                 if episodeLen > 0 and testSteps >= episodeLen:
                     testDone = True
-                else:
-                    testDone = done
                 obs = proc(nextObs)
             accRew[test] = testGain
             steps[test] = testSteps
+            self.calculateCustomMetric()
         # calculate means and std
         meanAccReward, meanSteps = np.mean(accRew), np.mean(steps)
         stdMean, stdMeanSteps = np.std(accRew), np.std(steps)
@@ -123,7 +133,17 @@ class Agent(ABC):
             self.tbw.add_scalar("test/std Steps", stdMeanSteps)
         # Returning state
         self.prepareAfterTest()
-        return meanAccReward, stdMean, meanSteps, stdMeanSteps
+        # Printing
+        if prnt:
+            print("Test results mean Return:{%.2f}, mean Steps:{%.2f}, std Return:{%.3f}, std Steps:{%.3f}" % (\
+                meanAccReward, meanSteps, stdMean, stdMeanSteps))
+
+        return {"mean_return": meanAccReward,
+                "std_return": stdMean,
+                "mean_steps": meanSteps, 
+                "std_steps": stdMeanSteps,
+                "custom": self.reportCustomMetric(),
+                }
         
     def processObs(self, obs):
         """
@@ -157,3 +177,29 @@ class Agent(ABC):
         s = "Agent {}\nFor environment {}\nPolicy {}".format(self.name, 
             self.environment, self.policy)
         return s
+
+    def prepareCustomMetric(self):
+        """
+            This method will be called once each time .test is called.
+            It should prepare the variables in the object to report the
+            results after each test.
+            calculateCustomMetric is the one called each time a test has 
+            reached a terminal state.
+        """
+        return None
+
+    def calculateCustomMetric(self):
+        """
+            From the state in test, and the self.envTest. Here custom code
+            can be writen to calculate metrics differente from the test. No 
+            variables are planned to be passed as argument more than self
+        """
+        return None
+
+    def reportCustomMetric(self):
+        """
+            From the custom metric calculation, one can pass anything that can
+            be saved to the test method. This will be stored on the test results
+            dict.
+        """
+        return {}

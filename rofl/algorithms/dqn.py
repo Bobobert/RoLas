@@ -16,6 +16,7 @@ config = {
         "epochs":10**6,
         "mini_batch_size":32,
         "freq_test":10**4,
+        "iters_test":20,
     },
     "policy":{
         "learning_rate":5e-5,
@@ -39,7 +40,9 @@ config = {
         "ip_fire": 0.0,
         "obs_mode": "followGridImg",
         "obs_shape": (32,32),
-        "reward_type": "hit"
+        "reward_type": "hit",
+        "frameskip": 4,
+        "max_length": -1,
     },
 }
 
@@ -48,7 +51,7 @@ def train(config, agent, policy, saver = None):
     sizeTrajectory = config["train"]["fixed_q_trajectory"]
     agent.tqdm = True
     trajectory = agent.getBatch(sizeTrajectory, 1.05)
-    agent.fixedTrajectory = trajectory["st"]
+    agent.fixedTrajectory = trajectory["st"].to(policy.device)
     agent.reset()
     agent.tqdm = False
     # Fill memory replay
@@ -72,6 +75,7 @@ def train(config, agent, policy, saver = None):
         policy.update(miniBatch)
         if epoch % freqTest == 0:
             I.write("Testing ...")
-            agent.test()
-            agent.testQMean()
+            results = agent.test(iters = config["train"]["iters_test"])
+            I.clear()
+            I.write("Test results {}".format(results))
     

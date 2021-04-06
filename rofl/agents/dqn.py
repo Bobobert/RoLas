@@ -279,7 +279,7 @@ class dqnAtariAgent(Agent):
         if not done:
             self.lastObs = proc(nextFrame)
 
-    def testQMean(self):
+    def reportCustomMetric(self):
         if self.fixedTrajectory is None:
             return 0.0
         with no_grad():
