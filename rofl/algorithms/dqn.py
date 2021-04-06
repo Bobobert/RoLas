@@ -26,7 +26,7 @@ config = {
         "optimizer": "adam",
         "minibatch_size": 32,
         "freq_update_target":10**4,
-        "actions":18,
+        "n_actions":18,
         "double": True,
     },
     "env":{
@@ -55,7 +55,7 @@ def train(config, agent, policy, saver = None):
     sizeInitMemory = config["train"]["fill_memory"]
     I = tqdm(range(sizeInitMemory), desc="Filling memory replay")
     for _ in I:
-        agent.step()
+        agent.step(randomPi = True)
     # Train the net
     if saver is not None:
         saver.start()
@@ -73,4 +73,5 @@ def train(config, agent, policy, saver = None):
         if epoch % freqTest == 0:
             I.write("Testing ...")
             agent.test()
+            agent.testQMean()
     

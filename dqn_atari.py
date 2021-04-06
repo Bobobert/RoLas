@@ -9,6 +9,7 @@ config["env"]["name"] = "seaquest"
 config["policy"]["n_actions"] = 6
 config["train"]["epochs"] = 100
 config["env"]["obs_shape"] = (84,84)
+config["train"]["fill_memory"] = 10**3
 
 device = getDevice()
 

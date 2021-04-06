@@ -92,7 +92,7 @@ class MemoryReplay(object):
                 0.0,
                 False)
 
-    def sample(self, mini_batch_size:int, device = DEVICE_DEFT):
+    def sample(self, mini_batch_size:int):
         """
         Process and returns a mini batch. The tuple returned are
         all torch tensors.
@@ -131,11 +131,11 @@ class MemoryReplay(object):
             rt = self.r_buffer[ids]
             terminals = self.t_buffer[ids].astype(np.float32)
             # Passing to torch format
-            st1 = torch.as_tensor(st1, device=device).div(255).requires_grad_()
-            st2 = torch.as_tensor(st2, device=device).div(255)
-            terminals = torch.as_tensor(terminals, dtype=torch.float32, device=device)
-            at = torch.as_tensor(at, dtype=self.a_dtype, device=device)
-            rt = torch.as_tensor(rt, dtype=self.r_dtype, device=device)
+            st1 = torch.as_tensor(st1).div(255).requires_grad_()
+            st2 = torch.as_tensor(st2).div(255)
+            terminals = torch.as_tensor(terminals, dtype=torch.float32)
+            at = torch.as_tensor(at, dtype=self.a_dtype)
+            rt = torch.as_tensor(rt, dtype=self.r_dtype)
             return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals}
         else:
             raise IndexError("The memory does not contains enough transitions to generate the sample")
@@ -243,9 +243,9 @@ class dqnAtariAgent(Agent):
             I = tqdm(I, desc="Generating batch")
         for i in I:
             self.step()
-        return self.memory.sample(size, self.device)
+        return self.memory.sample(size)
 
-    def step(self):
+    def step(self, randomPi = False):
         """
         Take a step in the environment
         """
@@ -264,7 +264,10 @@ class dqnAtariAgent(Agent):
             obs = self.lastObs
         frame = self.lastFrame
         # Take action
-        action = pi.getAction(obs)
+        if randomPi:
+            action = pi.getRandom()
+        else:
+            action = pi.getAction(obs)
         nextFrame, reward, done, _ = env.step(action)
         # Clip reward if needed
         if self.clipReward > 0.0:

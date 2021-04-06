@@ -15,6 +15,7 @@ class Policy(ABC):
     Methods:
     - getAction: returns the action corresponding
         to the state given
+    - getRandom: returns a sample from the action space
     - update: Depending the type of policy updates itself.
         Inputs must be always dictionaries containing the update's
         information or material for approximations
@@ -40,6 +41,14 @@ class Policy(ABC):
             From the given state, return an action
             as int if discrete or as a numpy.ndarray if
             continuous
+        """
+        raise NotImplementedError
+
+    def getRandom(self):
+        """
+            Returns an action from the expected
+            action space. If there is an exploratory
+            agenda. This should not interact with it.
         """
         raise NotImplementedError
 
