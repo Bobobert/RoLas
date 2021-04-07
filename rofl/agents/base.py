@@ -166,6 +166,7 @@ class Agent(ABC):
                 "max_return": maxReturn,
                 "min_return": minReturn,
                 }
+                
         self.testCalls += 1
         return results
         

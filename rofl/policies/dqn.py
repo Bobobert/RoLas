@@ -12,19 +12,25 @@ def unpackBatch(*dicts, device = DEVICE_DEFT):
             actions += [trajectory["action"]]
             rewards += [trajectory["reward"]]
             dones += [trajectory["done"]]
-        st1 = Tcat(states1, dim=0).to(device)
-        st2 = Tcat(states2, dim=0).to(device)
-        actions = Tcat(actions, dim=0).to(device)
-        rewards = Tcat(rewards, dim=0).to(device)
-        dones = Tcat(dones, dim=0).to(device)
+        st1 = Tcat(states1, dim=0)
+        st2 = Tcat(states2, dim=0)
+        actions = Tcat(actions, dim=0)
+        rewards = Tcat(rewards, dim=0)
+        dones = Tcat(dones, dim=0)
+
     else:
         trajectoryBatch = dicts[0]
-        st1 = trajectoryBatch["st"].to(device)
-        actions = trajectoryBatch["action"].to(device).long()
-        rewards = trajectoryBatch["reward"].to(device)
-        st2 = trajectoryBatch["st1"].to(device)
-        dones = trajectoryBatch["done"].to(device)
-    actions = actions.unsqueeze(1)
+        st1 = trajectoryBatch["st"]
+        actions = trajectoryBatch["action"]
+        rewards = trajectoryBatch["reward"]
+        st2 = trajectoryBatch["st1"]
+        dones = trajectoryBatch["done"]
+
+    st1 = st1.to(device)
+    st2 = st2.to(device)
+    rewards = rewards.to(device)
+    dones = dones.to(device)
+    actions = actions.to(device).unsqueeze(1).long()
     return st1, st2, rewards, actions, dones
 
 def dqnTarget(onlineNet, targetNet, s2, r, t, gamma, double:bool = True):
@@ -51,7 +57,7 @@ class dqnPolicy(Policy):
         self.gamma = config["agent"]["gamma"]
         config = config["policy"]
         self.updateTarget = config["freq_update_target"]
-        self.nActions = config["n_actions"] - 1
+        self.nActions = config["n_actions"]
         self.double = config.get("double", False)
         self.epsilon = EpsilonGreedy(config["epsilon_start"],
                                     config["epsilon_end"],
@@ -70,7 +76,7 @@ class dqnPolicy(Policy):
         super(dqnPolicy, self).__init__()
 
     def getAction(self, state):
-        throw = random.uniform(0,1)
+        throw = np.random.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
         if throw <= eps:
             return self.getRandom()
@@ -78,16 +84,19 @@ class dqnPolicy(Policy):
             return self.dqnOnline.getAction(state)
 
     def getRandom(self):
-        return random.randint(0, self.nActions)
+        return np.random.randint(self.nActions)
 
     def update(self, *infoDicts):
         st1, st2, rewards, actions, dones = unpackBatch(*infoDicts, device = self.device)
-        qValues = self.dqnOnline(st1)
-        qValues = qValues.gather(1, actions) # maybe this blows
+        qValues = self.dqnOnline(st1).gather(1, actions) # maybe this blows
+        #qValues = qValues
+        #actionsHot = F.one_hot(actions, num_classes=self.nActions)
         qTargets = dqnTarget(self.dqnOnline, self.dqnTarget, 
-            st2, rewards, dones, self.gamma)
+                                st2, rewards, dones, self.gamma, self.double)
+        #qValues = Tmul(qValues, actionsHot)
+        #qTargets = Tmul(qTargets, actionsHot)
 
-        loss = F.smooth_l1_loss(qValues, qTargets)
+        loss = F.smooth_l1_loss(qValues, qTargets, reduction="mean")
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()

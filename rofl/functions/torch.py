@@ -46,11 +46,13 @@ def getListState(net, cpu:bool):
         params += [p if not cpu else p.clone().to(DEVICE_DEFT)]
     return params
     
-def analysisGrad(net):
+def analysisGrad(net, calculateMean: bool = False, calculateMax: bool = True):
     """
         Should return 
     """
     max_grad, mean_grad = 0.0, 0.0
-    max_grad = max(p.grad.detach().abs().max() for p in net.parameters()).item()
-    mean_grad = torch.mean(torch.tensor([torch.mean(p.grad.detach()) for p in net.parameters()])).item()
+    if calculateMax:
+        max_grad = max(p.grad.detach().abs().max() for p in net.parameters()).item()
+    if calculateMean:
+        mean_grad = torch.mean(torch.tensor([torch.mean(p.grad.detach()) for p in net.parameters()])).item()
     return max_grad, mean_grad

@@ -49,6 +49,8 @@ config = {
         "reward_type": "hit",
         "frameskip": 4,
         "max_length": -1,
+        "seedTrain" : 10,
+        "seedTest": 1,
     },
 }
 

@@ -27,11 +27,11 @@ class MemoryReplay(object):
                  state_shape:list = FRAME_SIZE,
                  LHist:int = LHIST,
                  state_dtype_in:np.dtype = np.uint8,
-                 state_dtype_out:np.dtype = np.float32,
+                 state_dtype_out:np.dtype = F_NDTYPE_DEFT,
                  action_dtype_in:np.dtype = np.uint8,
-                 action_dtype_out:torch.dtype = torch.int64,
-                 reward_dtype_in:np.dtype = np.float32,
-                 reward_dtype_out:torch.dtype = torch.float32,
+                 action_dtype_out:torch.dtype = I_TDTYPE_DEFT,
+                 reward_dtype_in:np.dtype = F_NDTYPE_DEFT,
+                 reward_dtype_out:torch.dtype = F_TDTYPE_DEFT,
                  ):
         
         self.s_in_shape = state_shape
@@ -63,18 +63,6 @@ class MemoryReplay(object):
         if self._i == 0:
             self.FO = True
 
-    def get2History(self, i:int, m:int, st1, st2):
-        # modify inplace
-        for n, j in enumerate(range(i, i - self.LHist - 1, -1)):
-            s, _, _, t = self[j]
-            if n < self.LHist:
-                st2[m][n] = s
-            if n > 0:
-                st1[m][n - 1] = s
-            if not t and n >= 0:
-                # This should happend rarely
-                break
-
     def __getitem__(self, i:int):
         if i < self._i or self.FO:
             i = i % self.capacity
@@ -92,7 +80,7 @@ class MemoryReplay(object):
                 0.0,
                 False)
 
-    def sample(self, mini_batch_size:int):
+    def sample(self, mini_batch_size:int, device = DEVICE_DEFT):
         """
         Process and returns a mini batch. The tuple returned are
         all torch tensors.
@@ -129,13 +117,13 @@ class MemoryReplay(object):
                         break
             at = self.a_buffer[ids]
             rt = self.r_buffer[ids]
-            terminals = self.t_buffer[ids].astype(np.float32)
+            terminals = self.t_buffer[ids].astype(F_NDTYPE_DEFT)
             # Passing to torch format
-            st1 = torch.as_tensor(st1).div(255).requires_grad_()
-            st2 = torch.as_tensor(st2).div(255)
-            terminals = torch.as_tensor(terminals, dtype=torch.float32)
-            at = torch.as_tensor(at, dtype=self.a_dtype)
-            rt = torch.as_tensor(rt, dtype=self.r_dtype)
+            st1 = torch.from_numpy(st1).to(device).div(255).detach_().requires_grad_()
+            st2 = torch.from_numpy(st2).to(device).div(255)
+            terminals = torch.from_numpy(terminals).to(device)
+            at = torch.as_tensor(at, device=device, dtype=self.a_dtype)
+            rt = torch.as_tensor(rt, device=device, dtype=self.r_dtype)
             return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals}
         else:
             raise IndexError("The memory does not contains enough transitions to generate the sample")
@@ -167,14 +155,13 @@ class dqnAtariAgent(Agent):
     name = "dqnAgentv0"
 
     def __init__(self, config, policy, envMaker,
-                    seedEnv = 1, seedEnvTest:int = 10,
                     tbw = None, useTQDM = False):
 
         self.config = config.copy()
         self.policy = policy
         self.device = policy.device
-        self.env, _ = envMaker(seedEnv)
-        self.envTest, _ = envMaker(seedEnvTest)
+        self.env, _ = envMaker(config["env"]["seedTrain"])
+        self.envTest, _ = envMaker(config["env"]["seedTest"])
         self.done = True
         try:
             self.environment = self.env.name
@@ -246,7 +233,7 @@ class dqnAtariAgent(Agent):
         self.policy.test = False
         for i in I:
             self.step()
-        return self.memory.sample(size)
+        return self.memory.sample(size, device = self.device)
 
     def step(self, randomPi = False):
         """
