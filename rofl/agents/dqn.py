@@ -58,7 +58,7 @@ class MemoryReplay(object):
         self.s_buffer[self._i] = s
         self.a_buffer[self._i] = a
         self.r_buffer[self._i] = r
-        self.t_buffer[self._i] = t
+        self.t_buffer[self._i] = not t
         self._i = (self._i + 1) % self.capacity
         if self._i == 0:
             self.FO = True
@@ -162,7 +162,7 @@ class dqnAtariAgent(Agent):
         self.device = policy.device
         self.env, _ = envMaker(config["env"]["seedTrain"])
         self.envTest, _ = envMaker(config["env"]["seedTest"])
-        self.done = True
+        self.done, self.lives = True, None
         try:
             self.environment = self.env.name
         except:
@@ -181,7 +181,7 @@ class dqnAtariAgent(Agent):
         self.tbw, self.tqdm = tbw, useTQDM
 
         self.fixedTrajectory = None
-        self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = F_NDTYPE_DEFT), None, None
+        self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
         super(dqnAtariAgent, self).__init__()
 
     def processObs(self, obs, reset: bool = False):
@@ -190,13 +190,13 @@ class dqnAtariAgent(Agent):
             environment. Write it here
         """
         if reset:
-            self.frameStack.fill(0.0)
+            self.frameStack.fill(0)
         else:
             self.frameStack = np.roll(self.frameStack, 1, axis = 0)
         self.lastFrame = YChannelResize(obs, size = self.frameSize)
         self.frameStack[0] = self.lastFrame
         newObs = torch.from_numpy(self.frameStack).to(self.device)
-        return newObs.unsqueeze(0).div(255)
+        return newObs.unsqueeze(0).float().div(255)
 
     def prepareTest(self):
         """
@@ -246,8 +246,9 @@ class dqnAtariAgent(Agent):
             # No op, no actions when starting
             if self.noOpSteps > 0:
                 for _ in range(random.randint(1, self.noOpSteps)):
-                    frame, _, _, _ = env.step(self.noOpAction)
+                    frame, _, _, info = env.step(self.noOpAction)
             obs = proc(frame, True)
+            self.lives = info.get("ale.lives", 0)
         else:
             obs = self.lastObs
         frame = self.lastFrame
@@ -256,14 +257,16 @@ class dqnAtariAgent(Agent):
             action = pi.getRandom()
         else:
             action = pi.getAction(obs)
-        nextFrame, reward, done, _ = env.step(action)
+        nextFrame, reward, done, info = env.step(action)
+        nextLives = info.get("ale.lives", 0)
         # Clip reward if needed
         if self.clipReward > 0.0:
             reward = np.clip(reward, -self.clipReward, self.clipReward)
         # update memory replay
-        self.memory.add(frame, action, reward, not done)
+        markTerminal = done if self.lives == nextLives else True
+        self.memory.add(frame, action, reward, markTerminal)
         # if termination prepare env
-        self.done = done
+        self.done, self.lives = done, nextLives
         if not done:
             self.lastObs = proc(nextFrame)
 
