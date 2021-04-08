@@ -88,7 +88,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
             I.write("Testing ...")
             results, trainResults, stop = testEvaluation(config, agent, trainResults)
             I.write("Test results {}".format(results))
-            I.clear()
+            
         # Stop condition
         if stop:
             if saver is not None:

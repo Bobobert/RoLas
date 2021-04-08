@@ -20,7 +20,7 @@ config["train"]["iters_test"] = 20
 config["train"]["max_performance"] = 1000
 
 device = getDevice()
-seeder(42, device)
+seeder(8088, device)
 expdir, tbdir = expDir(EXP_NAME, ENV_NAME)
 saveConfig(config, expdir)
 

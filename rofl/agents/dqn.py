@@ -100,13 +100,13 @@ class MemoryReplay(object):
         assert mini_batch_size > 0, "The size of the mini batch must be positive"
 
         if self._i > mini_batch_size + self.LHist or self.FO:
-            ids = np.random.randint(self.LHist, self.capacity if self.FO else self._i - 1, 
+            ids = np.random.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
                                     size=mini_batch_size)
             st1 = np.zeros([mini_batch_size] + self.shapeHistOut, 
                            dtype = self.s_dtype)
             st2 = st1.copy()
             for m, i in enumerate(ids):
-                for n, j in enumerate(range(i, i - self.LHist - 1, -1)):
+                for n, j in enumerate(range(i + 1, i - self.LHist, -1)):
                     s, _, _, t = self[j]
                     if n < self.LHist:
                         st2[m][n] = s.copy()
@@ -251,7 +251,6 @@ class dqnAtariAgent(Agent):
             self.lives = info.get("ale.lives", 0)
         else:
             obs = self.lastObs
-        frame = self.lastFrame
         # Take action
         if randomPi:
             action = pi.getRandom()
@@ -264,7 +263,7 @@ class dqnAtariAgent(Agent):
             reward = np.clip(reward, -self.clipReward, self.clipReward)
         # update memory replay
         markTerminal = done if self.lives == nextLives else True
-        self.memory.add(frame, action, reward, markTerminal)
+        self.memory.add(self.lastFrame, action, reward, markTerminal)
         # if termination prepare env
         self.done, self.lives = done, nextLives
         if not done:
