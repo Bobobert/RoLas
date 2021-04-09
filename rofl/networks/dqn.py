@@ -1,6 +1,9 @@
 from rofl.functions.const import *
 from .base import QValue
 
+def sqrConvDim(inpt,kernel,stride):
+            return floor((inpt-kernel)/stride + 1)
+
 class dqnAtari(QValue):
     """
     Policy network for DQN-Atari
@@ -57,20 +60,11 @@ class forestFireDQN(QValue):
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
         self.config= config
-        def sqrConvDim(inpt,kernel,stride):
-            return floor((inpt-kernel)/stride + 1)
 
         self.lHist = lHist
         self.outputs = actions
         self.obsShape = obsShape
         self.rectifier = F.relu
-        """self.cv1 = nn.Conv2d(lHist, 32, 4, 2)
-        dim = sqrConvDim(obsShape[0], 4, 2)
-        self.cv2 = nn.Conv2d(32, 64, 3, 1)
-        dim = sqrConvDim(dim, 3, 1)
-        self.fc1 = nn.Linear(64*dim**2, 512)
-        self.fc2 = nn.Linear(512, actions)
-        """ # V0
         self.cv1 = nn.Conv2d(lHist, lHist * 6, 5, 2)
         dim = sqrConvDim(obsShape[0], 5, 2)
         self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
@@ -96,9 +90,6 @@ class forestFireDQNv2(QValue):
         obsShape = config["env"]["obs_shape"]
         self.config= config
 
-        def sqrConvDim(inpt,kernel,stride):
-            return floor((inpt-kernel)/stride + 1)
-
         self.lHist = lHist
         self.outputs = actions
         self.obsShape = obsShape
@@ -109,9 +100,10 @@ class forestFireDQNv2(QValue):
         self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
         dim = sqrConvDim(dim, 3, 1)
         self.fc1 = nn.Linear(lHist * 12 * dim**2 + 2, 328)
-        self.fc2 = nn.Linear(328, actions) # V1
+        self.fc2 = nn.Linear(328, actions) # from V1
     
-    def forward(self, frame, pos):
+    def forward(self, obs):
+        frame, pos = obs["frame"], obs["position"]
         x = self.rectifier(self.cv1(frame))
         x = self.rectifier(self.cv2(x))
         x = Tcat([x.flatten(1), pos], dim=1)

@@ -1,37 +1,8 @@
 from rofl.functions.const import *
+from rofl.utils.dqn import unpackBatch
 from rofl.functions.torch import *
 from rofl.functions import EpsilonGreedy
 from .base import Policy
-
-def unpackBatch(*dicts, device = DEVICE_DEFT):
-    if len(dicts) > 1:
-        states1, states2, actions, rewards, dones  = [], [], [], [], []
-        for trajectory in dicts:
-            states1 += [trajectory["st"]]
-            states2 += [trajectory["st1"]]
-            actions += [trajectory["action"]]
-            rewards += [trajectory["reward"]]
-            dones += [trajectory["done"]]
-        st1 = Tcat(states1, dim=0)
-        st2 = Tcat(states2, dim=0)
-        actions = Tcat(actions, dim=0)
-        rewards = Tcat(rewards, dim=0)
-        dones = Tcat(dones, dim=0)
-
-    else:
-        trajectoryBatch = dicts[0]
-        st1 = trajectoryBatch["st"]
-        actions = trajectoryBatch["action"]
-        rewards = trajectoryBatch["reward"]
-        st2 = trajectoryBatch["st1"]
-        dones = trajectoryBatch["done"]
-
-    st1 = st1.to(device)
-    st2 = st2.to(device)
-    rewards = rewards.to(device)
-    dones = dones.to(device)
-    actions = actions.to(device).unsqueeze(1).long()
-    return st1, st2, rewards, actions, dones
 
 def dqnTarget(onlineNet, targetNet, s2, r, t, gamma, double:bool = True):
     with no_grad():
@@ -73,6 +44,8 @@ class dqnPolicy(Policy):
         
         self.epochs = 0
         self.tbw = tbw
+        self.eva_maxg = config["evaluate_max_grad"]
+        self.eva_meang = config["evaluate_mean_grad"]
         super(dqnPolicy, self).__init__()
 
     def getAction(self, state):
@@ -88,13 +61,9 @@ class dqnPolicy(Policy):
 
     def update(self, *infoDicts):
         st1, st2, rewards, actions, dones = unpackBatch(*infoDicts, device = self.device)
-        qValues = self.dqnOnline(st1).gather(1, actions) # maybe this blows
-        #qValues = qValues
-        #actionsHot = F.one_hot(actions, num_classes=self.nActions)
+        qValues = self.dqnOnline(st1).gather(1, actions)
         qTargets = dqnTarget(self.dqnOnline, self.dqnTarget, 
                                 st2, rewards, dones, self.gamma, self.double)
-        #qValues = Tmul(qValues, actionsHot)
-        #qTargets = Tmul(qTargets, actionsHot)
 
         loss = F.smooth_l1_loss(qValues, qTargets, reduction="mean")
         self.optimizer.zero_grad()
@@ -103,8 +72,8 @@ class dqnPolicy(Policy):
 
         if self.tbw is not None:
             self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
-            #self.tbw.add_scalar('train/Mean TD Error', torch.mean(q_target - q_online).item(), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline)
+            self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epochs)
+            max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
         if self.epochs % self.updateTarget == 0:

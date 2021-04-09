@@ -1,6 +1,6 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
-from rofl.functions.stop import testEvaluation
+from rofl.functions.stop import testEvaluation, initResultDict
 from tqdm import tqdm
 
 config = {
@@ -11,7 +11,7 @@ config = {
         "max_steps_test":10**4,
         "steps_per_epoch": 4,
         "clip_reward": 1.0,
-        "no_op_start": 30, 
+        "no_op_start": 30,
     },
     "train":{
         "fill_memory":10**5,
@@ -35,9 +35,12 @@ config = {
         "freq_update_target":2500,
         "n_actions":18,
         "double": True,
+        "evaluate_max_grad":True,
+        "evaluate_mean_grad":True,
     },
     "env":{
         "name":"forestFire",
+        "atari": False,
         "n_row": 32,
         "n_col": 32,
         "p_tree": 0.01,
@@ -55,12 +58,11 @@ config = {
 }
 
 def train(config:dict, agent:Agent, policy:Policy, saver = None):
-    trainResults = None
     # Generate fixed trajectory
     sizeTrajectory = config["train"]["fixed_q_trajectory"]
     agent.tqdm = True
     trajectory = agent.getBatch(sizeTrajectory, 1.05)
-    agent.fixedTrajectory = trajectory["st"].to(policy.device)
+    agent.fixedTrajectory = trajectory["st"]
     agent.reset()
     agent.tqdm = False
     # Fill memory replay
@@ -69,6 +71,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     for _ in I:
         agent.step(randomPi = True)
     # Train the net
+    trainResults = initResultDict()
     if saver is not None:
         saver.addObj(trainResults, "training_results")
         saver.start()

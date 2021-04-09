@@ -14,6 +14,7 @@ import seaborn as sns
 from collections import defaultdict
 from .forest_fire import ForestFire
 from gym.spaces import Discrete
+from gym import Env
 import numba
 #import gif
 
@@ -79,21 +80,21 @@ class Helicopter(ForestFire):
         """
         Changed on 25/01/2021
         Now to 
-        [5 0 6]
-        [1 4 3]
-        [7 2 8]
+        [5 1 6]
+        [2 0 3]
+        [7 4 8]
         
         to support both 8C and 4C movements.
         """
         a = (self.pos_row, self.pos_col)
         iRow, iCol = 0,0
-        if movement == 4:
+        if movement == 0:
             None
-        if movement in {5,0,6}:
+        if movement in {5,1,6}:
             iRow += -1
-        elif movement in {7,2,8}:
+        elif movement in {7,4,8}:
             iRow += 1
-        if movement in {5,1,7}:
+        if movement in {5,2,7}:
             iCol += -1
         elif movement in {6,3,8}:
             iCol += 1
@@ -203,7 +204,7 @@ class Helicopter(ForestFire):
         plt.clf()
         return image
     
-class EnvMakerForestFire(Helicopter):
+class EnvMakerForestFire(Helicopter, Env):
     """
     Implementation of a class to generate multiple Environments
     for a Reinforcement Learning task.
@@ -770,9 +771,13 @@ class EnvMakerForestFire(Helicopter):
         elif self.observation_mode == 'channels4':
             return self.get_channels_forest()[:4]
         elif self.observation_mode == "followGridImg":
-            return self.followGridObs()
+            return self.followGridObs(True)
         elif self.observation_mode == "staticGridImg":
-            return self.staticGridObs()
+            return self.staticGridObs(True)
+        elif self.observation_mode == "followGridPos":
+            return self.followGridObs(False)
+        elif self.observation_mode == "staticGridPos":
+            return self.staticGridObs(False)
         else:
             raise ValueError("Bad Observation Mode.\nTry: {'plain', 'one_hot', 'channels'}")
     
@@ -795,7 +800,7 @@ class EnvMakerForestFire(Helicopter):
                 img[row, col] = val
         return img
     
-    def getImgGrid(self):
+    def getImgGrid(self, display_agent = True):
         """Returns a ndarray uint8 with a imagen representation 
         of all the grid"""
         gridShape = self.grid.shape[:2]
@@ -805,8 +810,8 @@ class EnvMakerForestFire(Helicopter):
         
         img = self.quickGrid(self.grid, 
                                 self.fire, self.tree, self.empty, self.rock, self.lake)
-
-        #img[self.pos_row, self.pos_col] = 255 # Agent Helicopter is the brigthest spot on the plane
+        if display_agent:
+            img[self.pos_row, self.pos_col] = 255 # Agent Helicopter is the brigthest spot on the plane
 
         if not rowBig and colBig:
             # Padding rows
@@ -827,16 +832,15 @@ class EnvMakerForestFire(Helicopter):
             c = (self.obsShape[1] - gridShape[1]) // 2
             imgBig[r:r+gridShape[0],c:c+gridShape[1]] = img
             img = imgBig
-
         return img
 
-    def followGridObs(self):
+    def followGridObs(self, display_agent):
         """
         Follows the agent through the grid
         """
         gridShape = self.grid.shape[:2]
         
-        img = self.getImgGrid()
+        img = self.getImgGrid(display_agent)
         
         if 0 > (self.pos_row - math.floor(self.obsShape[0] / 2)):
             rMin, rMax = 0, self.obsShape[0]
@@ -856,10 +860,14 @@ class EnvMakerForestFire(Helicopter):
             cMin = self.pos_col - math.floor(self.obsShape[1] / 2)
             cMax = cMin + self.obsShape[1]
 
-        return img[rMin:rMax, cMin:cMax]
+        img = img[rMin:rMax, cMin:cMax]
 
-    def staticGridObs(self):
-        img = self.getImgGrid()
+        if display_agent:
+            return img
+        return {"frame":img, "position":(self.pos_row, self.pos_col)}
+
+    def staticGridObs(self, display_agent):
+        img = self.getImgGrid(display_agent)
         gridShape = self.grid.shape[:2]
         #sectorR = math.ceil(gridShape[0] / (self.obsShape[0] - 2))
         #sectorC = math.ceil(gridShape[1] / (self.obsShape[1] - 2))
@@ -890,7 +898,10 @@ class EnvMakerForestFire(Helicopter):
             # left side
             mid = math.floor(self.obsShape[1] / 2)
             newImg[mid-1:mid+2,0] = Fire
-        return newImg
+
+        if display_agent:
+            return newImg
+        return {"frame":newImg, "position":(self.pos_row, self.pos_col)}
 
     def _get_image____(self): # NOPE
         return self.getImgGrid()

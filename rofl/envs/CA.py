@@ -13,7 +13,7 @@ def forestFireEnvMaker(config):
         observation_shape= config.get("obs_shape", (32,32)),
         reward_type = config.get("reward_type", "hit"))
         env.rg = np.random.Generator(np.random.SFC64(seed))
-        return env
+        return env, [seed]
 
     return ENV
 
@@ -21,7 +21,7 @@ def bulldozerEnvMaker(config):
     def ENV(seed = None):
         env = BulldozerEnv()
         env.seed(seed)
-        return env
+        return env, [seed]
         
     return ENV
     
