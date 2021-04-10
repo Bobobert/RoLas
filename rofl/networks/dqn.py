@@ -1,9 +1,6 @@
 from rofl.functions.const import *
 from .base import QValue
 
-def sqrConvDim(inpt,kernel,stride):
-            return floor((inpt-kernel)/stride + 1)
-
 class dqnAtari(QValue):
     """
     Policy network for DQN-Atari

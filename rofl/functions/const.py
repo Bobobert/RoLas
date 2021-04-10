@@ -27,6 +27,16 @@ def assertProb(sus):
     f = (sus >= 0.0) and (sus <= 1.0)
     if not f:
         raise ValueError("Value must be in [0,1]")
+    return sus
+
+def assertIntPos(sus):
+    f = (sus > 0) and isinstance(f, (int))
+    if not f:
+        raise ValueError("Value must be an integer greater than 0")
+    return sus
+
+def sqrConvDim(inpt,kernel,stride):
+    return floor((inpt-kernel)/stride + 1)
 
 ### DEFAULTS TYPES ###
 DEVICE_DEFT = Tdevice("cpu")

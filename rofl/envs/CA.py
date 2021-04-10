@@ -11,7 +11,7 @@ def forestFireEnvMaker(config):
         ip_tree = config.get("ip_tree", 0.6), ip_fire = config.get("ip_fire", 0.0),
         observation_mode= config.get("obs_mode", "followGridImg"),
         observation_shape= config.get("obs_shape", (32,32)),
-        reward_type = config.get("reward_type", "hit"))
+        reward_type = config.get("reward_type", "hit"), moves_before_updating=config.get("freeze", 4))
         env.rg = np.random.Generator(np.random.SFC64(seed))
         return env, [seed]
 

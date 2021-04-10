@@ -12,13 +12,16 @@ ENV_NAME = "forest_fire_helicopter"
 config["env"]["name"] = ENV_NAME
 config["env"]["obs_mode"] = "followGridPos"
 config["env"]["reward_type"] = "hit"
+config["env"]["n_col"] = 100
+config["env"]["n_row"] = 100
+config["env"]["obs_shape"] = (52,52)
 config["policy"]["n_actions"] = 9
+config["agent"]["lhist"] = 6
 config["agent"]["clip_reward"] = 0.0
 config["agent"]["no_op_start"] = 10
-config["train"]["epochs"] = 5*10**5
+config["train"]["epochs"] = 6*10**5
 config["train"]["fill_memory"] = 10**3
 config["train"]["iters_test"] = 20
-config["train"]["max_performance"] = 1000
 
 device = getDevice()
 seeder(8088, device)

@@ -6,6 +6,7 @@ from tqdm import tqdm
 config = {
     "agent":{
         "lhist":LHIST,
+        "recurrent_boot":10,
         "memory_size":MEMORY_SIZE,
         "gamma":GAMMA,
         "max_steps_test":10**4,
@@ -54,6 +55,7 @@ config = {
         "max_length": -1,
         "seedTrain" : 10,
         "seedTest": 1,
+        "freeze":4,
     },
 }
 
