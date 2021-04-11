@@ -6,7 +6,6 @@ from tqdm import tqdm
 config = {
     "agent":{
         "lhist":LHIST,
-        "recurrent_boot":10,
         "memory_size":MEMORY_SIZE,
         "gamma":GAMMA,
         "max_steps_test":10**4,
@@ -38,6 +37,11 @@ config = {
         "double": True,
         "evaluate_max_grad":True,
         "evaluate_mean_grad":True,
+        "recurrent_unit":"lstm",
+        "recurrent_layers":1,
+        "recurrent_hidden_size":328,
+        "recurrent_units":1,
+        "recurrent_boot":10,
     },
     "env":{
         "name":"forestFire",
@@ -73,10 +77,16 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     for _ in I:
         agent.step(randomPi = True)
     # Train the net
+    ## Init results and saver
     trainResults = initResultDict()
     if saver is not None:
         saver.addObj(trainResults, "training_results")
+        saver.addObj(policy.dqnOnline,"online_net",
+                    isTorch = True, device = policy.device)
         saver.start()
+    def saverAll():
+        if saver is not None:
+            saver.saveAll()
     miniBatchSize = config["train"]["mini_batch_size"]
     stepsPerEpoch = config["agent"]["steps_per_epoch"]
     freqTest = config["train"]["freq_test"]
@@ -93,15 +103,13 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
             I.write("Testing ...")
             results, trainResults, stop = testEvaluation(config, agent, trainResults)
             I.write("Test results {}".format(results))
-            
         # Stop condition
         if stop:
-            if saver is not None:
-                saver.saveAll()
+            saverAll()
             break
         # Check the saver status
         if saver is not None:
             saver.check()
-
+    saverAll()
     return trainResults
     

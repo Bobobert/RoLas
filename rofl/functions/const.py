@@ -30,7 +30,7 @@ def assertProb(sus):
     return sus
 
 def assertIntPos(sus):
-    f = (sus > 0) and isinstance(f, (int))
+    f = (sus > 0) and isinstance(sus, (int))
     if not f:
         raise ValueError("Value must be an integer greater than 0")
     return sus
@@ -56,6 +56,7 @@ MEMORY_SIZE = 10**6
 LHIST = 4
 FRAME_SIZE = [84,84]
 GAMMA = 0.99
+RNN_BOOT_DEFT = 10
 
 ### GX ###
 ALPHA = 0.15
