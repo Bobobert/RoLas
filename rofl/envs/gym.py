@@ -1,5 +1,9 @@
 from gym import make
-from gym.envs.atari import AtariEnv
+try:
+    from gym.envs.atari import AtariEnv
+except:
+    print("Atari Environments are not available")
+    AtariEnv = None
 
 def gymEnvMaker(config):
     name = config["env"]["name"]

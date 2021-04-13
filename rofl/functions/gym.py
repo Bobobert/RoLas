@@ -13,3 +13,8 @@ def noOpSample(env):
         return 0.0
     elif isinstance(sample, ARRAY):
         return sample.fill(0.0)
+
+def assertActionSpace(config):
+    sus = config["env"].get("action_space")
+    assert isinstance(sus, Space), "Space needs to be a Space from gym package"
+    return sus

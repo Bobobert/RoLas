@@ -143,7 +143,7 @@ class Agent(ABC):
         meanAccReward, meanSteps = np.mean(accRew[:testReg]), np.mean(steps[:testReg])
         stdMean, stdMeanSteps = np.std(accRew[:testReg]), np.std(steps[:testReg])
         # Register to tb writer if available
-        if self.tbw is not None:
+        if self.tbw != None:
             self.tbw.add_scalar("test/mean Return", meanAccReward, self.testCalls)
             self.tbw.add_scalar("test/mean Steps", meanSteps, self.testCalls)
             self.tbw.add_scalar("test/std Return", stdMean, self.testCalls)

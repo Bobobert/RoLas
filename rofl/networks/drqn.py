@@ -3,6 +3,7 @@ from .base import QValue
 
 class forestFireDRQNlstm(QValue):
     name = "ff_drqn_lstm"
+    h0 = 328
     def __init__(self, config):
         super(forestFireDRQNlstm, self).__init__()
         actions = config["policy"]["n_actions"]
@@ -18,19 +19,29 @@ class forestFireDRQNlstm(QValue):
         dim = sqrConvDim(obsShape[0], 5, 2)
         self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
         dim = sqrConvDim(dim, 3, 1)
-        self.ru1 = nn.LSTM(lHist * 12 * dim**2 + 2, 328,
+        self.inputHiddenSize = lHist * 12 * dim**2 + 2
+        self.ru1 = nn.LSTM(self.inputHiddenSize, self.h0,
                             batch_first=True)
-        self.fc1 = nn.Linear(328, actions) # from V1
+        self.fc1 = nn.Linear(self.h0, actions) # from V1
     
-    def forward(self, obs, hidden):
+    def cnnForward(self, obs):
         frame, pos= obs["frame"], obs["position"]
-        # For RNN handling single channel only
         x = self.rectifier(self.cv1(frame.unsqueeze(1))) 
         x = self.rectifier(self.cv2(x))
+        return Tcat([x.flatten(1), pos], dim=1).unsqueeze(1)
+
+    def completeForward(self, obs, hiddenT):
+        features = self.cnnForward(obs)
+        x, h = self.ru1(features, hiddenT)
+        x = self.fc1(x).squeeze(1)
+        return x, h
+
+    def forward(self, obs, hidden):
+        # For RNN handling single channel only
         # Features extraction
-        x = Tcat([x.flatten(1), pos], dim=1)
+        x = self.cnnForward(obs)
         # Recurrent forward
-        x , h0 = self.ru1(x.unsqueeze(1), hidden[0])
+        x , h0 = self.ru1(x, hidden[0])
         hidden[0] = h0
         return self.fc1(x).squeeze(1)
 
@@ -38,38 +49,13 @@ class forestFireDRQNlstm(QValue):
         new = forestFireDRQNlstm(self.config)
         return new
 
-class forestFireDRQNgru(QValue):
+class forestFireDRQNgru(forestFireDRQNlstm):
     name = "ff_drqn_gru"
     def __init__(self, config):
-        super(forestFireDRQNgru, self).__init__()
-        actions = config["policy"]["n_actions"]
-        obsShape = config["env"]["obs_shape"]
-        self.config= config
-        
-        self.outputs = actions
-        self.obsShape = obsShape
-        self.rectifier = F.relu
+        super(forestFireDRQNgru, self).__init__(config)
 
-        lHist = 1
-        self.cv1 = nn.Conv2d(lHist, lHist * 6, 5, 2)
-        dim = sqrConvDim(obsShape[0], 5, 2)
-        self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
-        dim = sqrConvDim(dim, 3, 1)
-        self.ru1 = nn.GRU(lHist * 12 * dim**2 + 2, 328,
+        self.ru1 = nn.GRU(self.inputHiddenSize, self.h0,
                             batch_first=True)
-        self.fc1 = nn.Linear(328, actions) # from V1
-    
-    def forward(self, obs, hidden):
-        frame, pos= obs["frame"], obs["position"]
-        # For RNN handling single channel only
-        x = self.rectifier(self.cv1(frame.unsqueeze(1))) 
-        x = self.rectifier(self.cv2(x))
-        # Features extraction
-        x = Tcat([x.flatten(1), pos], dim=1)
-        # Recurrent forward
-        x , h0 = self.ru1(x.unsqueeze(1), hidden[0])
-        hidden[0] = h0
-        return self.fc1(x).squeeze(1)
 
     def new(self):
         new = forestFireDRQNgru(self.config)

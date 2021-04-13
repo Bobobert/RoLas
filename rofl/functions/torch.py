@@ -54,5 +54,12 @@ def analysisGrad(net, calculateMean: bool = False, calculateMax: bool = True):
     if calculateMax:
         max_grad = max(p.grad.detach().abs().max() for p in net.parameters()).item()
     if calculateMean:
-        mean_grad = torch.mean(torch.tensor([torch.mean(p.grad.detach()) for p in net.parameters()])).item()
+        mean_grad = Tmean(torch.tensor([Tmean(p.grad.detach()) for p in net.parameters()])).item()
     return max_grad, mean_grad
+
+def zeroGrad(net):
+    for p in net.parameters():
+        p.grad = p.new_zeros(p.shape)
+
+def clipGrads(net, clip:float):
+    nn.utils.clip_grad_value_(net.parameters(), clip)

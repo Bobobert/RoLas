@@ -13,14 +13,21 @@ import numpy as np
 ### FUNCTION FROM LIBS ###
 ceil = math.ceil
 floor = math.floor
+Tsum = torch.sum
+Tlog = torch.log
 Tcat = torch.cat
 Tmul = torch.mul
+Tdiv = torch.div
+Tpow = torch.pow
+Tmean = torch.mean
+Tstd = torch.std
 Tdevice = torch.device
 no_grad = torch.no_grad
+from numba.typed import List
 try:
     from torch.utils.tensorboard import SummaryWriter
 except:
-    SummaryWriter = None
+    from .dummy import dummyTBW as SummaryWriter
 
 #### LITTLE USEFUL FUNCTIONS ###
 def assertProb(sus):
@@ -50,12 +57,15 @@ ARRAY = np.ndarray
 ### CONSTANTS DEFAULTS ###
 TEST_N_DEFT = 20
 MAX_EPISODE_LENGTH = -1
+OPTIMIZER_DEF = "adam"
+OPTIMIZER_LR_DEF = 5e-5
 
 ### DQN ###
 MEMORY_SIZE = 10**6
 LHIST = 4
 FRAME_SIZE = [84,84]
 GAMMA = 0.99
+LAMDA_GAE = 1.0
 RNN_BOOT_DEFT = 10
 
 ### GX ###

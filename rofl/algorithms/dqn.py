@@ -25,12 +25,12 @@ config = {
         "max_time": None,
     },
     "policy":{
-        "learning_rate":5e-5,
+        "learning_rate":OPTIMIZER_LR_DEF,
         "epsilon_start": 1,
         "epsilon_end": 0.1,
         "epsilon_test": 0.05,
         "epsilon_life": 10**6,
-        "optimizer": "adam",
+        "optimizer": OPTIMIZER_DEF,
         "minibatch_size": 32,
         "freq_update_target":2500,
         "n_actions":18,
@@ -42,6 +42,7 @@ config = {
         "recurrent_hidden_size":328,
         "recurrent_units":1,
         "recurrent_boot":10,
+        "clip_grad": 0.0,
     },
     "env":{
         "name":"forestFire",
@@ -87,7 +88,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     def saverAll():
         if saver is not None:
             saver.saveAll()
-    miniBatchSize = config["train"]["mini_batch_size"]
+    miniBatchSize = config["policy"]["minibatch_size"]
     stepsPerEpoch = config["agent"]["steps_per_epoch"]
     freqTest = config["train"]["freq_test"]
     p = stepsPerEpoch / miniBatchSize

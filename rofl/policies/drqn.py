@@ -1,43 +1,73 @@
 from rofl.functions.const import *
 from rofl.functions.torch import *
 from rofl.policies.dqn import dqnPolicy
-from rofl.utils.drqn import recurrentArguments, unpackBatch
+from rofl.utils.drqn import recurrentArguments, unpackBatch, newZero
 
-# TODO COmplete update for this policy
-def drqnTarget(onlineNet, targetNet, s1, s2, r, t, gamma, boot, hidden, 
-                double:bool = True):
-    with no_grad():
+def procState(state):
+    if isinstance(state, dict):
+        states = []
+        frames, positions = state["frame"], state["position"]
+        # unpack by batch of the recurrent boot
+        for i in range(frames.shape[0]):
+            states += [{"frame":frames[i], "position":positions[i]}]
+        return states
+    return state
+
+def drqnForward(net, states, config, grad = True):
+    # Init vars
+    c = config["policy"]
+    units, size, lstm = c["recurrent_units"], c["recurrent_hidden_size"], c["recurrent_unit"]
+    layers = c["recurrent_layers"]
+    nBoot, batch = c["recurrent_boot"], c["minibatch_size"]
+    h0 = newZero(batch, units * layers, size, net.device, lstm, grad)
+    outs, hiddens = [], []
+    # Doing forward for every state
+    for i in range(nBoot + 1, -1, -1):
+        if i == (nBoot + 1):
+            out, hidden = net.completeForward(states[i], h0)
+        else:
+            out, hidden = net.completeForward(states[i], hiddens[-1])
+        outs += [out]
+        hiddens += [hidden]
+    # Returns from the oldest to the newest
+    # The last two are s1, s2 from the actual time
+    return outs, hidden
+
+def drqnTarget(targetOuts, onlineOuts, rewards, terminals, gamma, double = True):
+    targets, n = [], len(targetOuts)
+    for i in range(n - 1): # Stop at s1
         # First use the hidden from onlineNet
         if double:
-            On_model_out = onlineNet.forward(s2, hidden)
+            On_model_out = onlineOuts[i + 1]
             a_greedy = On_model_out.max(1)[1]
-        # Boot the target network
-        hidden.reset()
-        bootRecurrent(targetNet, boot, hidden)
-        _ = targetNet.forward(s1, hidden)
-        model_out = targetNet.forward(s2, hidden)
+        model_out = targetOuts[i + 1]
         if double:
             Qs2_max = model_out.gather(1, a_greedy.unsqueeze(1)).squeeze(1)
         else:
             Qs2_max = model_out.max(1)[0] 
-        target = r + Tmul(t, Qs2_max).mul(gamma).reshape(r.shape)
-    return target.unsqueeze(1)
+        r, t = rewards[n - 1 - i], terminals[n - 1 - i]
+        target = r + Tmul(t, Qs2_max.unsqueeze(1)).mul(gamma).reshape(r.shape)
+        targets += [target]
+    # From oldest to newest, len(targets) = len(Outs) - 1
+    return targets
 
-def bootRecurrent(net, bootStates, hidden):
-    r = len(bootStates["frame"])
-    with no_grad():
-        for i in range(r-1, -1, -1):
-            bootState = {"frame":bootStates["frame"][i],"position":bootStates["position"][i]}
-            net.forward(bootState, hidden)
+def drqnGatherActions(values, actions):
+    n = len(values)
+    gatherValues = []
+    for i in range(n - 1): # Stop at s1
+        # Actions are from newest to oldest 0 = n
+        actions_ = actions[n - 1 - i]
+        gatherValues += [values[i].gather(1, actions_)]
+    # From oldest to newest, len(targets) = len(Outs) - 1
+    return gatherValues
 
 class drqnPolicy(dqnPolicy):
     name = "drqnPolicy"
 
     def __init__(self, config, dqn, tbw = None):
         super(drqnPolicy, self).__init__(config, dqn, tbw)
-
+        self.clipGrad = config["policy"].get("clip_grad")
         self.recurrentBoot = config["policy"].get("recurrent_boot", 10)
-        self.recurrentStateBatch = recurrentArguments(config)
         self.recurrentState = recurrentArguments(config)
     
     def getAction(self, state):
@@ -51,24 +81,33 @@ class drqnPolicy(dqnPolicy):
             return outValue.argmax(1).item()
 
     def update(self, *infoDicts):
-        st1, st2, rewards, actions, dones, boot = unpackBatch(*infoDicts, device = self.device)
-        # Make zeros the hidden states
-        hidden = self.recurrentStateBatch
-        hidden.initHidden(device = self.device)
-        bootRecurrent(self.dqnOnline, boot, hidden)
-        qValues = self.dqnOnline(st1, hidden).gather(1, actions)
-        qTargets = drqnTarget(self.dqnOnline, self.dqnTarget, 
-                                st1, st2, rewards, dones, self.gamma, 
-                                boot, hidden, self.double)
-
-        loss = F.smooth_l1_loss(qValues, qTargets, reduction="mean")
+        states, rewards, actions, dones = unpackBatch(*infoDicts, device = self.device)
+        states = procState(states)
+        # Forward Online net
+        onlineOut, onlineHiddens = drqnForward(self.dqnOnline, states, self.config, True)
+        # Forward Target net
+        with no_grad():
+            targetOut, targetHiddens = drqnForward(self.dqnTarget, states, self.config, False)
+        # Calculate targets and values
+        # List from older to newest
+        qTargets = drqnTarget(targetOut, onlineOut, rewards, dones, self.gamma, self.double)
+        qValues = drqnGatherActions(onlineOut, actions)
+        # Calculate and apply losses
+        losses = np.zeros(len(qValues))
         self.optimizer.zero_grad()
-        loss.backward()
+        for i in range(len(qValues) - 1, -1 , -1):
+            loss = F.smooth_l1_loss(qValues[i], qTargets[i], reduction="mean")
+            if i == 0:
+                loss.backward()
+            else:
+                loss.backward(retain_graph = True)
+            losses[i] = loss.item()
+        if self.clipGrad > 0.0:
+            clipGrads(self.dqnOnline, self.clipGrad)
         self.optimizer.step()
 
-        if self.tbw is not None:
-            self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
-            self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epochs)
+        if self.tbw != None:
+            self.tbw.add_scalar('train/Loss', np.mean(losses), self.epochs)
             max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)

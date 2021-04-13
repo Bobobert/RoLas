@@ -2,11 +2,14 @@ from rofl.functions.const import *
 from rofl.utils.dqn import MemoryReplay
 
 def newZeroFromT(T):
-    return T.new_zeros(T.shape).to(T.device)#.requires_grad_(T.requires_grad)
+    return T.new_zeros(T.shape).to(T.device).requires_grad_(T.requires_grad)
 
-def newZero(batch, number, size, device):
-    shape = [number, batch, size] 
-    T = torch.zeros(shape, dtype = F_TDTYPE_DEFT).to(device)#.requires_grad_()
+def newZero(batch, number, size, device = DEVICE_DEFT, 
+                lstm = False, grad = False):
+    shape = [number, batch, size]
+    T = torch.zeros(shape, dtype = F_TDTYPE_DEFT).to(device).requires_grad_(grad)
+    if lstm:
+        return (T, newZeroFromT(T))
     return T
 
 def hiddenShape(T):
@@ -29,8 +32,7 @@ class hiddenState:
 
     def initHidden(self, batch, number, size, device, lstm):
         if lstm:
-            self.hidden = (newZero(batch,number,size,device),\
-                            newZero(batch,number,size,device))
+            self.hidden = newZero(batch,number,size,device, True)
         else:
             self.hidden = newZero(batch,number,size,device)
 
@@ -67,17 +69,23 @@ class recurrentArguments:
         self.units = [hiddenState() for _ in range(units)]
 
     def __checkLen__(self, i:int):
-        if i >= len(self.units):
+        if i > len(self.units):
             raise IndexError("This Argument holds just {} hidden states".format(len(self.units)))
+        if i == len(self.units):
+            return True
+        return False
 
     def __getitem__(self, i:int):
         self.__checkLen__(i)
         return self.units[i].hidden
 
     def __setitem__(self, i:int, x):
-        self.__checkLen__(i)
-        assert self.units[i].shape == hiddenShape(x), "Shapes must be equal"
-        self.units[i].hidden = x
+        if self.__checkLen__(i):
+            neu = hiddenState().hidden = x
+            self.units.append(neu)
+        else:
+            assert self.units[i].shape == hiddenShape(x), "Shapes must be equal"
+            self.units[i].hidden = x
 
     def initHidden(self, batch = None, number=None, size=None, 
                         device = DEVICE_DEFT):
@@ -113,9 +121,10 @@ class MemoryReplayRecurrentFF(MemoryReplay):
                  state_shape:list = FRAME_SIZE,
                  recurrent_boot:int = RNN_BOOT_DEFT,
                  state_dtype_in:np.dtype = np.uint8,
-                 pos_dtype_in:np.dtype = I_NDTYPE_DEFT,
+                 pos_dtype_in:np.dtype = F_NDTYPE_DEFT,
                  action_dtype_in:np.dtype = np.uint8,
                  reward_dtype_in:np.dtype = F_NDTYPE_DEFT,
+                 nCol:int = 1, nRow:int = 1,
                  ):
         
         self.s_in_shape = state_shape
@@ -132,6 +141,7 @@ class MemoryReplayRecurrentFF(MemoryReplay):
         self.a_buffer = np.zeros(capacity, dtype = action_dtype_in)
         self.r_buffer = np.zeros(capacity, dtype = reward_dtype_in)
         self.t_buffer = np.ones(capacity, dtype = np.bool_) # Inverse logic
+        self.nCol, self.nRow = nCol, nRow
 
     def add(self, s, a, r, t):
         """
@@ -139,7 +149,7 @@ class MemoryReplayRecurrentFF(MemoryReplay):
         """
         s, p = s["frame"], s["position"]
         self.s_buffer[self._i] = s
-        self.p_buffer[self._i] = p
+        self.p_buffer[self._i] = (p[0] / self.nRow, p[1] / self.nCol)
         self.a_buffer[self._i] = a
         self.r_buffer[self._i] = r
         self.t_buffer[self._i] = not t
@@ -187,76 +197,58 @@ class MemoryReplayRecurrentFF(MemoryReplay):
         if self._i > mini_batch_size + 1 or self.FO:
             ids = np.random.randint(1, self.capacity - 1 if self.FO else self._i - 2, 
                                     size=mini_batch_size)
-            bootS = np.zeros([self.rnnBoot, mini_batch_size] + self.shapeHistOut,
-                            dtype = F_NDTYPE_DEFT)
-            bootP = np.zeros([self.rnnBoot, mini_batch_size] + [2],
-                            dtype = F_NDTYPE_DEFT)
+            bootShape = [self.rnnBoot + 2, mini_batch_size]
+            bootS = np.zeros( bootShape + self.shapeHistOut, dtype = F_NDTYPE_DEFT)
+            bootP = np.zeros(bootShape + [2], dtype = F_NDTYPE_DEFT)
+            bootA = np.zeros(bootShape + [1], dtype = np.long)
+            bootR = np.zeros(bootShape + [1], dtype = F_NDTYPE_DEFT)
+            bootT = np.zeros(bootShape + [1], dtype = F_NDTYPE_DEFT)
             # make the boot
             for m, i in enumerate(ids):
-                for n, j in enumerate(range(i - 1, i  - 1 - self.rnnBoot, -1)):
-                    s, p, _, _, t = self[j]
+                for n, j in enumerate(range(i + 1, i - self.rnnBoot - 1, -1)):
+                    s, p, a, r, t = self[j]
                     if not t:
                         break
                     bootS[n][m] = s
                     bootP[n][m] = p
+                    bootA[n][m] = a
+                    bootR[n][m] = r
+                    bootT[n][m] = t
             # Passing to torch format
-            st1 = torch.from_numpy(self.s_buffer[ids]).to(device).float().div(255).detach_().requires_grad_()
-            st2 = torch.from_numpy(self.s_buffer[ids + 1]).to(device).float().div(255)
-            pos1 = torch.from_numpy(self.p_buffer[ids]).to(device).float()
-            pos2 = torch.from_numpy(self.p_buffer[ids + 1]).to(device).float()
             bootS = torch.from_numpy(bootS).to(device).div(255).detach_().requires_grad_()
             bootP = torch.from_numpy(bootP).to(device).float()
-            st1, st2 = {"frame":st1, "position":pos1}, {"frame":st2, "position":pos2}
-            boot = {"frame":bootS, "position":bootP}
-            terminals = torch.from_numpy(self.t_buffer[ids]).to(device).float()
-            at = torch.from_numpy(self.a_buffer[ids]).to(device).long()
-            rt = torch.from_numpy(self.r_buffer[ids]).to(device).float()
-            return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals, 
-                    "obsType":"framePos", "recurrent_boot":boot}
+            terminals = torch.from_numpy(bootT).to(device).float()
+            at = torch.from_numpy(bootA).to(device).long()
+            rt = torch.from_numpy(bootR).to(device).float()
+            return {"reward": rt, "action":at, "done":terminals, 
+                    "obsType":"framePos", "frame":bootS, "position":bootP, "st":None}
         else:
             raise IndexError("The memory does not contains enough transitions to generate the sample")
 
 def unpackBatch(*dicts, device = DEVICE_DEFT):
     if len(dicts) > 1:
-        states1, states2, actions, rewards, dones  = [], [], [], [], []
-        pos1, pos2 = [], []
+        actions, rewards, dones  = [], [], []
         bootS, bootP = [],[]
         for trajectory in dicts:
-            states1 += [trajectory["st"]["frame"]]
-            states2 += [trajectory["st1"]["frame"]]
-            pos1 += [trajectory["st"]["position"]]
-            pos2 += [trajectory["st1"]["position"]]
             actions += [trajectory["action"]]
             rewards += [trajectory["reward"]]
             dones += [trajectory["done"]]
-            bootS += [trajectory["recurrent_boot"]["frame"]]
-            bootP += [trajectory["recurrent_boot"]["position"]]
-        st1 = Tcat(states1, dim=0)
-        st2 = Tcat(states2, dim=0)
-        pos1, pos2 = Tcat(pos1), Tcat(pos2)
-        actions = Tcat(actions, dim=0)
-        rewards = Tcat(rewards, dim=0)
-        dones = Tcat(dones, dim=0)
+            bootS += [trajectory["frame"]]
+            bootP += [trajectory["position"]]
+        actions = Tcat(actions)
+        rewards = Tcat(rewards)
+        dones = Tcat(dones)
         bootS, bootP = Tcat(bootS), Tcat(bootP)
     else:
         trajectory = dicts[0]
-        st1 = trajectory["st"]["frame"]
-        pos1 = trajectory["st"]["position"]
-        pos2 = trajectory["st1"]["position"]
-        st2 = trajectory["st1"]["frame"]
         actions = trajectory["action"]
         rewards = trajectory["reward"]
         dones = trajectory["done"]
-        bootS = trajectory["recurrent_boot"]["frame"]
-        bootP = trajectory["recurrent_boot"]["position"]
+        bootS = trajectory["frame"]
+        bootP = trajectory["position"]
 
-    st1, st2 = st1.to(device), st2.to(device)
-    pos1, pos2 = pos1.to(device).float(), pos2.to(device).float()
-    st1 = {"frame":st1, "position":pos1}
-    st2 = {"frame":st2, "position":pos2}
     bootS, bootP = bootS.to(device), bootP.to(device).float()
-    boot = {"frame":bootS, "position":bootP}
     rewards = rewards.to(device)
     dones = dones.to(device)
-    actions = actions.to(device).unsqueeze(1).long()
-    return st1, st2, rewards, actions, dones, boot
+    actions = actions.to(device).long()
+    return {"frame":bootS, "position":bootP}, rewards, actions, dones

@@ -1,5 +1,10 @@
 from rofl.functions.const import *
 
+def isItem(T):
+    if T.squeeze().shape == ():
+        return True
+    return False
+
 class BaseNet(nn.Module):
     """
     Class base for all the networks. Common methods.
@@ -58,7 +63,7 @@ class QValue(BaseNet):
             values = self.forward(x)
             max_a = values.argmax(1)
 
-        if values.shape[0] == 1:
+        if isItem(max_a):
             return max_a.item()
         else:
             return max_a.to(DEVICE_DEFT).squeeze().numpy()
@@ -78,6 +83,17 @@ class Actor(BaseNet):
         """
         raise NotImplementedError
 
+    def processAction(self, action):
+        """
+            Given the network properties, process the actions
+            accordingly
+        """
+        if self.discrete and isItem(action):
+            action = action.item()
+        else:
+            action = action.to(DEVICE_DEFT).squeeze().numpy()
+        return action
+
     def getAction(self, x):
         """
         From a tensor observation returns the sampled actions and 
@@ -89,8 +105,9 @@ class Actor(BaseNet):
         """
         with no_grad():
             distParams = self.forward(x)
-        return self.sampleAction(distParams)
-    
+            action, _, _ = self.sampleAction(distParams)
+        return self.processAction(action)
+        
     def sampleAction(self, params):
         """
         Creates, samples and returns the action and log_prob for it
@@ -107,11 +124,6 @@ class Actor(BaseNet):
         action = dist.sample()
         log_prob = dist.log_prob(action)
         entropy = dist.entropy()
-        
-        if self.discrete:
-            action = action.item()
-        else:
-            action.to(DEVICE_DEFT).squeeze(0).numpy()
 
         return action, log_prob, entropy
 
@@ -162,7 +174,8 @@ class ActorCritic(Actor):
         """
         with torch.no_grad():
             distParams = self.actorForward(self.sharedForward(x))
-        return self.sampleAction(distParams)
+            action, _, _ = self.sampleAction(distParams)
+        return self.processAction(action)
 
     def getValue(self, x):
         """

@@ -1,10 +1,10 @@
 from .dqn import dqnAtariAgent
 from rofl.utils.dqn import *
+from rofl.utils.cv import imgResize, YChannelResize
 from rofl.utils.drqn import recurrentArguments, MemoryReplayRecurrentFF
 
 class drqnFFAgent(dqnAtariAgent):
     name = "drqnForestFireAgentv0"
-
     def __init__(self, config, policy, envMaker,
                     tbw = None, useTQDM = False):
         # From the original agent
@@ -14,7 +14,8 @@ class drqnFFAgent(dqnAtariAgent):
         obsShape = config["env"]["obs_shape"]
         self.memory = MemoryReplayRecurrentFF(capacity=config["agent"]["memory_size"],
                         state_shape = obsShape,
-                        recurrent_boot = config["policy"]["recurrent_boot"])
+                        recurrent_boot = config["policy"]["recurrent_boot"],
+                        nCol = config["env"]["n_col"], nRow = config["env"]["n_row"])
         self.lastPos = None
 
     def processObs(self, obs, reset: bool = False):

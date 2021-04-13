@@ -1,12 +1,4 @@
 from rofl.functions.const import *
-import cv2
-
-def imgResize(f, size = FRAME_SIZE):
-    return cv2.resize(f, size)
-
-def YChannelResize(f, size = FRAME_SIZE):
-    f = cv2.cvtColor(f, cv2.COLOR_RGB2YUV)[:,:,0]
-    return imgResize(f, size)
 
 class MemoryReplay(object):
     """
@@ -139,7 +131,7 @@ class MemoryReplay(object):
             plt.pause(Wait)
             plt.close(fig)
 
-class MemoryReplayFF(MemoryReplay):
+class MemoryReplayFF__(MemoryReplay):
     """
     Main Storage for the transitions experienced by the actors.
 
@@ -188,6 +180,108 @@ class MemoryReplayFF(MemoryReplay):
         self._i = (self._i + 1) % self.capacity
         if self._i == 0:
             self.FO = True
+
+    def __getitem__(self, i:int):
+        if i < self._i or self.FO:
+            i = i % self.capacity
+            return (self.s_buffer[i],
+                    self.p_buffer[i],
+                    self.a_buffer[i],
+                    self.r_buffer[i],
+                    self.t_buffer[i])
+        else:
+            return self.zeroe
+
+    @property
+    def zeroe(self):
+        return (np.zeros(self.s_in_shape, dtype=self.s_dtype_in),
+                (0,0),
+                0,
+                0.0,
+                False)
+
+    def sample(self, mini_batch_size:int, device = DEVICE_DEFT):
+        """
+        Process and returns a mini batch. The tuple returned are
+        all torch tensors.
+        
+        If device is cpu class, this process may consume more cpu resources
+        than expected. Could be detrimental if hosting multiple instances. 
+        This seems expected from using torch. (Y)
+
+        Parameters
+        ---------
+        mini_batch_size: int
+            Number of samples that compose the mini batch
+        device: torch.device
+            Optional. Torch device target for the mini batch
+            to reside on.
+        """
+        assert mini_batch_size > 0, "The size of the mini batch must be positive"
+
+        if self._i > mini_batch_size + self.LHist or self.FO:
+            ids = np.random.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
+                                    size=mini_batch_size)
+            st1 = np.zeros([mini_batch_size] + self.shapeHistOut, 
+                           dtype = F_NDTYPE_DEFT)
+            st2 = st1.copy()
+            for m, i in enumerate(ids):
+                for n, j in enumerate(range(i + 1, i - self.LHist, -1)):
+                    s, _, _, _, t = self[j]
+                    if n < self.LHist:
+                        st2[m][n] = s.copy()
+                    if n > 0:
+                        st1[m][n - 1] = s.copy()
+                    if not t and n >= 0:
+                        # This should happend rarely
+                        break
+
+            # Passing to torch format
+            st1 = torch.from_numpy(st1).to(device).div(255).detach_().requires_grad_()
+            st2 = torch.from_numpy(st2).to(device).div(255)
+            pos1 = torch.from_numpy(self.p_buffer[ids]).to(device).float()
+            pos2 = torch.from_numpy(self.p_buffer[ids + 1]).to(device).float()
+            st1, st2 = {"frame":st1, "position":pos1}, {"frame":st2, "position":pos2}
+            terminals = torch.from_numpy(self.t_buffer[ids]).to(device).float()
+            at = torch.from_numpy(self.a_buffer[ids]).to(device).long()
+            rt = torch.from_numpy(self.r_buffer[ids]).to(device).float()
+            return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals, "obsType":"framePos"}
+        else:
+            raise IndexError("The memory does not contains enough transitions to generate the sample")
+
+class MemoryReplayFF(MemoryReplay):
+    """
+    Main Storage for the transitions experienced by the actors.
+
+    It has methods to Sample
+
+    Parameters
+    ----------
+    capacity: int
+        Number of transitions to store
+    """
+    def __init__(self,
+                 capacity:int = MEMORY_SIZE,
+                 state_shape:list = FRAME_SIZE,
+                 LHist:int = LHIST,
+                 state_dtype_in:np.dtype = np.uint8,
+                 pos_dtype_in:np.dtype = F_NDTYPE_DEFT,
+                 action_dtype_in:np.dtype = np.uint8,
+                 reward_dtype_in:np.dtype = F_NDTYPE_DEFT,
+                 nCol: int = 1, nRow: int = 1,
+                 ):
+        super().__init__(capacity, state_shape, LHist,
+                state_dtype_in, action_dtype_in, reward_dtype_in)
+        self.p_buffer = np.zeros([self.capacity] + [2], dtype = pos_dtype_in)
+        self.nCol, self.nRow = nCol, nRow
+
+    def add(self, s, a, r, t):
+        """
+        Add one item
+        """
+        s, p = s["frame"], s["position"]
+        super().add(s, a, r, t)
+        self.p_buffer[self._i] = (p[0] / self.nRow, p[1] / self.nCol)
 
     def __getitem__(self, i:int):
         if i < self._i or self.FO:

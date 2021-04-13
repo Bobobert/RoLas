@@ -1,6 +1,7 @@
 from .base import Agent
 from rofl.functions.const import *
-from rofl.utils.dqn import MemoryReplay, MemoryReplayFF, YChannelResize, imgResize
+from rofl.utils.dqn import MemoryReplay, MemoryReplayFF
+from rofl.utils.cv import imgResize, YChannelResize
 from rofl.functions.gym import noOpSample
 from tqdm import tqdm
 
@@ -133,7 +134,7 @@ class dqnAtariAgent(Agent):
         with no_grad():
             model_out = self.policy.dqnOnline(self.fixedTrajectory)
             mean = torch.mean(model_out.max(1).values).item()
-        if self.tbw is not None:
+        if self.tbw != None:
             self.tbw.add_scalar("test/mean max Q", mean, self.testCalls)
         return mean
 
@@ -168,7 +169,8 @@ class dqnFFAgent(dqnAtariAgent):
         obsShape, lhist  = config["env"]["obs_shape"], config["agent"]["lhist"]
         self.memory = MemoryReplayFF(capacity=config["agent"]["memory_size"],
                         state_shape = obsShape,
-                        LHist= lhist)
+                        LHist= lhist,
+                        nCol = config["env"]["n_col"], nRow = config["env"]["n_row"])
         self.lastPos = None
 
     def processObs(self, obs, reset: bool = False):
