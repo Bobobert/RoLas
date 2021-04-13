@@ -14,12 +14,13 @@ config["env"]["obs_mode"] = "followGridPos"
 config["env"]["reward_type"] = "hit"
 config["env"]["n_col"] = 100
 config["env"]["n_row"] = 100
-config["env"]["obs_shape"] = (52,52)
+config["env"]["obs_shape"] = (26,26)
 config["policy"]["n_actions"] = 9
-config["agent"]["lhist"] = 6
+config["agent"]["lhist"] = 5
 config["agent"]["clip_reward"] = 0.0
 config["agent"]["no_op_start"] = 10
-config["train"]["epochs"] = 6*10**5
+config["agent"]["scale_pos"] = False
+config["train"]["epochs"] = 5*10**5
 config["train"]["fill_memory"] = 10**3
 config["train"]["iters_test"] = 20
 

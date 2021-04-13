@@ -167,10 +167,13 @@ class dqnFFAgent(dqnAtariAgent):
                                             tbw = tbw, useTQDM=useTQDM)
 
         obsShape, lhist  = config["env"]["obs_shape"], config["agent"]["lhist"]
+        nCol, nRow = config["env"]["n_col"], config["env"]["n_row"]
+        if not config["agent"].get("scale_pos", False):
+            nCol, nRow = 1, 1
         self.memory = MemoryReplayFF(capacity=config["agent"]["memory_size"],
                         state_shape = obsShape,
                         LHist= lhist,
-                        nCol = config["env"]["n_col"], nRow = config["env"]["n_row"])
+                        nCol = nCol, nRow = nRow)
         self.lastPos = None
 
     def processObs(self, obs, reset: bool = False):
