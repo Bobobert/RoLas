@@ -63,3 +63,23 @@ def zeroGrad(net):
 
 def clipGrads(net, clip:float):
     nn.utils.clip_grad_value_(net.parameters(), clip)
+
+def cloneState(states, grad: bool = True, ids = None):
+    if ids is not None:
+        assert isinstance(ids, (ARRAY, TENSOR)), "ids must be a ndarray or a torch.Tensor"
+    def cloneT(T):
+        return torch.clone(T).detach_().requires_grad_(grad)
+    if isinstance(states, TENSOR):
+        if ids is not None:
+            states = states[ids]
+        return cloneT(states)
+    elif isinstance(states, dict):
+        new = dict()
+        for key in states.keys():
+            sk = states[key]
+            if ids is not None:
+                sk = sk[ids]
+            new[key] = cloneT(sk)
+        return new
+    else:
+        raise TypeError("State type {} not supported".format(type(states)))

@@ -13,9 +13,12 @@ class Policy(ABC):
     - Exploratory strategy
 
     Methods:
+    
     - getAction: returns the action corresponding
         to the state given
     - getRandom: returns a sample from the action space
+    - sampleAction: returns the action, probability, and entropy
+        from the action's distribution for actor based policies.
     - update: Depending the type of policy updates itself.
         Inputs must be always dictionaries containing the update's
         information or material for approximations
@@ -27,6 +30,7 @@ class Policy(ABC):
     environment, config = None, None
     discrete, test = True, False
     exploratory, tbw = None, None
+    actor = None
     def __init__(self):
         if self.name == "BasePolicy":
             raise NameError("New agent should be called different to BaseAgent")
@@ -52,6 +56,16 @@ class Policy(ABC):
         """
         raise NotImplementedError
 
+    def sampleAction(self, state):
+        """
+            Return the raw action, log_prob and entropy
+            from the action's distribution of the actor
+            policy.
+        """
+        if self.actor != None:
+            return self.actor.sampleAction(state)
+        return None
+        
     def update(self, *infoDicts):
         """
             From the information dictionaries,

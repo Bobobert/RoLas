@@ -4,6 +4,7 @@ import time
 from torch import save, load, device
 import pickle
 import json
+from rofl.functions.vars import Variable
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -79,7 +80,12 @@ def saveConfig(config:dict, expDir:str):
         json file.
     """
     fh = open(expDir + "/config.json", "w")
-    json.dump(config, fh, indent=4)
+
+    def default(o):
+        if isinstance(o, Variable):
+            return o.__repr__()
+
+    json.dump(config, fh, indent=4, default = default)
     fh.close()
 
 def timeToStop(results, expected = None):
@@ -273,3 +279,4 @@ class Saver():
     def load(self, path):
         for ref in self._objRefs_:
             ref.load(path)
+

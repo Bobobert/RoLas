@@ -79,6 +79,9 @@ class Variable(ABC):
     def __floordiv__(self, other):
         self._step_()
         return self._value_.__floordiv__(other)
+    def __neg__(self):
+        self._step_()
+        return self._value_.__neg__()
 
 class linearSchedule(Variable):
     def __init__(self, initValue, life:int, minValue = None, maxValue = None):
@@ -104,3 +107,7 @@ class linearSchedule(Variable):
         y = self._opvalue_ + xm
         self._i_ += 1
         self._value_ = self._F(self._last_, y)
+
+    def __repr__(self):
+        s = "linearSchedule: init {}, last {}, life {}".format(self._opvalue_, self._last_, self._life_)
+        return s

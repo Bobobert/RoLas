@@ -8,34 +8,28 @@ config = {
         "lhist":LHIST,
         "memory_size":MEMORY_SIZE,
         "gamma":GAMMA,
+        "lambda": LAMDA_GAE,
+        "gae": False,
         "max_steps_test":10**4,
-        "steps_per_epoch": 4,
         "clip_reward": 1.0,
         "no_op_start": 30,
-        "scale_pos": False,
     },
     "train":{
-        "fill_memory":10**5,
-        "fixed_q_trajectory":128,
-        "epochs":10**6,
-        "mini_batch_size":32,
-        "freq_test":5*10**4,
-        "iters_test":20,
+        "n_workers": 1,
+        "epochs": 10**3,
+        "batch_size": -1,
+        "batch_proportion" : 1.0,
+        "freq_test": 10**2,
+        "iters_test": 20,
         "expected_perfomance": None,
         "max_performance": None,
         "max_time": None,
     },
     "policy":{
         "learning_rate":OPTIMIZER_LR_DEF,
-        "epsilon_start": 1,
-        "epsilon_end": 0.1,
-        "epsilon_test": 0.05,
-        "epsilon_life": 10**6,
         "optimizer": OPTIMIZER_DEF,
-        "minibatch_size": 32,
-        "freq_update_target":2500,
-        "n_actions":18,
-        "double": True,
+        "entropy_bonus" : 1e-2,
+        "n_actions": 18,
         "evaluate_max_grad":True,
         "evaluate_mean_grad":True,
         "recurrent_unit":"lstm",
@@ -44,6 +38,12 @@ config = {
         "recurrent_units":1,
         "recurrent_boot":10,
         "clip_grad": 0.0,
+    },
+    "baseline":{
+        "learning_rate":OPTIMIZER_LR_DEF,
+        "optimizer":OPTIMIZER_DEF,
+        "minibatch_size" : MINIBATCH_SIZE,
+        "batch_minibatches" : 10,
     },
     "env":{
         "name":"forestFire",
@@ -66,40 +66,29 @@ config = {
 }
 
 def train(config:dict, agent:Agent, policy:Policy, saver = None):
-    # Generate fixed trajectory
-    sizeTrajectory = config["train"]["fixed_q_trajectory"]
-    agent.tqdm = True
-    trajectory = agent.getBatch(sizeTrajectory, 1.05)
-    agent.fixedTrajectory = trajectory["st"]
-    agent.reset()
-    agent.tqdm = False
-    # Fill memory replay
-    sizeInitMemory = config["train"]["fill_memory"]
-    I = tqdm(range(sizeInitMemory), desc="Filling memory replay")
-    for _ in I:
-        agent.step(randomPi = True)
     # Train the net
     ## Init results and saver
     trainResults = initResultDict()
     if saver is not None:
         saver.addObj(trainResults, "training_results")
-        saver.addObj(policy.dqnOnline,"online_net",
+        saver.addObj(policy.actor,"actor_net",
+                    isTorch = True, device = policy.device)
+        if policy.baseline is not None:
+            saver.addObj(policy.baseline, "baseline_net",
                     isTorch = True, device = policy.device)
         saver.start()
     def saverAll():
         if saver is not None:
             saver.saveAll()
-    miniBatchSize = config["policy"]["minibatch_size"]
-    stepsPerEpoch = config["agent"]["steps_per_epoch"]
+    batchSize, p = config["train"]["batch_size"], config["train"]["batch_proportion"]
     freqTest = config["train"]["freq_test"]
-    p = stepsPerEpoch / miniBatchSize
     epochs, stop = config["train"]["epochs"], False
     I = tqdm(range(epochs + 1), unit = "update", desc = "Training Policy")
     ## Train loop
     for epoch in I:
         # Train step
-        miniBatch = agent.getBatch(miniBatchSize, p)
-        policy.update(miniBatch)
+        batch = agent.getBatch(batchSize, p)
+        policy.update(batch)
         # Check for test
         if epoch % freqTest == 0:
             I.write("Testing ...")
@@ -114,4 +103,3 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
             saver.check()
     saverAll()
     return trainResults
-    

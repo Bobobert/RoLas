@@ -8,7 +8,7 @@ class forestFireDRQNlstm(QValue):
         super(forestFireDRQNlstm, self).__init__()
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        self.config= config
+        self.config = config
         
         self.outputs = actions
         self.obsShape = obsShape
@@ -20,9 +20,10 @@ class forestFireDRQNlstm(QValue):
         self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
         dim = sqrConvDim(dim, 3, 1)
         self.inputHiddenSize = lHist * 12 * dim**2 + 2
-        self.ru1 = nn.LSTM(self.inputHiddenSize, self.h0,
+        outhidden = config["policy"].get("recurrent_hidden_size", self.h0)
+        self.ru1 = nn.LSTM(self.inputHiddenSize, outhidden,
                             batch_first=True)
-        self.fc1 = nn.Linear(self.h0, actions) # from V1
+        self.fc1 = nn.Linear(outhidden, actions) # from V1
     
     def cnnForward(self, obs):
         frame, pos= obs["frame"], obs["position"]
@@ -53,8 +54,8 @@ class forestFireDRQNgru(forestFireDRQNlstm):
     name = "ff_drqn_gru"
     def __init__(self, config):
         super(forestFireDRQNgru, self).__init__(config)
-
-        self.ru1 = nn.GRU(self.inputHiddenSize, self.h0,
+        outhidden = config["policy"].get("recurrent_hidden_size", self.h0)
+        self.ru1 = nn.GRU(self.inputHiddenSize, outhidden,
                             batch_first=True)
 
     def new(self):
