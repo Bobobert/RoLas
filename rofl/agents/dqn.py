@@ -34,6 +34,7 @@ class dqnAtariAgent(Agent):
         self.noOpAction = noOpSample(self.envTest) if self.noOpSteps > 0 else None
         self.frameSize = obsShape
         self.isAtari = config["env"]["atari"]
+        self.memPrioritized = config["agent"].get("memory_prioritized", False)
         self.tbw, self.tqdm = tbw, useTQDM
 
         self.fixedTrajectory = None
@@ -92,7 +93,7 @@ class dqnAtariAgent(Agent):
         self.policy.test = False
         for i in I:
             self.step()
-        return self.memory.sample(size, device = self.device)
+        return self.memory.sample(size, device = self.device, prioritized = self.memPrioritized)
 
     def step(self, randomPi = False):
         """
@@ -123,6 +124,7 @@ class dqnAtariAgent(Agent):
         # update memory replay
         markTerminal = done if self.lives == nextLives else True
         self.memory.add(self.lastFrame, action, reward, markTerminal)
+        self.memory.addTD(pi.lastNetOutput)
         # if termination prepare env
         self.done, self.lives = done, nextLives
         if not done:
@@ -140,7 +142,7 @@ class dqnAtariAgent(Agent):
 
     def reset(self):
         self.done = True
-        self.memory._i, self.memory.FO = 0, False
+        self.memory.reset()
 
     def currentState(self):
         """

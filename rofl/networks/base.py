@@ -54,6 +54,12 @@ class QValue(BaseNet):
         self.discrete = True
         self.name = "QValue"
 
+    def processAction(self, action):
+        if isItem(action):
+            return action.item()
+        else:
+            return action.to(DEVICE_DEFT).squeeze().numpy()
+
     def getAction(self, x):
         """
         Returns the max action from the Q network. Actions
@@ -63,10 +69,7 @@ class QValue(BaseNet):
             values = self.forward(x)
             max_a = values.argmax(1)
 
-        if isItem(max_a):
-            return max_a.item()
-        else:
-            return max_a.to(DEVICE_DEFT).squeeze().numpy()
+        return self.processAction(max_a)
 
 class Actor(BaseNet):
     """

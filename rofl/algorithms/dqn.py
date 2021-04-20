@@ -1,6 +1,7 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
 from rofl.functions.stop import testEvaluation, initResultDict
+from rofl.functions.vars import updateVar
 from tqdm import tqdm
 
 config = {
@@ -35,6 +36,7 @@ config = {
         "minibatch_size": 32,
         "freq_update_target":2500,
         "n_actions":18,
+        "net_hidden_1": 328,
         "double": True,
         "evaluate_max_grad":True,
         "evaluate_mean_grad":True,
@@ -62,6 +64,7 @@ config = {
         "seedTrain" : 10,
         "seedTest": 1,
         "freeze":4,
+        "steps_termination" : 128,
     },
 }
 
@@ -69,7 +72,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     # Generate fixed trajectory
     sizeTrajectory = config["train"]["fixed_q_trajectory"]
     agent.tqdm = True
-    trajectory = agent.getBatch(sizeTrajectory, 1.05)
+    trajectory = agent.getBatch(sizeTrajectory, 2.0)
     agent.fixedTrajectory = trajectory["st"]
     agent.reset()
     agent.tqdm = False
@@ -100,6 +103,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
         # Train step
         miniBatch = agent.getBatch(miniBatchSize, p)
         policy.update(miniBatch)
+        updateVar(config)
         # Check for test
         if epoch % freqTest == 0:
             I.write("Testing ...")

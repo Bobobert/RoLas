@@ -22,6 +22,10 @@ Tpow = torch.pow
 Tmean = torch.mean
 Tstd = torch.std
 Tdevice = torch.device
+Texp = torch.exp
+Tdot = torch.dot
+Tsqrt = torch.sqrt
+Tstack = torch.stack
 no_grad = torch.no_grad
 from numba.typed import List
 try:
@@ -68,6 +72,15 @@ FRAME_SIZE = [84,84]
 GAMMA = 0.99
 LAMDA_GAE = 1.0
 RNN_BOOT_DEFT = 10
+
+### TRPO ###
+MAX_DKL = 1e-2
+CG_DAMPING = 1e-3
+
+### PPO ###
+ENTROPY_LOSS = 1e-2
+EPS_SURROGATE = 0.1
+PPO_EPOCHS = 10
 
 ### GX ###
 ALPHA = 0.15

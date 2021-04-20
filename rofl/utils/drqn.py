@@ -1,16 +1,16 @@
 from rofl.functions.const import *
-from rofl.utils.dqn import MemoryReplay
+from rofl.utils.dqn import MemoryReplayFF
 
 def newZeroFromT(T):
     return T.new_zeros(T.shape).to(T.device).requires_grad_(T.requires_grad)
 
-def newZero(batch, number, size, device = DEVICE_DEFT, 
-                lstm = False, grad = False):
+def newZero(batch, number, size, device = DEVICE_DEFT, lstm = False, grad = True):
     shape = [number, batch, size]
-    T = torch.zeros(shape, dtype = F_TDTYPE_DEFT).to(device).requires_grad_(grad)
-    if lstm:
-        return (T, newZeroFromT(T))
-    return T
+    def makeit():
+        return torch.zeros(shape, dtype = F_TDTYPE_DEFT).to(device).requires_grad_(grad)
+    if not lstm:
+        return makeit()
+    return (makeit(), makeit())
 
 def hiddenShape(T):
     s = None
@@ -94,6 +94,7 @@ class recurrentArguments:
         s = self.size if size is None else assertIntPos(size)
         for u in self.units:
             u.initHidden(b, n, s, device, self.lstm)
+        return self
 
     def passHidden(self, *hiddens):
         assert len(hiddens) == len(self.units), "This cannot store more than its capacity"
@@ -105,7 +106,7 @@ class recurrentArguments:
             u.reset()
         self.obs = None
     
-class MemoryReplayRecurrentFF(MemoryReplay):
+class MemoryReplayRecurrentFF(MemoryReplayFF):
     """
     Main Storage for the transitions experienced by the actors.
 
@@ -127,56 +128,12 @@ class MemoryReplayRecurrentFF(MemoryReplay):
                  nCol:int = 1, nRow:int = 1,
                  ):
         
-        self.s_in_shape = state_shape
-        self.s_dtype_in = state_dtype_in
-
-        self.capacity = capacity
+        super().__init__(capacity, state_shape, 1, state_dtype_in,
+                pos_dtype_in, action_dtype_in, reward_dtype_in, nCol, nRow)
         self.rnnBoot = recurrent_boot
         self.shapeHistOut = list(state_shape)
-        self._i = 0
-        self.FO = False
 
-        self.s_buffer = np.zeros([capacity] + list(state_shape), dtype = state_dtype_in)
-        self.p_buffer = np.zeros([capacity] + [2], dtype = pos_dtype_in)
-        self.a_buffer = np.zeros(capacity, dtype = action_dtype_in)
-        self.r_buffer = np.zeros(capacity, dtype = reward_dtype_in)
-        self.t_buffer = np.ones(capacity, dtype = np.bool_) # Inverse logic
-        self.nCol, self.nRow = nCol, nRow
-
-    def add(self, s, a, r, t):
-        """
-        Add one item
-        """
-        s, p = s["frame"], s["position"]
-        self.s_buffer[self._i] = s
-        self.p_buffer[self._i] = (p[0] / self.nRow, p[1] / self.nCol)
-        self.a_buffer[self._i] = a
-        self.r_buffer[self._i] = r
-        self.t_buffer[self._i] = not t
-        self._i = (self._i + 1) % self.capacity
-        if self._i == 0:
-            self.FO = True
-
-    def __getitem__(self, i:int):
-        if i < self._i or self.FO:
-            i = i % self.capacity
-            return (self.s_buffer[i],
-                    self.p_buffer[i],
-                    self.a_buffer[i],
-                    self.r_buffer[i],
-                    self.t_buffer[i])
-        else:
-            return self.zeroe
-
-    @property
-    def zeroe(self):
-        return (np.zeros(self.s_in_shape, dtype=self.s_dtype_in),
-                (0,0),
-                0,
-                0.0,
-                False)
-
-    def sample(self, mini_batch_size:int, device = DEVICE_DEFT):
+    def sample(self, mini_batch_size:int, device = DEVICE_DEFT, prioritized: bool = False):
         """
         Process and returns a mini batch. The tuple returned are
         all torch tensors.
@@ -195,8 +152,7 @@ class MemoryReplayRecurrentFF(MemoryReplay):
         """
         assert mini_batch_size > 0, "The size of the mini batch must be positive"
         if self._i > mini_batch_size + 1 or self.FO:
-            ids = np.random.randint(1, self.capacity - 1 if self.FO else self._i - 2, 
-                                    size=mini_batch_size)
+            ids, ps = self.getIDS(mini_batch_size, prioritized)
             bootShape = [self.rnnBoot + 2, mini_batch_size]
             bootS = np.zeros( bootShape + self.shapeHistOut, dtype = F_NDTYPE_DEFT)
             bootP = np.zeros(bootShape + [2], dtype = F_NDTYPE_DEFT)
@@ -220,14 +176,16 @@ class MemoryReplayRecurrentFF(MemoryReplay):
             terminals = torch.from_numpy(bootT).to(device).float()
             at = torch.from_numpy(bootA).to(device).long()
             rt = torch.from_numpy(bootR).to(device).float()
+            ps = torch.from_numpy(ps).to(device)
             return {"reward": rt, "action":at, "done":terminals, 
-                    "obsType":"framePos", "frame":bootS, "position":bootP, "st":None}
+                    "obsType":"framePos", "frame":bootS, "position":bootP, "st":None,
+                    "IS":ps}
         else:
             raise IndexError("The memory does not contains enough transitions to generate the sample")
 
 def unpackBatch(*dicts, device = DEVICE_DEFT):
     if len(dicts) > 1:
-        actions, rewards, dones  = [], [], []
+        actions, rewards, dones, IS  = [], [], [], []
         bootS, bootP = [],[]
         for trajectory in dicts:
             actions += [trajectory["action"]]
@@ -235,10 +193,12 @@ def unpackBatch(*dicts, device = DEVICE_DEFT):
             dones += [trajectory["done"]]
             bootS += [trajectory["frame"]]
             bootP += [trajectory["position"]]
+            IS += [trajectory["IS"]]
         actions = Tcat(actions)
         rewards = Tcat(rewards)
         dones = Tcat(dones)
         bootS, bootP = Tcat(bootS), Tcat(bootP)
+        IS = Tcat(IS)
     else:
         trajectory = dicts[0]
         actions = trajectory["action"]
@@ -246,9 +206,10 @@ def unpackBatch(*dicts, device = DEVICE_DEFT):
         dones = trajectory["done"]
         bootS = trajectory["frame"]
         bootP = trajectory["position"]
-
+        IS = trajectory["IS"]
     bootS, bootP = bootS.to(device), bootP.to(device).float()
     rewards = rewards.to(device)
     dones = dones.to(device)
     actions = actions.to(device).long()
-    return {"frame":bootS, "position":bootP}, rewards, actions, dones
+    IS.to(device)
+    return {"frame":bootS, "position":bootP}, rewards, actions, dones, IS

@@ -69,7 +69,8 @@ class drqnPolicy(dqnPolicy):
         self.clipGrad = config["policy"].get("clip_grad")
         self.recurrentBoot = config["policy"].get("recurrent_boot", 10)
         self.recurrentState = recurrentArguments(config)
-    
+        self.zeroHidden = recurrentArguments(config)
+
     def getAction(self, state):
         throw = np.random.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
@@ -80,8 +81,8 @@ class drqnPolicy(dqnPolicy):
         else:
             return outValue.argmax(1).item()
 
-    def update(self, *infoDicts):
-        states, rewards, actions, dones = unpackBatch(*infoDicts, device = self.device)
+    def _update_(self, *infoDicts):
+        states, rewards, actions, dones, IS = unpackBatch(*infoDicts, device = self.device)
         states = procState(states)
         # Forward Online net
         onlineOut, onlineHiddens = drqnForward(self.dqnOnline, states, self.config, True)
@@ -108,6 +109,42 @@ class drqnPolicy(dqnPolicy):
 
         if self.tbw != None:
             self.tbw.add_scalar('train/Loss', np.mean(losses), self.epochs)
+            max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
+            self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
+            self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
+        if self.epochs % self.updateTarget == 0:
+            # Updates the net
+            updateNet(self.dqnTarget, self.dqnOnline.state_dict())
+        self.epochs += 1
+    
+    def update(self, *infoDicts):
+        states, rewards, actions, dones = unpackBatch(*infoDicts, device = self.device)
+        states = procState(states)
+        def makeHidden():
+            return self.zeroHidden.initHidden(device = self.device)[0]
+        # Forward Online net
+        h0 = makeHidden()
+        onlineOut, onlineHiddens = self.dqnOnline.seqForward(states, h0)
+        # Forward Target net
+        with no_grad():
+            h0 = makeHidden()
+            targetOut, targetHiddens = self.dqnTarget.seqForward(states, h0)
+        # Calculate targets and values
+        # List from older to newest
+        qTargets = Tstack(drqnTarget(targetOut, onlineOut, rewards, dones, self.gamma, self.double))
+        qValues = Tstack(drqnGatherActions(onlineOut, actions))
+        # Calculate and apply losses
+        self.optimizer.zero_grad()
+        loss = F.smooth_l1_loss(qValues, qTargets, reduction="mean")
+        loss.backward()
+        self.optimizer.step()
+
+        if self.clipGrad > 0.0:
+            clipGrads(self.dqnOnline, self.clipGrad)
+        self.optimizer.step()
+
+        if self.tbw != None:
+            self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
             max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)

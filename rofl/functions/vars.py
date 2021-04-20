@@ -83,6 +83,11 @@ class Variable(ABC):
         self._step_()
         return self._value_.__neg__()
 
+def updateVar(config):
+    vrs = config.get("variables", [])
+    for v in vrs:
+        v.step()
+
 class linearSchedule(Variable):
     def __init__(self, initValue, life:int, minValue = None, maxValue = None):
         assert (minValue is not None) or (maxValue is not None), \
@@ -103,11 +108,14 @@ class linearSchedule(Variable):
         self._life_ = life
 
     def _step_(self):
+        None
+    
+    def step(self):
         xm = self._diff_ * self._i_ / self._life_
         y = self._opvalue_ + xm
         self._i_ += 1
         self._value_ = self._F(self._last_, y)
 
     def __repr__(self):
-        s = "linearSchedule: init {}, last {}, life {}".format(self._opvalue_, self._last_, self._life_)
+        s = "{} linearSchedule: init {}, last {}, life {}".format(self._value_, self._opvalue_, self._last_, self._life_)
         return s

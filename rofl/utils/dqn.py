@@ -23,28 +23,46 @@ class MemoryReplay(object):
         self.s_in_shape = state_shape
         self.s_dtype_in = state_dtype_in
 
-        self.capacity = capacity
+        self.capacity, self.epsTD = capacity, 1 / capacity
         self.LHist = LHist
         self.shapeHistOut = [LHist] + list(state_shape)
         self._i = 0
         self.FO = False
+        self.lastPartialTD, self.sumTD = None, 0.0
 
         self.s_buffer = np.zeros([capacity] + list(state_shape), dtype = state_dtype_in)
         self.a_buffer = np.zeros(capacity, dtype = action_dtype_in)
         self.r_buffer = np.zeros(capacity, dtype = reward_dtype_in)
         self.t_buffer = np.ones(capacity, dtype = np.bool_) # Inverse logic
+        self.e_buffer = np.zeros(capacity, dtype = F_NDTYPE_DEFT)
 
     def add(self, s, a, r, t):
         """
         Add one item
         """
-        self.s_buffer[self._i] = s
-        self.a_buffer[self._i] = a
-        self.r_buffer[self._i] = r
-        self.t_buffer[self._i] = not t
-        self._i = (self._i + 1) % self.capacity
+        i = self._i
+        self.s_buffer[i] = s
+        self.a_buffer[i] = a
+        self.r_buffer[i] = r
+        self.t_buffer[i] = not t
+        self.e_buffer[i] = 0.0
+        self._i = (i + 1) % self.capacity
         if self._i == 0:
             self.FO = True
+
+    def addTD(self, qValues, gamma:float = 1.0):
+        # qValues for the i-th state seen
+        qValues = qValues.squeeze()
+        i = self._i - 1
+        t = 1.0 * (not self.t_buffer[i - 1])
+        maxQ = qValues.max().item()
+        if self.lastPartialTD is not None:
+            TD = abs(self.lastPartialTD + t * gamma * maxQ) + self.epsTD
+            self.sumTD += TD - self.e_buffer[i - 1]
+            self.e_buffer[i - 1] = TD
+        action = self.a_buffer[i]
+        actualQ = qValues[action].item()
+        self.lastPartialTD = self.r_buffer[i] - actualQ
 
     def __getitem__(self, i:int):
         if i < self._i or self.FO:
@@ -63,7 +81,21 @@ class MemoryReplay(object):
                 0.0,
                 False)
 
-    def sample(self, mini_batch_size:int, device = DEVICE_DEFT):
+    def getIDS(self, size, prioritized = False):
+        s = self.capacity if self.FO else self._i - 1
+        if not prioritized:
+            ids = np.random.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
+                                    size=size)
+            ps = np.ones(size, dtype = F_NDTYPE_DEFT)
+        else:
+            a = np.arange(s)
+            totTD = self.sumTD if self.FO else self.sumTD - self.e_buffer[s]
+            ps = self.e_buffer[a] / totTD
+            ids = np.random.choice(a, size=size, p = ps, replace = False)
+            ps = 1 / ps[ids] / s
+        return ids, ps
+
+    def sample(self, mini_batch_size:int, device = DEVICE_DEFT, prioritized: bool = False):
         """
         Process and returns a mini batch. The tuple returned are
         all torch tensors.
@@ -83,8 +115,7 @@ class MemoryReplay(object):
         assert mini_batch_size > 0, "The size of the mini batch must be positive"
 
         if self._i > mini_batch_size + self.LHist or self.FO:
-            ids = np.random.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
-                                    size=mini_batch_size)
+            ids, ps = self.getIDS(mini_batch_size, prioritized)
             st1 = np.zeros([mini_batch_size] + self.shapeHistOut, 
                            dtype = F_NDTYPE_DEFT)
             st2 = st1.copy()
@@ -105,7 +136,8 @@ class MemoryReplay(object):
             terminals = torch.from_numpy(self.t_buffer[ids]).to(device).float()
             at = torch.from_numpy(self.a_buffer[ids]).to(device).long()
             rt = torch.from_numpy(self.r_buffer[ids]).to(device).float()
-            return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals}
+            ps = torch.from_numpy(ps).to(device)
+            return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals, "IS":ps}
         else:
             raise IndexError("The memory does not contains enough transitions to generate the sample")
 
@@ -130,124 +162,13 @@ class MemoryReplay(object):
                 plt.axis('off')
             plt.pause(Wait)
             plt.close(fig)
-
-class MemoryReplayFF__(MemoryReplay):
-    """
-    Main Storage for the transitions experienced by the actors.
-
-    It has methods to Sample
-
-    Parameters
-    ----------
-    capacity: int
-        Number of transitions to store
-    """
-    def __init__(self,
-                 capacity:int = MEMORY_SIZE,
-                 state_shape:list = FRAME_SIZE,
-                 LHist:int = LHIST,
-                 state_dtype_in:np.dtype = np.uint8,
-                 pos_dtype_in:np.dtype = I_NDTYPE_DEFT,
-                 action_dtype_in:np.dtype = np.uint8,
-                 reward_dtype_in:np.dtype = F_NDTYPE_DEFT,
-                 ):
-        
-        self.s_in_shape = state_shape
-        self.s_dtype_in = state_dtype_in
-
-        self.capacity = capacity
-        self.LHist = LHist
-        self.shapeHistOut = [LHist] + list(state_shape)
+    
+    def reset(self):
         self._i = 0
         self.FO = False
-
-        self.s_buffer = np.zeros([capacity] + list(state_shape), dtype = state_dtype_in)
-        self.p_buffer = np.zeros([capacity] + [2], dtype = pos_dtype_in)
-        self.a_buffer = np.zeros(capacity, dtype = action_dtype_in)
-        self.r_buffer = np.zeros(capacity, dtype = reward_dtype_in)
-        self.t_buffer = np.ones(capacity, dtype = np.bool_) # Inverse logic
-
-    def add(self, s, a, r, t):
-        """
-        Add one item
-        """
-        s, p = s["frame"], s["position"]
-        self.s_buffer[self._i] = s
-        self.p_buffer[self._i] = p
-        self.a_buffer[self._i] = a
-        self.r_buffer[self._i] = r
-        self.t_buffer[self._i] = not t
-        self._i = (self._i + 1) % self.capacity
-        if self._i == 0:
-            self.FO = True
-
-    def __getitem__(self, i:int):
-        if i < self._i or self.FO:
-            i = i % self.capacity
-            return (self.s_buffer[i],
-                    self.p_buffer[i],
-                    self.a_buffer[i],
-                    self.r_buffer[i],
-                    self.t_buffer[i])
-        else:
-            return self.zeroe
-
-    @property
-    def zeroe(self):
-        return (np.zeros(self.s_in_shape, dtype=self.s_dtype_in),
-                (0,0),
-                0,
-                0.0,
-                False)
-
-    def sample(self, mini_batch_size:int, device = DEVICE_DEFT):
-        """
-        Process and returns a mini batch. The tuple returned are
-        all torch tensors.
-        
-        If device is cpu class, this process may consume more cpu resources
-        than expected. Could be detrimental if hosting multiple instances. 
-        This seems expected from using torch. (Y)
-
-        Parameters
-        ---------
-        mini_batch_size: int
-            Number of samples that compose the mini batch
-        device: torch.device
-            Optional. Torch device target for the mini batch
-            to reside on.
-        """
-        assert mini_batch_size > 0, "The size of the mini batch must be positive"
-
-        if self._i > mini_batch_size + self.LHist or self.FO:
-            ids = np.random.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
-                                    size=mini_batch_size)
-            st1 = np.zeros([mini_batch_size] + self.shapeHistOut, 
-                           dtype = F_NDTYPE_DEFT)
-            st2 = st1.copy()
-            for m, i in enumerate(ids):
-                for n, j in enumerate(range(i + 1, i - self.LHist, -1)):
-                    s, _, _, _, t = self[j]
-                    if n < self.LHist:
-                        st2[m][n] = s.copy()
-                    if n > 0:
-                        st1[m][n - 1] = s.copy()
-                    if not t and n >= 0:
-                        # This should happend rarely
-                        break
-
-            # Passing to torch format
-            st1 = torch.from_numpy(st1).to(device).div(255).detach_().requires_grad_()
-            st2 = torch.from_numpy(st2).to(device).div(255)
-            pos1 = torch.from_numpy(self.p_buffer[ids]).to(device).float()
-            pos2 = torch.from_numpy(self.p_buffer[ids + 1]).to(device).float()
-            st1, st2 = {"frame":st1, "position":pos1}, {"frame":st2, "position":pos2}
-            terminals = torch.from_numpy(self.t_buffer[ids]).to(device).float()
-            at = torch.from_numpy(self.a_buffer[ids]).to(device).long()
-            rt = torch.from_numpy(self.r_buffer[ids]).to(device).float()
-            return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals, "obsType":"framePos"}
-        else:
-            raise IndexError("The memory does not contains enough transitions to generate the sample")
+        self.t_buffer[:] = 1
+        self.e_buffer[:] = 0.0
+        self.lastPartialTD, self.sumTD = None, 0.0
 
 class MemoryReplayFF(MemoryReplay):
     """
@@ -302,7 +223,7 @@ class MemoryReplayFF(MemoryReplay):
                 0.0,
                 False)
 
-    def sample(self, mini_batch_size:int, device = DEVICE_DEFT):
+    def sample(self, mini_batch_size:int, device = DEVICE_DEFT, prioritized: bool = False):
         """
         Process and returns a mini batch. The tuple returned are
         all torch tensors.
@@ -322,8 +243,7 @@ class MemoryReplayFF(MemoryReplay):
         assert mini_batch_size > 0, "The size of the mini batch must be positive"
 
         if self._i > mini_batch_size + self.LHist or self.FO:
-            ids = np.random.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
-                                    size=mini_batch_size)
+            ids, ps = self.getIDS(mini_batch_size, prioritized)
             st1 = np.zeros([mini_batch_size] + self.shapeHistOut, 
                            dtype = F_NDTYPE_DEFT)
             st2 = st1.copy()
@@ -347,7 +267,9 @@ class MemoryReplayFF(MemoryReplay):
             terminals = torch.from_numpy(self.t_buffer[ids]).to(device).float()
             at = torch.from_numpy(self.a_buffer[ids]).to(device).long()
             rt = torch.from_numpy(self.r_buffer[ids]).to(device).float()
-            return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals, "obsType":"framePos"}
+            ps = torch.from_numpy(ps).to(device)
+            return {"st":st1,"st1":st2, "reward": rt, "action":at, "done":terminals, "IS": ps, 
+                    "obsType":"framePos"}
         else:
             raise IndexError("The memory does not contains enough transitions to generate the sample")
 
@@ -357,19 +279,20 @@ def unpackBatch(*dicts, device = DEVICE_DEFT):
         return unpackBatchComplexObs(*dicts, device = device)
     ### Standard Unpack
     if len(dicts) > 1:
-        states1, states2, actions, rewards, dones  = [], [], [], [], []
+        states1, states2, actions, rewards, dones, IS  = [], [], [], [], [], []
         for trajectory in dicts:
             states1 += [trajectory["st"]]
             states2 += [trajectory["st1"]]
             actions += [trajectory["action"]]
             rewards += [trajectory["reward"]]
             dones += [trajectory["done"]]
+            IS += [trajectory["IS"]]
         st1 = Tcat(states1, dim=0)
         st2 = Tcat(states2, dim=0)
         actions = Tcat(actions, dim=0)
         rewards = Tcat(rewards, dim=0)
         dones = Tcat(dones, dim=0)
-
+        IS = Tcat(IS)
     else:
         trajectoryBatch = dicts[0]
         st1 = trajectoryBatch["st"]
@@ -377,17 +300,19 @@ def unpackBatch(*dicts, device = DEVICE_DEFT):
         rewards = trajectoryBatch["reward"]
         st2 = trajectoryBatch["st1"]
         dones = trajectoryBatch["done"]
+        IS = trajectoryBatch["IS"]
 
     st1 = st1.to(device)
     st2 = st2.to(device)
     rewards = rewards.to(device)
     dones = dones.to(device)
     actions = actions.to(device).unsqueeze(1).long()
-    return st1, st2, rewards, actions, dones
+    IS = IS.to(device)
+    return st1, st2, rewards, actions, IS
 
 def unpackBatchComplexObs(*dicts, device = DEVICE_DEFT):
     if len(dicts) > 1:
-        states1, states2, actions, rewards, dones  = [], [], [], [], []
+        states1, states2, actions, rewards, dones, IS  = [], [], [], [], [], []
         pos1, pos2 = [], []
         for trajectory in dicts:
             states1 += [trajectory["st"]["frame"]]
@@ -397,13 +322,14 @@ def unpackBatchComplexObs(*dicts, device = DEVICE_DEFT):
             actions += [trajectory["action"]]
             rewards += [trajectory["reward"]]
             dones += [trajectory["done"]]
+            IS += [trajectory["IS"]]
         st1 = Tcat(states1, dim=0)
         st2 = Tcat(states2, dim=0)
         pos1, pos2 = Tcat(pos1), Tcat(pos2)
         actions = Tcat(actions, dim=0)
         rewards = Tcat(rewards, dim=0)
         dones = Tcat(dones, dim=0)
-
+        IS = Tcat(IS)
     else:
         trajectory = dicts[0]
         st1 = trajectory["st"]["frame"]
@@ -413,7 +339,7 @@ def unpackBatchComplexObs(*dicts, device = DEVICE_DEFT):
         actions = trajectory["action"]
         rewards = trajectory["reward"]
         dones = trajectory["done"]
-
+        IS = trajectory["IS"]
     st1, st2 = st1.to(device), st2.to(device)
     pos1, pos2 = pos1.to(device).float(), pos2.to(device).float()
     st1 = {"frame":st1, "position":pos1}
@@ -421,4 +347,5 @@ def unpackBatchComplexObs(*dicts, device = DEVICE_DEFT):
     rewards = rewards.to(device)
     dones = dones.to(device)
     actions = actions.to(device).unsqueeze(1).long()
-    return st1, st2, rewards, actions, dones
+    IS = IS.to(device)
+    return st1, st2, rewards, actions, dones, IS

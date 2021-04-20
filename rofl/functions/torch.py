@@ -15,7 +15,7 @@ def copyDictState(net, grad:bool = True):
     sd = net.state_dict()
     for i in sd.keys():
         t = sd[i]
-        newSD[i] = t.new_empty(t.shape, requires_grad=grad).copy_(t)
+        newSD[i] = t.new_empty(t.shape).copy_(t).requires_grad_(grad)
     return newSD
 
 def cloneNet(net):
@@ -33,19 +33,25 @@ def updateNet(net, targetLoad):
             pt.copy_(p).detach_()
             pt.requires_grad_(True)
 
-def getDictState(net, cpu:bool):
+def getDictState(net, cpu:bool = True):
     stateDict = net.state_dict()
     if cpu:
         for key in stateDict.keys():
             stateDict[key] = stateDict[key].to(DEVICE_DEFT)
     return stateDict
 
-def getListState(net, cpu:bool):
+def getListState(net, cpu:bool = True):
     params = []
     for p in net.parameters():
         params += [p if not cpu else p.clone().to(DEVICE_DEFT)]
     return params
-    
+
+def getListParams(net):
+    params = []
+    for p in net.parameters():
+        params += [p.clone().detach_()]
+    return params
+
 def analysisGrad(net, calculateMean: bool = False, calculateMax: bool = True):
     """
         Should return 
@@ -60,6 +66,10 @@ def analysisGrad(net, calculateMean: bool = False, calculateMax: bool = True):
 def zeroGrad(net):
     for p in net.parameters():
         p.grad = p.new_zeros(p.shape)
+
+def noneGrad(net):
+    for p in net.parameters():
+        p.grad = None
 
 def clipGrads(net, clip:float):
     nn.utils.clip_grad_value_(net.parameters(), clip)
@@ -83,3 +93,25 @@ def cloneState(states, grad: bool = True, ids = None):
         return new
     else:
         raise TypeError("State type {} not supported".format(type(states)))
+
+def convert2flat(x):
+    shapes = []
+    flat = []
+    for p in x:
+        shapes += [p.shape]
+        flat += [p.flatten()]
+    return Tcat(flat, dim=0), shapes
+
+def totSize(t):
+    tot = 1
+    for i in t:
+        tot *= i
+    return tot
+
+def convertFromFlat(x, shapes):
+    newX, iL, iS = [], 0, 0
+    for s in shapes:
+        iS = iL + totSize(s)
+        newX += [x[iL:iS].reshape(s)]
+        iL = iS
+    return newX

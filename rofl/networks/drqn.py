@@ -33,18 +33,38 @@ class forestFireDRQNlstm(QValue):
 
     def completeForward(self, obs, hiddenT):
         features = self.cnnForward(obs)
-        x, h = self.ru1(features, hiddenT)
-        x = self.fc1(x).squeeze(1)
-        return x, h
+        x, (h,c) = self.ru1(features, hiddenT)
+        x = self.fc1(h).squeeze(0)
+        return x, (h,c)
+
+    def seqForward(self, obs, hidden):
+        """
+            returns
+            -------
+            dqn output, recurrent outputhiddens
+        """
+        # X shape (seq, batch, *)
+        lenSeq = len(obs)
+        features = []
+        for i in range(lenSeq - 1, - 1, -1):
+            features += [self.cnnForward(obs[i])]
+        features = Tcat(features, dim=1)
+        # Recurrent input (batch, seq, *)
+        out, hidden = self.ru1(features, hidden)
+        outputs = []
+        for i in range(lenSeq):
+            # out shape (seq, batch, hidden)
+            outputs += [self.fc1(out[:,i,...])]
+        return Tstack(outputs, dim = 0), out
 
     def forward(self, obs, hidden):
         # For RNN handling single channel only
         # Features extraction
         x = self.cnnForward(obs)
         # Recurrent forward
-        x , h0 = self.ru1(x, hidden[0])
-        hidden[0] = h0
-        return self.fc1(x).squeeze(1)
+        _ , (h,c) = self.ru1(x, hidden[0])
+        hidden[0] = (h, c)
+        return self.fc1(h).squeeze(0)
 
     def new(self):
         new = forestFireDRQNlstm(self.config)
@@ -57,6 +77,21 @@ class forestFireDRQNgru(forestFireDRQNlstm):
         outhidden = config["policy"].get("recurrent_hidden_size", self.h0)
         self.ru1 = nn.GRU(self.inputHiddenSize, outhidden,
                             batch_first=True)
+
+    def completeForward(self, obs, hiddenT):
+        features = self.cnnForward(obs)
+        x, h = self.ru1(features, hiddenT)
+        x = self.fc1(h).squeeze(1)
+        return x, h
+
+    def forward(self, obs, hidden):
+        # For RNN handling single channel only
+        # Features extraction
+        x = self.cnnForward(obs)
+        # Recurrent forward
+        _ , h = self.ru1(x, hidden[0])
+        hidden[0] = h
+        return self.fc1(h).squeeze(1)
 
     def new(self):
         new = forestFireDRQNgru(self.config)

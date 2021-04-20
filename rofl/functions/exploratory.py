@@ -22,6 +22,7 @@ class EpsilonGreedy():
         self._test_ = test if test is not None else last
         
     def train(self, obs):
+        self._var_.step()
         return self._var_
 
     def test(self, obs):

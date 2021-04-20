@@ -16,6 +16,11 @@ def dqnTarget(onlineNet, targetNet, s2, r, t, gamma, double:bool = True):
         target = r + Tmul(t, Qs2_max).mul(gamma).reshape(r.shape)
     return target.unsqueeze(1)
 
+def ISNorm(IS):
+    IS = IS.unsqueeze(1)
+    maxIS = IS.max()
+    return IS / maxIS
+
 class dqnPolicy(Policy):
     discrete = True
     name = "dqnPolicy"
@@ -46,26 +51,33 @@ class dqnPolicy(Policy):
         self.tbw = tbw
         self.eva_maxg = config["evaluate_max_grad"]
         self.eva_meang = config["evaluate_mean_grad"]
+        self.lastNetOutput = None
         super(dqnPolicy, self).__init__()
 
     def getAction(self, state):
         throw = np.random.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
+        with no_grad():
+            output = self.dqnOnline(state)
+        self.lastNetOutput = output
         if throw <= eps:
             return self.getRandom()
         else:
-            return self.dqnOnline.getAction(state)
+            return self.dqnOnline.processAction(output.argmax(1))
 
     def getRandom(self):
         return np.random.randint(self.nActions)
 
     def update(self, *infoDicts):
-        st1, st2, rewards, actions, dones = unpackBatch(*infoDicts, device = self.device)
+        st1, st2, rewards, actions, dones, IS = unpackBatch(*infoDicts, device = self.device)
         qValues = self.dqnOnline(st1).gather(1, actions)
         qTargets = dqnTarget(self.dqnOnline, self.dqnTarget, 
                                 st2, rewards, dones, self.gamma, self.double)
 
-        loss = F.smooth_l1_loss(qValues, qTargets, reduction="mean")
+        loss = F.smooth_l1_loss(qValues, qTargets, reduction="none")
+        IS = ISNorm(IS)
+        loss = Tmul(IS, loss)
+        loss = Tmean(loss)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()

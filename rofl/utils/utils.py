@@ -5,6 +5,7 @@ from torch import save, load, device
 import pickle
 import json
 from rofl.functions.vars import Variable
+import re
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -143,11 +144,13 @@ class Stack:
         return len(self.stack)
 
 class Reference:
+    _loaded_ = False
     def __init__(self, obj, 
                         name: str,
                         limit:int,
                         torchType:bool = False,
-                        device = device("cpu")):
+                        device = device("cpu"),
+                        loadOnly:bool = True):
         self.torchType = torchType
         self.name = name
         self.ref = obj
@@ -155,8 +158,11 @@ class Reference:
         self.limit = limit
         self.device = device
         self._version = 0
+        self._LO_ = loadOnly
     
     def save(self, path):
+        if self._LO_:
+            None
         if self.torchType:
             self.saveTorch(path)
         else:
@@ -186,8 +192,10 @@ class Reference:
         return os.path.join(path, files[choice])
 
     def load(self, path):
+        self._loaded_ = True
         print("Trying to load in object {}".format(self.name))
         target = self.loaderAssist(path)
+        self._version = int(re.findall("_v\d+", target)[0][2:]) + 1
         if self.torchType:
             self.loadTorch(target, self.device)
         else:
@@ -261,7 +269,8 @@ class Saver():
     def addObj(self, obj, 
                 objName:str,
                 isTorch:bool = False,
-                device = device("cpu")):
+                device = device("cpu"),
+                loadOnly:bool = False):
 
         if objName in self.names:
             raise KeyError
@@ -270,7 +279,8 @@ class Saver():
                                     objName, 
                                     self.limit,
                                     isTorch,
-                                    device)]
+                                    device,
+                                    loadOnly)]
     
     def saveAll(self):
         for ref in self._objRefs_:
@@ -279,4 +289,3 @@ class Saver():
     def load(self, path):
         for ref in self._objRefs_:
             ref.load(path)
-

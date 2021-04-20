@@ -102,3 +102,15 @@ class Policy(ABC):
         s = "Policy {}\nFor environment {}\nDiscrete {}".format(self.name, 
             self.environment, self.discrete)
         return s
+
+    def new(self):
+        """
+            Returns a new policy based on the same definitions and 
+            parameters as the one called from. This method should also create
+            new copies of networks.
+
+            returns
+            -------
+            policy
+        """
+        raise NotImplementedError
