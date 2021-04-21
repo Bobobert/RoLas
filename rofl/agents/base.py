@@ -53,7 +53,10 @@ class Agent(ABC):
             raise ValueError("A policy must be given")
         if self.envTest is None:
             print("Warning, environment test not given. Test will be evaluated with the train environment!")
-
+        n = self.config.get("names", [])
+        n += [self.name]
+        self.config["names"] = n
+        
     def currentState(self):
         """
             Returns a dict with all the required information

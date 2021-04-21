@@ -470,7 +470,7 @@ class EnvMakerForestFire(Helicopter, Env):
     total_reward = 0.0
     steps = 0   
     # Defaults
-    def_steps_to_termination = 128
+    def_steps_to_termination = 400#changed 17/04 from 128
     def_fire_threshold = 1024
     # Default weights set to a minimization of the reward function. RWH
     def __init__(self, env_mode = 'stochastic',
@@ -596,7 +596,7 @@ class EnvMakerForestFire(Helicopter, Env):
             'init_pos_row': self.init_pos_row, 'init_pos_col': self.init_pos_col, 'moves_before_updating': self.moves_before_updating,
             'termination_type': self.termination_type, 'steps_to_termination': self.steps_to_termination, 'fire_threshold': self.fire_threshold,
             'reward_type': self.reward_type, 'reward_tree': self.reward_tree, 'reward_fire': self.reward_fire, 'reward_empty': self.reward_empty, 
-            'reward_hit': self.reward_hit, "observation_shape": self.obsShape,
+            'reward_hit': self.reward_hit, "observation_shape": self.obsShape, "reward_move": self.reward_move,
             'tree': self.tree, 'empty': self.empty, 'fire': self.fire, 'rock': self.rock, 'lake': self.lake, 'observation_mode': self.observation_mode,
             'sub_tree': self.sub_tree, 'sub_empty': self.sub_empty, 'sub_fire': self.sub_fire, 'sub_rock': self.sub_rock, 'sub_lake': self.sub_lake,
             'ip_tree': self.ip_tree, 'ip_empty': self.ip_empty, 'ip_fire': self.ip_fire, 'ip_rock': self.ip_rock, 'ip_lake': self.ip_lake
@@ -736,14 +736,30 @@ class EnvMakerForestFire(Helicopter, Env):
             reward += (self.hit*2.0 - self.last_move*1.0) * self.reward_hit
             reward += self.cell_counts[self.empty] * self.reward_empty
         elif self.reward_type == "ratio":#new
-            tot = self.grid.shape[0] * self.grid.shape[1]
-            reward = (self.cell_counts[self.tree] - self.cell_counts[self.fire]) / tot #v0
+            if self.remaining_moves == self.moves_before_updating:
+                tot = self.grid.shape[0] * self.grid.shape[1]
+                reward += 2.0 * self.cell_counts[self.tree] / tot - 1.0#v1 17/04
+            reward += self.reward_move if self.last_move else 0.0
+            #tot = self.grid.shape[0] * self.grid.shape[1]
+            #reward = (self.cell_counts[self.tree] - self.cell_counts[self.fire]) / tot #v0
+            #reward = self.cell_counts[self.tree] / tot #v1 17/04
             #tot = (self.grid.shape[0] * self.grid.shape[1])
             #reward = (self.cell_counts[self.tree]) / tot # v1
         elif self.reward_type == "hit":
             tot = (self.grid.shape[0] * self.grid.shape[1]) * 2 # w Ratio
             reward = (self.cell_counts[self.tree]) / tot
-            reward += self.hit * 0.5  
+            reward += self.hit * 0.5
+        elif self.reward_type == "hit_fire":
+            tot = self.grid.shape[0] * self.grid.shape[1]
+            reward += self.reward_tree * (self.cell_counts[self.tree]) / tot
+            reward += self.reward_fire * (self.cell_counts[self.fire]) / tot
+            reward += self.hit * self.reward_hit
+        elif self.reward_type == "hit_ratio":
+            if self.remaining_moves == self.moves_before_updating:
+                tot = self.grid.shape[0] * self.grid.shape[1] # w Ratio
+                reward += 1.8 * (self.cell_counts[self.tree]) / tot - 0.9 
+            reward += self.hit * self.reward_hit
+            reward += self.reward_move if self.last_move else 0.0
         else:
             raise ValueError('Unrecognized reward type')
         return reward
@@ -923,61 +939,6 @@ class EnvMakerForestFire(Helicopter, Env):
     def get_channels_forest(self):
         grid = self.get_onehot_forest()
         return np.array([grid[:,:,channel] for channel in range(np.shape(grid)[-1])])
-    
-    #Features Added by Mau, & Rob
-    def copy(self):
-        # Does a simple copy at the actual state variables to use for 
-        # sample recollection in parallel of the object.
-        # It does not copy nothing related to frames.    
-        # The creation of the new environment generates a new random seed.     
-        grido = self.grid.copy()
-        NEW = EnvMakerForestFire(
-            init_pos_row=self.pos_row,init_pos_col=self.pos_col,n_row = self.n_row, 
-            n_col = self.n_col,p_tree = self.p_tree, p_fire =self.p_fire,
-                 moves_before_updating = self.moves_before_updating,
-                 reward_type = self.reward_type, reward_tree = self.reward_tree,
-                 reward_fire = self.reward_fire, reward_empty =self.reward_empty, reward_hit = self.reward_hit,
-                 sub_tree = self.sub_tree, sub_empty = self.sub_empty, sub_fire = self.sub_fire, 
-                 sub_rock = self.sub_rock, sub_lake = self.sub_lake,ip_tree = self.ip_tree,
-                 ip_empty =self.ip_empty, ip_fire =self.ip_fire, ip_rock = self.ip_rock,
-                 ip_lake = self.ip_lake, env_mode=self.env_mode, steps_to_termination=self.steps_to_termination,
-                 fire_threshold=self.fire_threshold, observation_mode=self.observation_mode,
-                 is_copy=True)
-        NEW.grid = grido  # It needed a copy, silly me. RWH
-        NEW.steps = self.steps
-        NEW.total_burned = self.total_burned
-        NEW.total_hits = self.total_hits
-        NEW.total_reward = self.total_reward
-        NEW.remaining_moves = self.remaining_moves
-        NEW.first_termination = self.first_termination
-        NEW.terminated = self.terminated
-        NEW.last_move = self.last_move
-        NEW.effects_dict = self.effects_dict.copy()
-        #NEW.checkpoints = self.checkpoints.copy()
-        #NEW.checkpoint_counter = self.checkpoint_counter
-        return NEW
-        
-    def make_checkpoint(self): 
-        # Function to save a state of the environment to branch
-        self.checkpoints.append((
-            self.grid.copy(), self.pos_row, self.pos_col, self.total_hits, self.total_reward, 
-            self.remaining_moves, self.steps_to_termination, self.first_termination, self.total_burned,
-            self.terminated, self.steps, self.last_move
-            ))
-        self.checkpoint_counter += 1
-        return self.checkpoint_counter - 1
-    
-    def load_checkpoint(self, checkpoint_id):
-        # Function to recall a previous state of the environment given the id
-        if not isinstance(checkpoint_id, int):
-            raise "checkpoint_id must be a valid integer number, {} was given.".format(type(checkpoint_id))
-        try:
-            self.grid, self.pos_row, self.pos_col, self.total_hits, self.total_reward, \
-            self.remaining_moves, self.steps_to_termination, self.first_termination, self.total_burned, \
-            self.terminated, self.steps, self.last_move = self.checkpoints[checkpoint_id]
-            return True
-        except:
-            raise "checkpoint_id references to an ill checkpoint. Sorry."
             
     def available_actions(self):#, pos): RWH. This one seemed, unnecesary
         av_actions=[]

@@ -32,7 +32,7 @@ class dqnAtariAgent(Agent):
         self.clipReward = config["agent"].get("clip_reward", 0.0)
         self.noOpSteps = config["agent"].get("no_op_start", 0)
         self.noOpAction = noOpSample(self.envTest) if self.noOpSteps > 0 else None
-        self.frameSize = obsShape
+        self.frameSize = tuple(obsShape)
         self.isAtari = config["env"]["atari"]
         self.memPrioritized = config["agent"].get("memory_prioritized", False)
         self.tbw, self.tqdm = tbw, useTQDM
@@ -107,8 +107,8 @@ class dqnAtariAgent(Agent):
             if self.noOpSteps > 0:
                 for _ in range(random.randint(1, self.noOpSteps)):
                     obs, _, _, info = env.step(self.noOpAction)
+                self.lives = info.get("ale.lives", 0)
             obs = proc(obs, True)
-            self.lives = info.get("ale.lives", 0)
         else:
             obs = self.lastObs
         # Take action
@@ -124,7 +124,7 @@ class dqnAtariAgent(Agent):
         # update memory replay
         markTerminal = done if self.lives == nextLives else True
         self.memory.add(self.lastFrame, action, reward, markTerminal)
-        self.memory.addTD(pi.lastNetOutput)
+        self.memory.addTD(None if randomPi else pi.lastNetOutput)
         # if termination prepare env
         self.done, self.lives = done, nextLives
         if not done:
