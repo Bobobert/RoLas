@@ -28,7 +28,7 @@ class dqnAtariAgent(Agent):
         self.memory = MemoryReplay(capacity=config["agent"]["memory_size"],
                         state_shape = obsShape,
                         LHist= lhist)
-        self.obsShape = (lhist, obsShape[0], obsShape[1])
+        self.obsShape = (lhist, *obsShape)
         self.clipReward = config["agent"].get("clip_reward", 0.0)
         self.noOpSteps = config["agent"].get("no_op_start", 0)
         self.noOpAction = noOpSample(self.envTest) if self.noOpSteps > 0 else None
@@ -194,3 +194,19 @@ class dqnFFAgent(dqnAtariAgent):
         newObs = torch.from_numpy(self.frameStack).to(self.device).unsqueeze(0).float().div(255)
         Tpos = torch.as_tensor(pos).to(self.device).float().unsqueeze(0)
         return {"frame": newObs, "position":Tpos}
+
+class dqnFFAgent2(dqnAtariAgent):
+    name = "dqnForestFireAgentv1"
+
+    def processObs(self, obs, reset: bool = False):
+        """
+            If the agent needs to process the observation of the
+            environment. Write it here
+        """
+        if reset:
+            self.frameStack.fill(0)
+        else:
+            self.frameStack = np.roll(self.frameStack, 1, axis = 0)
+        self.lastFrame = obs
+        self.frameStack[0] = self.lastFrame
+        return torch.from_numpy(self.frameStack).to(self.device).unsqueeze(0).float().div(255)

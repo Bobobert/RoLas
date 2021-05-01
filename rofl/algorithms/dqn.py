@@ -28,10 +28,8 @@ config = {
     },
     "policy":{
         "learning_rate":OPTIMIZER_LR_DEF,
-        "epsilon_start": 1,
-        "epsilon_end": 0.1,
+        "epsilon": 1,
         "epsilon_test": 0.05,
-        "epsilon_life": 10**6,
         "optimizer": OPTIMIZER_DEF,
         "minibatch_size": 32,
         "freq_update_target":2500,

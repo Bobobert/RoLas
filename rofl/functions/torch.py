@@ -15,7 +15,10 @@ def copyDictState(net, grad:bool = True):
     sd = net.state_dict()
     for i in sd.keys():
         t = sd[i]
-        newSD[i] = t.new_empty(t.shape).copy_(t).requires_grad_(grad)
+        t = t.new_empty(t.shape).copy_(t)
+        if t.dtype == F_TDTYPE_DEFT:
+            t.requires_grad_(grad)
+        newSD[i] = t
     return newSD
 
 def cloneNet(net):

@@ -29,23 +29,18 @@ class dqnPolicy(Policy):
         self.config = config.copy()
         self.dqnOnline = dqn
         self.dqnTarget = cloneNet(dqn)
-
+        self.epsilon = EpsilonGreedy(config)
         self.gamma = config["agent"]["gamma"]
         config = config["policy"]
         self.updateTarget = config["freq_update_target"]
         self.nActions = config["n_actions"]
         self.double = config.get("double", False)
-        self.epsilon = EpsilonGreedy(config["epsilon_start"],
-                                    config["epsilon_end"],
-                                    config["epsilon_life"],
-                                    "linear",
-                                    config["epsilon_test"])
         
         parameters, lr = self.dqnOnline.parameters(), config["learning_rate"]
         if config["optimizer"] == "adam":
-            self.optimizer = optim.Adam(parameters, lr = lr)
+            self.optimizer = optim.Adam(parameters, lr = lr, **config.get("optimizer_args", {}))
         elif config["optimizer"] == "rmsprop":
-            self.optimizer = optim.RMSprop(parameters, lr = lr)
+            self.optimizer = optim.RMSprop(parameters, lr = lr, **config.get("optimizer_args", {}))
         
         self.epochs = 0
         self.tbw = tbw

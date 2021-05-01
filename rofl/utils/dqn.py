@@ -52,17 +52,20 @@ class MemoryReplay(object):
 
     def addTD(self, qValues, gamma:float = 1.0):
         # qValues for the i-th state seen
-        qValues = qValues.squeeze()
         i = self._i - 1
         t = 1.0 * (not self.t_buffer[i - 1])
-        maxQ = qValues.max().item()
-        if self.lastPartialTD is not None:
-            TD = abs(self.lastPartialTD + t * gamma * maxQ) + self.epsTD
-            self.sumTD += TD - self.e_buffer[i - 1]
-            self.e_buffer[i - 1] = TD
-        action = self.a_buffer[i]
-        actualQ = qValues[action].item()
-        self.lastPartialTD = self.r_buffer[i] - actualQ
+        if qValues is None:
+            self.e_buffer[i-1] = self.epsTD
+        else:
+            qValues = qValues.squeeze()
+            maxQ = qValues.max().item()
+            if self.lastPartialTD is not None:
+                TD = abs(self.lastPartialTD + t * gamma * maxQ) + self.epsTD
+                self.sumTD += TD - self.e_buffer[i - 1]
+                self.e_buffer[i - 1] = TD
+            action = self.a_buffer[i]
+            actualQ = qValues[action].item()
+            self.lastPartialTD = self.r_buffer[i] - actualQ
 
     def __getitem__(self, i:int):
         if i < self._i or self.FO:
@@ -90,7 +93,8 @@ class MemoryReplay(object):
         else:
             a = np.arange(s)
             totTD = self.sumTD if self.FO else self.sumTD - self.e_buffer[s]
-            ps = self.e_buffer[a] / totTD
+            ps = self.e_buffer[a]
+            ps = ps / np.sum(ps)
             ids = np.random.choice(a, size=size, p = ps, replace = False)
             ps = 1 / ps[ids] / s
         return ids, ps
@@ -194,21 +198,24 @@ class MemoryReplayFF(MemoryReplay):
         super().__init__(capacity, state_shape, LHist,
                 state_dtype_in, action_dtype_in, reward_dtype_in)
         self.p_buffer = np.zeros([self.capacity] + [2], dtype = pos_dtype_in)
+        self.tm_buffer = np.zeros([self.capacity] + [1], dtype = pos_dtype_in)
         self.nCol, self.nRow = nCol, nRow
 
     def add(self, s, a, r, t):
         """
         Add one item
         """
-        s, p = s["frame"], s["position"]
+        s, p, tm = s["frame"], s["position"], s.get("time",0)
         super().add(s, a, r, t)
         self.p_buffer[self._i] = (p[0] / self.nRow, p[1] / self.nCol)
+        self.tm_buffer[self._i] = tm
 
     def __getitem__(self, i:int):
         if i < self._i or self.FO:
             i = i % self.capacity
             return (self.s_buffer[i],
                     self.p_buffer[i],
+                    self.tm_buffer[i],
                     self.a_buffer[i],
                     self.r_buffer[i],
                     self.t_buffer[i])
@@ -219,6 +226,7 @@ class MemoryReplayFF(MemoryReplay):
     def zeroe(self):
         return (np.zeros(self.s_in_shape, dtype=self.s_dtype_in),
                 (0,0),
+                0,
                 0,
                 0.0,
                 False)
@@ -249,7 +257,7 @@ class MemoryReplayFF(MemoryReplay):
             st2 = st1.copy()
             for m, i in enumerate(ids):
                 for n, j in enumerate(range(i + 1, i - self.LHist, -1)):
-                    s, _, _, _, t = self[j]
+                    s, _, _, _, _, t = self[j]
                     if n < self.LHist:
                         st2[m][n] = s.copy()
                     if n > 0:
@@ -263,7 +271,9 @@ class MemoryReplayFF(MemoryReplay):
             st2 = torch.from_numpy(st2).to(device).div(255)
             pos1 = torch.from_numpy(self.p_buffer[ids]).to(device).float()
             pos2 = torch.from_numpy(self.p_buffer[ids + 1]).to(device).float()
-            st1, st2 = {"frame":st1, "position":pos1}, {"frame":st2, "position":pos2}
+            tm1 = torch.from_numpy(self.tm_buffer[ids]).float()
+            tm2 = torch.fomr_numpy(self.tm_buffer[ids + 1]).float()
+            st1, st2 = {"frame":st1, "position":pos1, "time":tm1}, {"frame":st2, "position":pos2, "time":tm2}
             terminals = torch.from_numpy(self.t_buffer[ids]).to(device).float()
             at = torch.from_numpy(self.a_buffer[ids]).to(device).long()
             rt = torch.from_numpy(self.r_buffer[ids]).to(device).float()
@@ -308,7 +318,7 @@ def unpackBatch(*dicts, device = DEVICE_DEFT):
     dones = dones.to(device)
     actions = actions.to(device).unsqueeze(1).long()
     IS = IS.to(device)
-    return st1, st2, rewards, actions, IS
+    return st1, st2, rewards, actions, dones, IS
 
 def unpackBatchComplexObs(*dicts, device = DEVICE_DEFT):
     if len(dicts) > 1:

@@ -8,22 +8,18 @@ class EpsilonGreedy():
         Modes supported:
         - "linear"
     """
-    def __init__(self, initial, last, life, mode, test = None):
-        
-        assertProb(initial), assertProb(last), assertProb(test)
-
-        if mode == "linear":
-            dec = initial > last
-            self._var_ = linearSchedule(initial, life, minValue= last if dec else None,
-                                        maxValue = None if dec else last)
+    def __init__(self, config):
+        c = config["policy"]
+        if c.get("epsilon") is not None:
+            self._var_ = c["epsilon"]
         else:
-            raise NotImplementedError
+            #Legacy
+            self._var_ = linearSchedule(c["epsilon_start"], c["epsilon_life"], c["epsilon_end"])
         
-        self._test_ = test if test is not None else last
+        self._test_ = c.get("epsilon_test", 0.0)
         
     def train(self, obs):
-        self._var_.step()
-        return self._var_
+        return self._var_.value
 
     def test(self, obs):
         return self._test_

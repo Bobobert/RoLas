@@ -656,6 +656,8 @@ class EnvMakerForestFire(Helicopter, Env):
         #obs_grid = self.observation_grid()
         #self.obs = (obs_grid, np.array([self.pos_row, self.pos_col]), np.array([self.remaining_moves]))
         self.obs = self.observation_grid()
+        if isinstance(self.obs, dict):
+            self.obs["time"] = self.remaining_moves
         # Info for gym API
         info = {'steps': self.steps, 'total_reward': self.total_reward,
                 'total_hits': self.total_hits, 'total_burned': self.total_burned}
@@ -816,6 +818,23 @@ class EnvMakerForestFire(Helicopter, Env):
                 img[row, col] = val
         return img
     
+    @staticmethod
+    @numba.njit
+    def quickGridC(grid:np.ndarray, fire, tree, empty, rock, lake):
+        """
+        Hard coded values for the cell type in gridImg
+        """
+        s = (grid.shape[0], grid.shape[1], 3)
+        img = np.zeros(s, dtype=np.uint8)
+        for row in range(grid.shape[0]):
+            for col in range(grid.shape[1]):
+                currentCell = grid[row,col]
+                if currentCell == fire:
+                    img[row,col,0] = 255
+                elif currentCell == tree:
+                    img[row,col,1] = 255
+        return img
+
     def getImgGrid(self, display_agent = True):
         """Returns a ndarray uint8 with a imagen representation 
         of all the grid"""
@@ -823,22 +842,29 @@ class EnvMakerForestFire(Helicopter, Env):
  
         rowBig = gridShape[0] > self.obsShape[0]
         colBig = gridShape[1] > self.obsShape[1]
-        
-        img = self.quickGrid(self.grid, 
-                                self.fire, self.tree, self.empty, self.rock, self.lake)
-        if display_agent:
+        channels = len(self.obsShape) > 2
+        if channels:
+            img = self.quickGridC(self.grid, 
+                                self.fire, self.tree, self.empty, self.rock, self.lake)#TODO
+        else:
+            img = self.quickGrid(self.grid, 
+                                self.fire, self.tree, self.empty, self.rock, self.lake) 
+        if display_agent and not channels:
             img[self.pos_row, self.pos_col] = 255 # Agent Helicopter is the brigthest spot on the plane
+
+        if channels:
+            img[self.pos_row, self.pos_col, 2] = 255 
 
         if not rowBig and colBig:
             # Padding rows
             diff = self.obsShape[0] - gridShape[0]
-            newGrid = np.zeros((self.obsShape[0], gridShape[1]), dtype=np.uint8)
+            newGrid = np.zeros(self.obsShape, dtype=np.uint8)
             newGrid[diff:,:] = img
             img = newGrid
         elif rowBig and not colBig:
             # Padding cols
             diff = self.obsShape[1] - gridShape[1]
-            newGrid = np.zeros((gridShape[0], self.obsShape[1]), dtype=np.uint8)
+            newGrid = np.zeros(self.obsShape, dtype=np.uint8)
             newGrid[:,diff:] = img
             img = newGrid
         elif not rowBig and not colBig:
@@ -875,6 +901,9 @@ class EnvMakerForestFire(Helicopter, Env):
         else:
             cMin = self.pos_col - math.floor(self.obsShape[1] / 2)
             cMax = cMin + self.obsShape[1]
+            
+        cMin, cMax = max(0, cMin), min(self.obsShape[1], cMax)
+        rMin, rMax = max(0, rMin), min(self.obsShape[0], rMax)
 
         img = img[rMin:rMax, cMin:cMax]
 

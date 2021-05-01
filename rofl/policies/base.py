@@ -36,6 +36,9 @@ class Policy(ABC):
             raise NameError("New agent should be called different to BaseAgent")
         if self.config is None or not isinstance(self.config, dict):
             raise ValueError("Agent needs .config as a dict")
+        n = self.config.get("names", [])
+        n += [self.name]
+        self.config["names"] = n
 
     def __call__(self, state):
         return self.getAction(state)

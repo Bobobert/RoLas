@@ -89,6 +89,12 @@ def saveConfig(config:dict, expDir:str):
     json.dump(config, fh, indent=4, default = default)
     fh.close()
 
+def loadConfig(expDir):
+    fh = open(expDir + "/config.json", "r")
+    config = json.load(fh)
+    fh.close()
+    return config
+
 def timeToStop(results, expected = None):
     tock = time.time()
     diff = tock - results["time_start"]

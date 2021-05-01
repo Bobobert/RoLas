@@ -108,7 +108,7 @@ class linearSchedule(Variable):
         self._life_ = life
 
     def _step_(self):
-        None
+        pass
     
     def step(self):
         xm = self._diff_ * self._i_ / self._life_
