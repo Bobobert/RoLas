@@ -183,17 +183,18 @@ class dqnFFAgent(dqnAtariAgent):
             If the agent needs to process the observation of the
             environment. Write it here
         """
-        frame, pos = obs["frame"], obs["position"]
+        frame, pos, tm = obs["frame"], obs["position"], obs.get("time", 0)
         if reset:
             self.frameStack.fill(0)
         else:
             self.frameStack = np.roll(self.frameStack, 1, axis = 0)
         self.lastFrame = imgResize(frame, size = self.frameSize)
         self.frameStack[0] = self.lastFrame
-        self.lastFrame = {"frame":self.lastFrame, "position":pos}
+        self.lastFrame = {"frame":self.lastFrame, "position":pos, "time":tm}
         newObs = torch.from_numpy(self.frameStack).to(self.device).unsqueeze(0).float().div(255)
         Tpos = torch.as_tensor(pos).to(self.device).float().unsqueeze(0)
-        return {"frame": newObs, "position":Tpos}
+        Ttm = torch.as_tensor([tm]).to(self.device).float().unsqueeze(0)
+        return {"frame": newObs, "position":Tpos, "time":Ttm}
 
 class dqnFFAgent2(dqnAtariAgent):
     name = "dqnForestFireAgentv1"

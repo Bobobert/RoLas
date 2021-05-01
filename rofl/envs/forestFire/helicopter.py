@@ -839,7 +839,7 @@ class EnvMakerForestFire(Helicopter, Env):
         """Returns a ndarray uint8 with a imagen representation 
         of all the grid"""
         gridShape = self.grid.shape[:2]
- 
+        big = False
         rowBig = gridShape[0] > self.obsShape[0]
         colBig = gridShape[1] > self.obsShape[1]
         channels = len(self.obsShape) > 2
@@ -874,7 +874,8 @@ class EnvMakerForestFire(Helicopter, Env):
             c = (self.obsShape[1] - gridShape[1]) // 2
             imgBig[r:r+gridShape[0],c:c+gridShape[1]] = img
             img = imgBig
-        return img
+            big = True
+        return img, big
 
     def followGridObs(self, display_agent):
         """
@@ -882,7 +883,7 @@ class EnvMakerForestFire(Helicopter, Env):
         """
         gridShape = self.grid.shape[:2]
         
-        img = self.getImgGrid(display_agent)
+        img, big = self.getImgGrid(display_agent)
         
         if 0 > (self.pos_row - math.floor(self.obsShape[0] / 2)):
             rMin, rMax = 0, self.obsShape[0]
@@ -901,18 +902,15 @@ class EnvMakerForestFire(Helicopter, Env):
         else:
             cMin = self.pos_col - math.floor(self.obsShape[1] / 2)
             cMax = cMin + self.obsShape[1]
-            
-        cMin, cMax = max(0, cMin), min(self.obsShape[1], cMax)
-        rMin, rMax = max(0, rMin), min(self.obsShape[0], rMax)
 
-        img = img[rMin:rMax, cMin:cMax]
+        img = img[rMin:rMax, cMin:cMax] if not big else img
 
         if display_agent:
             return img
         return {"frame":img, "position":(self.pos_row, self.pos_col)}
 
     def staticGridObs(self, display_agent):
-        img = self.getImgGrid(display_agent)
+        img, big = self.getImgGrid(display_agent)
         gridShape = self.grid.shape[:2]
         #sectorR = math.ceil(gridShape[0] / (self.obsShape[0] - 2))
         #sectorC = math.ceil(gridShape[1] / (self.obsShape[1] - 2))
@@ -944,6 +942,7 @@ class EnvMakerForestFire(Helicopter, Env):
             mid = math.floor(self.obsShape[1] / 2)
             newImg[mid-1:mid+2,0] = Fire
 
+        newImg = newImg if not big else img
         if display_agent:
             return newImg
         return {"frame":newImg, "position":(self.pos_row, self.pos_col)}
