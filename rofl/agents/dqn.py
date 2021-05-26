@@ -118,13 +118,15 @@ class dqnAtariAgent(Agent):
             action = pi.getAction(obs)
         nextObs, reward, done, info = env.step(action)
         nextLives = info.get("ale.lives", 0)
+        self.reward = reward
         # Clip reward if needed
         if self.clipReward > 0.0:
             reward = np.clip(reward, -self.clipReward, self.clipReward)
         # update memory replay
         markTerminal = done if self.lives == nextLives else True
         self.memory.add(self.lastFrame, action, reward, markTerminal)
-        self.memory.addTD(None if randomPi else pi.lastNetOutput)
+        if self.memPrioritized:
+            self.memory.addTD(None if randomPi else pi.lastNetOutput)
         # if termination prepare env
         self.done, self.lives = done, nextLives
         if not done:

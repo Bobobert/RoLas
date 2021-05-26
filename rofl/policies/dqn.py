@@ -31,6 +31,7 @@ class dqnPolicy(Policy):
         self.dqnTarget = cloneNet(dqn)
         self.epsilon = EpsilonGreedy(config)
         self.gamma = config["agent"]["gamma"]
+        self.prioritized = config["agent"]["memory_prioritized"]
         config = config["policy"]
         self.updateTarget = config["freq_update_target"]
         self.nActions = config["n_actions"]
@@ -52,12 +53,19 @@ class dqnPolicy(Policy):
     def getAction(self, state):
         throw = np.random.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
-        with no_grad():
-            output = self.dqnOnline(state)
-        self.lastNetOutput = output
+        output = None
+
+        def calOut():
+            nonlocal output
+            with no_grad():
+                output = self.dqnOnline(state)
+            self.lastNetOutput = output
+
         if throw <= eps:
+            if self.prioritized: calOut()
             return self.getRandom()
         else:
+            calOut()
             return self.dqnOnline.processAction(output.argmax(1))
 
     def getRandom(self):
@@ -70,8 +78,9 @@ class dqnPolicy(Policy):
                                 st2, rewards, dones, self.gamma, self.double)
 
         loss = F.smooth_l1_loss(qValues, qTargets, reduction="none")
-        IS = ISNorm(IS)
-        loss = Tmul(IS, loss)
+        if self.prioritized:
+            IS = ISNorm(IS)
+            loss = Tmul(IS, loss)
         loss = Tmean(loss)
         self.optimizer.zero_grad()
         loss.backward()

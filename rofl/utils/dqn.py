@@ -95,7 +95,7 @@ class MemoryReplay(object):
             totTD = self.sumTD if self.FO else self.sumTD - self.e_buffer[s]
             ps = self.e_buffer[a]
             ps = ps / np.sum(ps)
-            ids = np.random.choice(a, size=size, p = ps, replace = False)
+            ids = np.random.choice(a, size=size, p = ps, replace = True)
             ps = 1 / ps[ids] / s
         return ids, ps
 
@@ -271,8 +271,8 @@ class MemoryReplayFF(MemoryReplay):
             st2 = torch.from_numpy(st2).to(device).div(255)
             pos1 = torch.from_numpy(self.p_buffer[ids]).to(device).float()
             pos2 = torch.from_numpy(self.p_buffer[ids + 1]).to(device).float()
-            tm1 = torch.from_numpy(self.tm_buffer[ids]).float()
-            tm2 = torch.fomr_numpy(self.tm_buffer[ids + 1]).float()
+            tm1 = torch.from_numpy(self.tm_buffer[ids]).to(device).float()
+            tm2 = torch.from_numpy(self.tm_buffer[ids + 1]).to(device).float()
             st1, st2 = {"frame":st1, "position":pos1, "time":tm1}, {"frame":st2, "position":pos2, "time":tm2}
             terminals = torch.from_numpy(self.t_buffer[ids]).to(device).float()
             at = torch.from_numpy(self.a_buffer[ids]).to(device).long()
@@ -323,12 +323,14 @@ def unpackBatch(*dicts, device = DEVICE_DEFT):
 def unpackBatchComplexObs(*dicts, device = DEVICE_DEFT):
     if len(dicts) > 1:
         states1, states2, actions, rewards, dones, IS  = [], [], [], [], [], []
-        pos1, pos2 = [], []
+        pos1, pos2, tm1, tm2 = [], [], [], []
         for trajectory in dicts:
             states1 += [trajectory["st"]["frame"]]
             states2 += [trajectory["st1"]["frame"]]
             pos1 += [trajectory["st"]["position"]]
             pos2 += [trajectory["st1"]["position"]]
+            tm1 += [trajectory["st"]["time"]]
+            tm2 += [trajectory["st1"]["time"]]
             actions += [trajectory["action"]]
             rewards += [trajectory["reward"]]
             dones += [trajectory["done"]]
@@ -346,14 +348,17 @@ def unpackBatchComplexObs(*dicts, device = DEVICE_DEFT):
         pos1 = trajectory["st"]["position"]
         pos2 = trajectory["st1"]["position"]
         st2 = trajectory["st1"]["frame"]
+        tm1 = trajectory["st"]["time"]
+        tm2 = trajectory["st1"]["time"]
         actions = trajectory["action"]
         rewards = trajectory["reward"]
         dones = trajectory["done"]
         IS = trajectory["IS"]
     st1, st2 = st1.to(device), st2.to(device)
     pos1, pos2 = pos1.to(device).float(), pos2.to(device).float()
-    st1 = {"frame":st1, "position":pos1}
-    st2 = {"frame":st2, "position":pos2}
+    tm1, tm2 = tm1.to(device).float(), tm2.to(device).float()
+    st1 = {"frame":st1, "position":pos1, "time":tm1}
+    st2 = {"frame":st2, "position":pos2, "time":tm2}
     rewards = rewards.to(device)
     dones = dones.to(device)
     actions = actions.to(device).unsqueeze(1).long()

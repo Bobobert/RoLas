@@ -46,8 +46,8 @@ def assertIntPos(sus):
         raise ValueError("Value must be an integer greater than 0")
     return sus
 
-def sqrConvDim(inpt,kernel,stride):
-    return floor((inpt-kernel)/stride + 1)
+def sqrConvDim(inpt,kernel,stride, pad = 0, dil = 1):
+    return floor((inpt + 2*pad - dil*(kernel-1) - 1) /stride + 1)
 
 ### DEFAULTS TYPES ###
 DEVICE_DEFT = Tdevice("cpu")

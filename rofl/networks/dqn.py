@@ -159,13 +159,13 @@ class forestFireDQNv3(QValue):
         self.obsShape = obsShape
         self.rectifier = F.relu
 
-        self.cv1 = nn.Conv2d(lHist, lHist * 18, 8, 4)
-        dim = sqrConvDim(obsShape[0], 8, 4)
-        self.cv2 = nn.Conv2d(lHist * 18, lHist * 36, 4, 2)
-        dim = sqrConvDim(dim, 4, 2)
-        self.cv3 = nn.Conv2d(lHist * 36, lHist * 36, 3, 1)
-        dim = sqrConvDim(dim, 3, 1)
-        self.fc1 = nn.Linear(lHist * 36 * dim**2 + 1, h0)
+        self.cv1 = nn.Conv2d(lHist * 3,  18, 8, 4, padding=1)
+        dim = sqrConvDim(obsShape[0], 8, 4, 1)
+        self.cv2 = nn.Conv2d( 18,  36, 4, 2, padding=1)
+        dim = sqrConvDim(dim, 4, 2, 1)
+        self.cv3 = nn.Conv2d( 36,  36, 3, 1, padding=1)
+        dim = sqrConvDim(dim, 3, 1, 1)
+        self.fc1 = nn.Linear( 36 * dim**2 + 1, h0)
         self.fc2 = nn.Linear(h0, actions)
     
     def forward(self, obs):
@@ -267,4 +267,46 @@ class forestFireDuelingDQN(QValue):
 
     def new(self):
         new = forestFireDuelingDQN(self.config)
+        return new
+
+class forestFireDQNth0(QValue):
+    def __init__(self, config):
+        super(forestFireDQNth0, self).__init__()
+        lHist = config["agent"]["lhist"]
+        actions = config["policy"]["n_actions"]
+        obsShape = config["env"]["obs_shape"]
+        self.config= config
+        config = config["policy"]
+        h0 = config.get("net_hidden_1", 256)
+        h1 =config.get("net_hidden_2", 512)
+        h2 = config.get("net_hidden_3", 256)
+        h3 = config.get("net_hidden_4", 64)
+        
+
+        self.lHist = lHist
+        self.outputs = actions
+        self.obsShape = obsShape
+        self.rectifier = F.relu
+        ins = obsShape[0] * obsShape[1] * obsShape[2]
+        self.fc1 = nn.Linear(ins + 3, h0)
+        self.fc2 = nn.Linear(h0, h1)
+        self.fc3 = nn.Linear(h1, h2)
+        self.fc4 = nn.Linear(h2, h3)
+        self.fc5 = nn.Linear(h3, actions) # V1
+    
+    def forward(self, obs):
+        frame, pos, t = obs["frame"], obs["position"], obs["time"]
+        frame = frame.flatten(1)
+        obs = Tcat([frame, pos, t], dim = 1)
+        rec = self.rectifier
+        
+        X = rec(self.fc1(obs))
+        X = rec(self.fc2(X))
+        X = rec(self.fc3(X))
+        X = rec(self.fc4(X))
+
+        return self.fc5(X)
+
+    def new(self):
+        new = forestFireDQNth0(self.config)
         return new
