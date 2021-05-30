@@ -127,9 +127,9 @@ class MemoryReplay(object):
                 for n, j in enumerate(range(i + 1, i - self.LHist, -1)):
                     s, _, _, t = self[j]
                     if n < self.LHist:
-                        st2[m][n] = s.copy()
+                        st2[m][n] = s
                     if n > 0:
-                        st1[m][n - 1] = s.copy()
+                        st1[m][n - 1] = s
                     if not t and n >= 0:
                         # This should happend rarely
                         break

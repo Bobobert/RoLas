@@ -2,6 +2,7 @@
 Scheduled variables, this can be moved each time they are called or by a moving method
 """
 from abc import ABC
+from .const import math
 
 class Variable(ABC):
     """
@@ -12,6 +13,7 @@ class Variable(ABC):
     def __call__(self):
         self._step_()
         return self.value
+        
     @property
     def value(self):
         """
@@ -21,11 +23,21 @@ class Variable(ABC):
         returns value
         """
         return self._value_
+
     def _step_(self):
         """
-        Method to update the variable value of the object
+        Method to update the variable value of the object 
+        each time is called. Can be passed to have a manual
+        step calling
+        """
+        pass
+
+    def step(self):
+        """
+        Method to update the variable in a manual manner.
         """
         raise NotImplementedError
+
     def restore(self, step:int = -1):
         """
         Restore the intial value to the variable or if a step 
@@ -38,7 +50,8 @@ class Variable(ABC):
             self._value_ = self._opvalue_
         else:
             self._i_ = step -1
-            self._step_()
+            self.step()
+
     def __eq__(self, other):
         self._step_()
         return self._value_.__eq__(other)
@@ -56,15 +69,9 @@ class Variable(ABC):
         return self._value_.__ge__(other)
     def __add__(self, other):
         return self._value_.__add__(other)
-    def __radd__(self, other):
-        self._step_()
-        return self._value_.__radd__(other)
     def __mul__(self, other):
         self._step_()
         return self._value_.__mul__(other)
-    def __rmul__(self, other):
-        self._step_()
-        return self._value_.__rmul__(other)
     def __repr__(self):
         return self._value_.__repr__()
     def __float__(self):
@@ -106,9 +113,6 @@ class linearSchedule(Variable):
         self._i_ = 0
         assert life > 0, "Life of the variable must be positive. Live Chill"
         self._life_ = life
-
-    def _step_(self):
-        pass
     
     def step(self):
         xm = self._diff_ * self._i_ / self._life_
@@ -119,3 +123,58 @@ class linearSchedule(Variable):
     def __repr__(self):
         s = "{} linearSchedule: init {}, last {}, life {}".format(self._value_, self._opvalue_, self._last_, self._life_)
         return s
+
+class runningStat():
+    """
+    Custom class to keep track of a single value running
+    statistic. 
+
+    Defaults to zeros, usual method to add the values with the 
+    operator +=, eg
+
+        x = runningStat()\\
+        x += 2\\
+        x += 3\\
+        x()
+
+    Based from http://www.johndcook.com/blog/standard_deviation/
+    """
+    def __init__(self):
+        self.__mn__ = 0.0
+        self.__sn__ = 0.0
+        self.__n__ = 0
+
+    def __call__(self):
+        return (self.mean, self.std)
+
+    def __iadd__(self, other):
+        if self.__n__ == 0:
+            self.__mn__ = other
+            self.__n__ += 1
+        else:
+            self.__n__ += 1
+            oldMN = self.__mn__
+            self.__mn__ += (other - oldMN) / self.__n__
+            self.__sn__ += (other - oldMN) * (other - self.__mn__)
+        return self
+
+    def add(self, x):
+        self += x
+
+    @property
+    def mean(self):
+        return self.__mn__
+
+    @property
+    def var(self):
+        return self.__sn__ / (self.__n__ -  1) if self.__n__ > 1 else math.pow(self.__sn__, 2)
+
+    @property
+    def std(self):
+        return math.sqrt(self.var)
+    
+    def reset(self):
+        self.__init__()
+
+    def __repr__(self):
+        return "mean {:.4f} std {:.4f}".format(*self())

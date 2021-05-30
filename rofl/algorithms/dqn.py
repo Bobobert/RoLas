@@ -14,6 +14,7 @@ config = {
         "clip_reward": 1.0,
         "no_op_start": 30,
         "scale_pos": False,
+        "memory_prioritized": False,
     },
     "train":{
         "fill_memory":10**5,

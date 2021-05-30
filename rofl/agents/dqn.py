@@ -1,8 +1,10 @@
+from envRandom import calculateRatio
 from .base import Agent
 from rofl.functions.const import *
 from rofl.utils.dqn import MemoryReplay, MemoryReplayFF
 from rofl.utils.cv import imgResize, YChannelResize
 from rofl.functions.gym import noOpSample
+from rofl.functions import runningStat
 from tqdm import tqdm
 
 class dqnAtariAgent(Agent):
@@ -57,22 +59,6 @@ class dqnAtariAgent(Agent):
         self.frameStack[0] = self.lastFrame
         newObs = torch.from_numpy(self.frameStack).to(self.device)
         return newObs.unsqueeze(0).float().div(255)
-
-    def prepareTest(self):
-        """
-            If the agent needs to prepare to save or load 
-            anything before a test. Write it here
-        """
-        #self.frameStack = None
-        None
-    
-    def prepareAfterTest(self):
-        """
-            If the agent needs to prepare to save or load 
-            anything after a test. Write it here
-        """
-        #self.frameStack = None
-        self.done = True
 
     def getBatch(self, size:int, proportion: float = 1.0):
         """
@@ -133,14 +119,7 @@ class dqnAtariAgent(Agent):
             self.lastObs = proc(nextObs)
 
     def reportCustomMetric(self):
-        if self.fixedTrajectory is None:
-            return 0.0
-        with no_grad():
-            model_out = self.policy.dqnOnline(self.fixedTrajectory)
-            mean = torch.mean(model_out.max(1).values).item()
-        if self.tbw != None:
-            self.tbw.add_scalar("test/mean max Q", mean, self.testCalls)
-        return mean
+        return reportQmean(self)
 
     def reset(self):
         self.done = True
@@ -161,6 +140,34 @@ class dqnAtariAgent(Agent):
             type.
         """
         return NotImplementedError
+
+def prepare4Ratio(obj):
+    obj.ratioTree = runningStat()
+
+def calRatio(obj, env):
+    # Calculate ratio from environment
+    cc = env.cell_counts
+    tot = env.n_col * env.n_row
+    obj.ratioTree += cc[env.tree] / tot
+
+def reportQmean(obj):
+    if obj.fixedTrajectory is None:
+        return 0.0
+    with no_grad():
+        model_out = obj.policy.dqnOnline(obj.fixedTrajectory)
+        mean = Tmean(model_out.max(1).values).item()
+    if obj.tbw != None:
+        obj.tbw.add_scalar("test/mean max Q", mean, obj.testCalls)
+    return mean
+
+def reportRatio(obj):
+    meanQ = reportQmean(obj)
+    if obj.tbw != None:
+        obj.tbw.add_scalar("test/mean tree ratio", obj.ratioTree.mean, obj.testCalls)
+        obj.tbw.add_scalar("test/std tree ratio", obj.ratioTree.std, obj.testCalls)
+    return {"mean_q": meanQ, 
+            "mean tree ratio": obj.ratioTree.mean, 
+            "std tree ratio":obj.ratioTree.std}
 
 class dqnFFAgent(dqnAtariAgent):
     name = "dqnForestFireAgentv0"
@@ -198,6 +205,15 @@ class dqnFFAgent(dqnAtariAgent):
         Ttm = torch.as_tensor([tm]).to(self.device).float().unsqueeze(0)
         return {"frame": newObs, "position":Tpos, "time":Ttm}
 
+    def prepareTest(self):
+        prepare4Ratio(self)
+
+    def calculateCustomMetric(self, env, reward, done):
+        calRatio(self, env)
+
+    def reportCustomMetric(self):
+        return reportRatio(self)
+
 class dqnFFAgent2(dqnAtariAgent):
     name = "dqnForestFireAgentv1"
 
@@ -213,3 +229,12 @@ class dqnFFAgent2(dqnAtariAgent):
         self.lastFrame = obs
         self.frameStack[0] = self.lastFrame
         return torch.from_numpy(self.frameStack).to(self.device).unsqueeze(0).float().div(255)
+
+    def prepareTest(self):
+        prepare4Ratio(self)
+
+    def calculateCustomMetric(self, env, reward, done):
+        calRatio(self, env)
+
+    def reportCustomMetric(self):
+        return reportRatio(self)

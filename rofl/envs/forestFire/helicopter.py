@@ -742,11 +742,6 @@ class EnvMakerForestFire(Helicopter, Env):
                 tot = self.grid.shape[0] * self.grid.shape[1]
                 reward += 2.0 * self.cell_counts[self.tree] / tot - 1.0#v1 17/04
             reward += self.reward_move if self.last_move else 0.0
-            #tot = self.grid.shape[0] * self.grid.shape[1]
-            #reward = (self.cell_counts[self.tree] - self.cell_counts[self.fire]) / tot #v0
-            #reward = self.cell_counts[self.tree] / tot #v1 17/04
-            #tot = (self.grid.shape[0] * self.grid.shape[1])
-            #reward = (self.cell_counts[self.tree]) / tot # v1
         elif self.reward_type == "hit":
             tot = (self.grid.shape[0] * self.grid.shape[1]) * 2 # w Ratio
             reward = (self.cell_counts[self.tree]) / tot

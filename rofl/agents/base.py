@@ -31,8 +31,8 @@ class Agent(ABC):
         method to calculate a metric while testing only. In training
         can be writen inside the policy. This method will be called 
         each time .test is called 
-    - calculateCustomMetric: if needed the previous one, this is called
-        at the end of each test for the terminal state.
+    - calculateCustomMetric: if needed the previous one, each step of 
+        the test.
     - reportCustomMetric: return the custom metric
     - currentState: returns a dict
     - loadState: Loads a state dict
@@ -117,6 +117,7 @@ class Agent(ABC):
             while not testDone:
                 action = self.policy.getAction(obs)
                 nextObs, reward, done, _ = env.step(action)
+                self.calculateCustomMetric(env, reward, done)
                 testGain += reward
                 testSteps += 1
                 totSteps += 1
@@ -136,7 +137,6 @@ class Agent(ABC):
             # Processing metrics
             accRew[test] = testGain
             steps[test] = testSteps
-            self.calculateCustomMetric()
             if testGain > maxReturn:
                 maxReturn = testGain
             if testGain < minReturn:
@@ -195,14 +195,14 @@ class Agent(ABC):
             If the agent needs to prepare to save or load 
             anything before a test. Write it here
         """
-        return None
+        pass
     
     def prepareAfterTest(self):
         """
             If the agent needs to prepare to save or load 
             anything after a test. Write it here
         """
-        return None
+        pass
     
     def getBatch(self, size: int, proportion: float = 1.0):
         """
@@ -224,15 +224,14 @@ class Agent(ABC):
             calculateCustomMetric is the one called each time a test has 
             reached a terminal state.
         """
-        return None
+        pass
 
-    def calculateCustomMetric(self):
+    def calculateCustomMetric(self, env:Env, reward: float, done: bool):
         """
             From the state in test, and the self.envTest. Here custom code
-            can be writen to calculate metrics differente from the test. No 
-            variables are planned to be passed as argument more than self
+            can be writen to calculate metrics differente from the test.
         """
-        return None
+        pass
 
     def reportCustomMetric(self):
         """
