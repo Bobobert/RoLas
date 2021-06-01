@@ -1,5 +1,5 @@
 # RoLas
-Welcome to this DRL implementation using Pytorhc, Numba and Ray.
+Welcome to this DRL implementation using Pytorch, Numba and Ray.
 
 ## Algorithms Working
 - DQN
