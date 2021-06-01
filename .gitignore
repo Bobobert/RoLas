@@ -124,3 +124,9 @@ dmypy.json
 .pyre/
 
 .vscode/
+
+dqn_ffh0.py
+
+drqn_ffh.py
+
+drqn_gru_ffh.py
