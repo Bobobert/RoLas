@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import sys
 import time
 from torch import save, load, device
@@ -32,30 +32,7 @@ def timeDiffFormated(start):
         s = "< 0s"
     return s, tock
 
-def goToDir(path):
-    home = os.getenv('HOME')
-    try:
-        os.chdir(os.path.join(home, path))
-    except:
-        os.chdir(home)
-        os.makedirs(path)
-        os.chdir(path)
-    return os.getcwd()
-
-def createFolder(path:str, mod:str): # Deprecated
-    start = mod + '_' + timeFormated()
-    new_dir = os.path.join(path, start)
-    new_dir = goToDir(new_dir)
-    return start, new_dir
-
-def tbDir(expName:str) -> str:
-    """
-        Returns the default tensorboard direction
-        given the experiment key.
-    """
-    return genDir(expName, "tensorboard")
-
-def expDir(expName:str, envName:str) -> (str, str):
+def expDir(expName:str, envName:str):
     """
         Returns the default folders for the experiment
         with the environment name description.
@@ -67,20 +44,23 @@ def expDir(expName:str, envName:str) -> (str, str):
     t = timeFormatedS()
     return genDir(expName, envName, t), genDir(expName, envName, "tensorboard", t)
 
-def genDir(*args) -> str:
-    dr = os.getenv('HOME')
+def genDir(*args) -> Path:
+    dr = Path.home()
     adds = ["rl_results", *args]
     for s in adds:
-        dr = os.path.join(dr, s)
-    os.makedirs(dr, exist_ok=True)
+        dr /= s
+    dr.makedir(parents = True, exist_ok = True)
     return dr
 
-def saveConfig(config:dict, expDir:str):
+def configPath(path: Path) -> Path:
+    return (path / "config.json")
+
+def saveConfig(config:dict, expDir:Path):
     """
         Dumps the config dictionary into a 
         json file.
     """
-    fh = open(expDir + "/config.json", "w")
+    fh = configPath(expDir).open("w")
 
     def default(o):
         if isinstance(o, Variable):
@@ -89,8 +69,8 @@ def saveConfig(config:dict, expDir:str):
     json.dump(config, fh, indent=4, default = default)
     fh.close()
 
-def loadConfig(expDir):
-    fh = open(expDir + "/config.json", "r")
+def loadConfig(expDir: Path) -> dict:
+    fh = configPath(expDir).open("r")
     config = json.load(fh)
     fh.close()
     return config
@@ -177,25 +157,25 @@ class Reference:
 
     def clean(self, path):
         if len(self.prevVersions) >= self.limit:
-            target = self.prevVersions.pop()
-            #target = os.path.join(path, target)
-            os.remove(target)
+            self.prevVersions.pop().unlink(missing_ok = True)
     
     @staticmethod
     def loaderAssist(path):
-        os.chdir(path)
-        files = os.listdir()
         print("Files on direction:")
-        for n, File in enumerate(files):
-            print("{} : {}".format(n, File))
+        totFiles, files = 0, []
+        for file in path.iterdir():
+            if file.is_file():
+                files.append(file)
+                print("{} : {}".format(totFiles, file))
+                totFiles += 1
         while 1:
             choice = input("Enter the number for the file to load :")
             choice = int(choice)
-            if choice > len(files) or not isinstance(choice, int) or choice < 0:
+            if choice > len(totFiles) or not isinstance(choice, int) or choice < 0:
                 print("Number not valid. Please try again.")
             else:
                 break
-        return os.path.join(path, files[choice])
+        return files[choice]
 
     def load(self, path):
         self._loaded_ = True
@@ -213,29 +193,29 @@ class Reference:
         print("Model successfully loaded from ", path)
         
     def loadObj(self, path):
-        fileHandler = open(path, 'rb')
+        fileHandler = path.open('rb')
         self.ref = pickle.load(fileHandler)
         fileHandler.close()
         print("Object successfully loaded from ", path)
 
     def saveTorch(self, path):
         name = self._gen_name() + ".modelst"
-        path = os.path.join(path, name)
+        target = path / name
         try:
             stateDict = self.ref.state_dict()
-            save(stateDict, path)
-            self.prevVersions.add(path)
+            save(stateDict, target)
+            self.prevVersions.add(target)
         except:
             None
 
     def savePy(self, path):
         name = self._gen_name() + ".pyobj"
-        path = os.path.join(path, name)
+        target = path / name
         if sys.getsizeof(self.ref) < LIMIT_4G:
-            fileHandler = open(path, "wb")
+            fileHandler = target.open("wb")
             pickle.dump(self.ref, fileHandler)
             fileHandler.close()
-            self.prevVersions.add(path)
+            self.prevVersions.add(target)
 
     def _gen_name(self):
         self._version += 1
@@ -250,10 +230,10 @@ class Saver():
     ----------
     envName: str
 
-    path: str
+    path: Path
         Path relative to Home to dump the saved files
     """
-    def __init__(self, path:str,
+    def __init__(self, path:Path,
                     limitTimes:int = 10,
                     saveFreq:int = 30):
         
