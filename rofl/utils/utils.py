@@ -49,7 +49,7 @@ def genDir(*args) -> Path:
     adds = ["rl_results", *args]
     for s in adds:
         dr /= s
-    dr.makedir(parents = True, exist_ok = True)
+    dr.mkdir(parents = True, exist_ok = True)
     return dr
 
 def configPath(path: Path) -> Path:

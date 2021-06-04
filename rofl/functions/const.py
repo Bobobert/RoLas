@@ -27,7 +27,10 @@ Tdot = torch.dot
 Tsqrt = torch.sqrt
 Tstack = torch.stack
 no_grad = torch.no_grad
-from numba.typed import List
+try:
+    from numba.typed import List
+except:
+    print("Numba support not available. Errors could be heading one's way")
 try:
     from torch.utils.tensorboard import SummaryWriter
 except:
