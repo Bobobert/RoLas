@@ -13,7 +13,7 @@ config = {
         "steps_per_epoch": 4,
         "clip_reward": 1.0,
         "no_op_start": 30,
-        "scale_pos": False,
+        "scale_pos": True,
         "memory_prioritized": False,
     },
     "train":{

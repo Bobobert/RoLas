@@ -27,6 +27,27 @@ class dcontrolActorPG(Actor):
     def new(self):
         return dcontrolActorPG(self.config)
 
+class ccBaseline(Value):
+    name = "value_pg_net"
+    h0 = 30
+    def __init__(self, config):
+        super(ccBaseline, self).__init__()
+        self.config = config
+
+        inputs = config["policy"]["n_inputs"]
+        h0 = self.h0
+        self.rectifier = F.relu
+        self.fc1 = nn.Linear(inputs, h0)
+        self.fc2 = nn.Linear(h0, 1)
+
+    def forward(self, obs):
+        noLinear = self.rectifier
+        x = noLinear(self.fc1(obs))
+        return self.fc2(x)
+
+    def new(self):
+        return ccBaseline(self.config)
+
 class forestFireActorPG(Actor):
     name = "forestFire_pg_actor"
     discrete = True
@@ -61,6 +82,85 @@ class forestFireActorPG(Actor):
 
     def getDist(self, params):
         return Categorical(logits = params)
+
+class ffActor(Actor):
+    h0 = 328
+    name = "ff_actor_channel"
+    def __init__(self, config):
+        super(ffActor, self).__init__()
+        lHist = config["agent"]["lhist"]
+        actions = config["policy"]["n_actions"]
+        obsShape = config["env"]["obs_shape"]
+        h0 = config.get("net_hidden_1", self.h0)
+        self.config= config
+
+        self.lHist = lHist
+        self.outputs = actions
+        self.obsShape = obsShape
+        self.rectifier = F.relu
+
+        self.cv1 = nn.Conv2d(lHist * 3,  18, 8, 4, padding=1)
+        dim = sqrConvDim(obsShape[0], 8, 4, 1)
+        self.cv2 = nn.Conv2d( 18,  36, 4, 2, padding=1)
+        dim = sqrConvDim(dim, 4, 2, 1)
+        self.cv3 = nn.Conv2d( 36,  36, 3, 1, padding=1)
+        dim = sqrConvDim(dim, 3, 1, 1)
+        self.fc1 = nn.Linear(lHist * 36 * dim**2 + 1, h0)
+        self.fc2 = nn.Linear(h0, actions)
+    
+    def forward(self, obs):
+        frame, pos, t = obs["frame"], obs["position"], obs["time"]
+        frame = frame.reshape(frame.shape[0], frame.shape[1] * frame.shape[4], frame.shape[2], frame.shape[3])
+        x = self.rectifier(self.cv1(frame))
+        x = self.rectifier(self.cv2(x))
+        x = self.rectifier(self.cv3(x))
+        x = Tcat([x.flatten(1), t], dim=1)
+        x = self.rectifier(self.fc1(x))
+        return self.fc2(x)
+
+    def getDist(self, params):
+        return Categorical(logits = params)
+
+    def new(self):
+        return ffActor(self.config)
+
+class ffBaseline(Value):
+    h0 = 328
+    name = "ff_baseline_channel"
+    def __init__(self, config):
+        super(ffBaseline, self).__init__()
+        lHist = config["agent"]["lhist"]
+        actions = config["policy"]["n_actions"]
+        obsShape = config["env"]["obs_shape"]
+        h0 = config.get("net_hidden_1", self.h0)
+        self.config= config
+
+        self.lHist = lHist
+        self.outputs = actions
+        self.obsShape = obsShape
+        self.rectifier = F.relu
+
+        self.cv1 = nn.Conv2d(lHist * 3,  18, 8, 4, padding=1)
+        dim = sqrConvDim(obsShape[0], 8, 4, 1)
+        self.cv2 = nn.Conv2d( 18,  36, 4, 2, padding=1)
+        dim = sqrConvDim(dim, 4, 2, 1)
+        self.cv3 = nn.Conv2d( 36,  36, 3, 1, padding=1)
+        dim = sqrConvDim(dim, 3, 1, 1)
+        self.fc1 = nn.Linear(lHist * 36 * dim**2 + 1, h0)
+        self.fc2 = nn.Linear(h0, 1)
+    
+    def forward(self, obs):
+        frame, pos, t = obs["frame"], obs["position"], obs["time"]
+        frame = frame.reshape(frame.shape[0], frame.shape[1] * frame.shape[4], frame.shape[2], frame.shape[3])
+        x = self.rectifier(self.cv1(frame))
+        x = self.rectifier(self.cv2(x))
+        x = self.rectifier(self.cv3(x))
+        x = Tcat([x.flatten(1), t], dim=1)
+        x = self.rectifier(self.fc1(x))
+        return self.fc2(x)
+
+    def new(self):
+        return ffBaseline(self.config)
 
 class forestFireBaseline(Value):
     name = "forestFire_baseline"

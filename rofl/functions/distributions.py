@@ -1,5 +1,5 @@
 from .const import *
-from torch.distributions.kl import register_kl
+from torch.distributions.kl import register_kl, kl_divergence
 from torch.distributions import Distribution, Categorical, Normal
 
 @register_kl(Normal, Normal)

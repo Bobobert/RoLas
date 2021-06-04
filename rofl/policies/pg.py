@@ -20,21 +20,23 @@ class pgPolicy(Policy):
         
         # Config actor
         pconfig = config["policy"]
-        parameters, lr = actor.parameters(), pconfig["learning_rate"]
+        parameters = actor.parameters()
+        lr, optArgs = pconfig["learning_rate"], pconfig.get("optimizer_args", {})
         if pconfig["optimizer"] == "adam":
-            self.optimizer = optim.Adam(parameters, lr = lr)
+            self.optimizer = optim.Adam(parameters, lr = lr, **optArgs)
         elif pconfig["optimizer"] == "rmsprop":
-            self.optimizer = optim.RMSprop(parameters, lr = lr)
+            self.optimizer = optim.RMSprop(parameters, lr = lr, **optArgs)
         
         self.beta = config["policy"].get("entropy_bonus", 0.0)
         # Config Baseline
         bconfig = config.get("baseline", BASELINE_CONFIG_DEFT)
         if baseline != None:
-            parameters, lr = baseline.parameters(), bconfig["learning_rate"]
+            parameters = baseline.parameters()
+            lr, optArgs = bconfig["learning_rate"], bconfig.get("optimizer_args", {})
             if bconfig["optimizer"] == "adam":
-                self.blOpt = optim.Adam(parameters, lr = lr)
+                self.blOpt = optim.Adam(parameters, lr = lr, **optArgs)
             elif bconfig["optimizer"] == "rmsprop":
-                self.blOpt = optim.RMSprop(parameters, lr = lr)
+                self.blOpt = optim.RMSprop(parameters, lr = lr, **optArgs)
 
         # Administrative
         self.config, self.epochs = config, 0
@@ -54,7 +56,7 @@ class pgPolicy(Policy):
         return self.actor.device
 
     def update(self, *infoDicts):
-        states, actions, returns, logprobs = unpackBatch(*infoDicts, device = self.device)
+        states, actions, returns, _, logprobs = unpackBatch(*infoDicts, device = self.device)
         # Setting Actor update
         out = self.actor.forward(states)
         dist = self.actor.getDist(out)
@@ -121,3 +123,20 @@ class pgPolicy(Policy):
 
         if self.tbw != None:
             self.tbw.add_scalar("train/Baseline loss", loss, self.epochs)
+
+    def currentState(self):
+        s = {"actor":getListState(self.actor)}
+        if self.baseline is not None:
+            s["baseline"] = getListState(self.baseline)
+        return s
+
+    def loadState(self, state):
+        updateNet(self.actor, state["actor"])
+        if self.baseline is not None \
+            and state["baseline"] is not None:
+            updateNet(self.baseline, state["baseline"])
+
+    def new(self, device = DEVICE_DEFT):
+        actor = cloneNet(self.actor).to(device)
+        baseline = None if self.baseline is None else cloneNet(self.baseline).to(device)
+        return pgPolicy(self.config, actor, baseline)

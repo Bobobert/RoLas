@@ -1,4 +1,6 @@
 from gym import make
+import gym_cellular_automata as gymca
+
 try:
     from gym.envs.atari import AtariEnv
 except:
@@ -24,5 +26,18 @@ def atariEnvMaker(config):
         env = AtariEnv(name, obs_type = "image", frameskip = config["env"].get("frameskip", 4))
         seeds = env.seed(seed)
         return env, seeds
+
+    return ENV
+
+def gymcaEnvMaker(config):
+    name = config["env"]["name"]
+    if name not in gymca.REGISTERED_CA_ENVS:
+        raise ValueError(
+            "Environment {} is not registered in gym_cellular_automata".format(name))
+
+    def ENV(seed = None):
+        env = make("gym_cellular_automata:" + name)
+        env.seed(seed)
+        return env, [seed]
 
     return ENV

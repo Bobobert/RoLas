@@ -22,7 +22,7 @@ def forestFireEnvMaker(config):
 
     return ENV
 
-def bulldozerEnvMaker(config):
+def bulldozerEnvMaker_depr(config):
     def ENV(seed = None):
         env = BulldozerEnv()
         env.seed(seed)

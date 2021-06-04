@@ -24,62 +24,73 @@ def unpackBatch(*trajectories, device):
         return unpackBatchComplexObs(*trajectories, device = device)
     # Ingest the trajectories
     if len(trajectories) > 1:
-        states, actions, returns,logprobs  = [], [], [], []
+        states, actions, returns,logprobs, adv  = [], [], [], [], []
         for trajectory in trajectories:
             states += [trajectory["state"]]
             actions += [trajectory["action"]]
             returns += [trajectory["return"]]
             logprobs += [trajectory["prob"]]
+            adv += [trajectory["advantage"]]
         states = Tcat(states, dim=0)
         actions = Tcat(actions, dim=0)
         returns = Tcat(returns, dim=0)
         logprobs = Tcat(logprobs, dim=0)
-
+        adv = Tcat(adv) if adv[0] != None else None
     else:
         trajectoryBatch = trajectories[0]
         states = trajectoryBatch["state"]
         actions = trajectoryBatch["action"]
         returns = trajectoryBatch["return"]
         logprobs = trajectoryBatch["prob"]
+        adv = trajectoryBatch["advantage"]
 
     states = states.to(device).requires_grad_()
     actions = actions.to(device)
     returns = returns.to(device)
     logprobs = logprobs.to(device)
-    return states, actions, returns, logprobs
+    adv = adv.to(device) if isinstance(adv, TENSOR) else None
+    return states, actions, returns, adv, logprobs
 
 def unpackBatchComplexObs(*trajectories, device):
     # Ingest the trajectories
     if len(trajectories) > 1:
-        states, actions, returns,logprobs  = [], [], [], []
-        pos = []
+        states, actions, returns,logprobs, adv  = [], [], [], [], []
+        pos, tms = [], []
         for trajectory in trajectories:
             states += [trajectory["state"]["frame"]]
             pos += [trajectory["state"]["position"]]
+            tms += [trajectory["state"]["time"]]
             actions += [trajectory["action"]]
             returns += [trajectory["return"]]
             logprobs += [trajectory["prob"]]
+            adv += [trajectory["advantage"]]
         states = Tcat(states)
         pos = Tcat(pos)
+        tms = Tcat(tms)
         actions = Tcat(actions)
         returns = Tcat(returns)
         logprobs = Tcat(logprobs)
+        adv = Tcat(adv) if adv[0] != None else None
 
     else:
         trajectoryBatch = trajectories[0]
         states = trajectoryBatch["state"]["frame"]
         pos = trajectoryBatch["state"]["position"]
+        tms = trajectoryBatch["state"]["time"]
         actions = trajectoryBatch["action"]
         returns = trajectoryBatch["return"]
         logprobs = trajectoryBatch["prob"]
+        adv = trajectoryBatch["advantage"]
 
     states = states.to(device).requires_grad_()
     pos = pos.to(device).float().requires_grad_()
-    states = {"frame":states, "position":pos}
+    tms = tms.to(device).float().requires_grad_()
+    states = {"frame":states, "position":pos, "time":tms}
     actions = actions.to(device)
     returns = returns.to(device)
     logprobs = logprobs.to(device)
-    return states, actions, returns, logprobs
+    adv = adv.to(device) if isinstance(adv, TENSOR) else None
+    return states, actions, returns, adv, logprobs
 
 class Memory():
     def __init__(self, config):
@@ -141,7 +152,7 @@ class Memory():
                 "action": actions,
                 "prob": probs,
                 "return": returns,
-                "gae": advantages,
+                "advatage": advantages,
             }
         else:
             batchIdx = torch.randperm(len(self))[:size]
@@ -150,7 +161,7 @@ class Memory():
                 "action":actions[batchIdx],
                 "prob":probs[batchIdx],
                 "return":returns[batchIdx],
-                "gae":advantages[batchIdx] if self.gae else None}
+                "advatage":advantages[batchIdx] if self.gae else None}
 
         return sample
 
@@ -165,6 +176,7 @@ class MemoryFF(Memory):
     def empties(self):
         super().empties()
         self.pos = []
+        self.tms = []
 
     def add(self, state, action, prob, reward, terminal, advantage = None):
         super().add(state["frame"], action, prob, reward, terminal, advantage)
@@ -172,6 +184,7 @@ class MemoryFF(Memory):
         pos[0][0] = pos[0][0] / self.nRow
         pos[0][1] = pos[0][1] / self.nCol
         self.pos.append(pos)
+        self.tms.append(state.get("time", torch.zeros([1,])))
 
     def sample(self, size: int, device = DEVICE_DEFT):
         """
@@ -187,6 +200,7 @@ class MemoryFF(Memory):
 
         frames = Tcat(self.states).to(device)
         pos = Tcat(self.pos).to(device)
+        tms = Tcat(self.tms).to(device)
         actions = Tcat(self.actions).to(device)
         probs = Tcat(self.probs).to(device)
 
@@ -198,20 +212,26 @@ class MemoryFF(Memory):
 
         if size < 0:
             sample = {
-                "state": {"frame":frames, "position":pos},
+                "state": {"frame":frames, "position":pos, "time":tms},
                 "action": actions,
                 "prob": probs,
                 "return": returns,
-                "gae": advantages,
+                "advantage": advantages,
             }
         else:
             batchIdx = np.random.randint(len(self), size = size)
             sample = {
-                "state":{"frame":frames[batchIdx], "position":pos[batchIdx]},
+                "state":{"frame":frames[batchIdx], "position":pos[batchIdx], "time":tms[batchIdx]},
                 "action":actions[batchIdx],
                 "prob":probs[batchIdx],
                 "return":returns[batchIdx],
-                "gae":advantages[batchIdx] if self.gae else None}
+                "advantage":advantages[batchIdx] if self.gae else None}
 
         sample["obsType"] = "framePos"
         return sample
+
+def klDiff(net, states, actions, oldLogprobs):
+    with no_grad():
+        dist = net.getDist(net(states))
+        logprobs = dist.log_prob(actions)
+    return Tmean(oldLogprobs - logprobs).item()

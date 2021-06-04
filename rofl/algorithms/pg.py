@@ -1,6 +1,7 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
 from rofl.functions.stop import testEvaluation, initResultDict
+from rofl.functions.vars import updateVar
 from tqdm import tqdm
 
 config = {
@@ -28,16 +29,13 @@ config = {
     "policy":{
         "learning_rate":OPTIMIZER_LR_DEF,
         "optimizer": OPTIMIZER_DEF,
-        "entropy_bonus" : 1e-2,
+        "entropy_bonus" : ENTROPY_LOSS,
         "n_actions": 18,
         "evaluate_max_grad":True,
         "evaluate_mean_grad":True,
-        "recurrent_unit":"lstm",
-        "recurrent_layers":1,
-        "recurrent_hidden_size":328,
-        "recurrent_units":1,
-        "recurrent_boot":10,
         "clip_grad": 0.0,
+        "max_div_kl" : MAX_DKL,
+        "surrogate_epsilon": EPS_SURROGATE,
     },
     "baseline":{
         "learning_rate":OPTIMIZER_LR_DEF,
@@ -48,20 +46,25 @@ config = {
     "env":{
         "name":"forestFire",
         "atari": False,
-        "n_row": 32,
-        "n_col": 32,
-        "p_tree": 0.01,
+        "steps_termination": 500,
+        "n_row": 50,
+        "n_col": 50,
+        "p_tree": 0.05,
         "p_fire": 0.005,
-        "ip_tree": 0.6,
+        "ip_tree": 0.4,
         "ip_fire": 0.0,
         "obs_mode": "followGridImg",
         "obs_shape": (32,32),
-        "reward_type": "hit",
+        "reward_type": "hit_fire",
+        "reward_move": 0.0,
+        "reward_hit": 0.2,
+        "reward_fire": 0.0,
+        "reward_tree": 0.8,
         "frameskip": 4,
         "max_length": -1,
         "seedTrain" : 10,
         "seedTest": 1,
-        "freeze":4,
+        "freeze":9,
     },
 }
 
@@ -89,6 +92,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
         # Train step
         batch = agent.getBatch(batchSize, p)
         policy.update(batch)
+        updateVar(config)
         # Check for test
         if epoch % freqTest == 0:
             I.write("Testing ...")
