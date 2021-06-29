@@ -52,6 +52,8 @@ def assertIntPos(sus):
 def sqrConvDim(inpt,kernel,stride, pad = 0, dil = 1):
     return floor((inpt + 2*pad - dil*(kernel-1) - 1) /stride + 1)
 
+from typing import Union
+
 ### DEFAULTS TYPES ###
 DEVICE_DEFT = Tdevice("cpu")
 F_TDTYPE_DEFT = torch.float32
@@ -67,6 +69,7 @@ MAX_EPISODE_LENGTH = -1
 OPTIMIZER_DEF = "adam"
 OPTIMIZER_LR_DEF = 5e-5
 MINIBATCH_SIZE = 32
+PI = math.pi
 
 ### DQN ###
 MEMORY_SIZE = 10**6

@@ -2,7 +2,7 @@ from rofl.algorithms.pg import train, config
 from rofl.agents.pg import pgFFAgent 
 from rofl.policies.pg import pgPolicy
 from rofl.networks.pg import forestFireActorPG, forestFireBaseline, ffActor, ffBaseline
-from rofl.envs.CA import forestFireEnvMaker
+from rofl.envs import forestFireEnvMaker
 from rofl.functions import getDevice, SummaryWriter, linearSchedule
 from rofl.utils import seeder, Saver, expDir, saveConfig
 from gym.spaces import Discrete
