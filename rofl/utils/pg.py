@@ -133,7 +133,7 @@ class Memory():
         if size > len(self):
             return None
 
-        returns = toT(calculateReturns(self.rewards,self.notTerminals, self.gamma, 1.0), 
+        returns = A2T(calculateReturns(self.rewards,self.notTerminals, self.gamma, 1.0), 
                         device = device, grad = False).squeeze()
 
         states = Tcat(self.states).to(device)
@@ -141,7 +141,7 @@ class Memory():
         probs = Tcat(self.probs).to(device)
 
         if self.gae:
-            advantages = toT(calculateReturns(self.advantages, self.notTerminals, self.gamma, self.lmbd), 
+            advantages = A2T(calculateReturns(self.advantages, self.notTerminals, self.gamma, self.lmbd), 
                                 device=device, grad=False).squeeze()
         else:
             advantages = None
@@ -194,7 +194,7 @@ class MemoryFF(Memory):
         if size > len(self):
             return None
 
-        returns = toT(calculateReturns(self.rewards,self.notTerminals, self.gamma, 1.0), 
+        returns = A2T(calculateReturns(self.rewards,self.notTerminals, self.gamma, 1.0), 
                         device = device, grad = False).squeeze()
 
 
@@ -205,7 +205,7 @@ class MemoryFF(Memory):
         probs = Tcat(self.probs).to(device)
 
         if self.gae:
-            advantages = toT(calculateReturns(self.advantages, self.notTerminals, self.gamma, self.lmbd), 
+            advantages = A2T(calculateReturns(self.advantages, self.notTerminals, self.gamma, self.lmbd), 
                                 device=device, grad=False).squeeze()
         else:
             advantages = None

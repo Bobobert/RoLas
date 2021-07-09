@@ -1,6 +1,6 @@
 from .base import Agent
 from rofl.functions.const import *
-from rofl.functions.torch import toT
+from rofl.functions.torch import A2T
 from rofl.functions.gym import noOpSample
 from rofl.utils.pg import Memory, MemoryFF
 from rofl.utils.cv import imgResize
@@ -36,7 +36,7 @@ class pgAgent(Agent):
         super(pgAgent, self).__init__()
 
     def processObs(self, obs, reset=False):
-        return toT(obs, device = self.policy.device)
+        return A2T(obs, device = self.policy.device)
 
     def singlePath(self):
         # Init from last

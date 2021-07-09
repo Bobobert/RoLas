@@ -31,14 +31,12 @@ class Policy(ABC):
     discrete, test = True, False
     exploratory, tbw = None, None
     actor = None
+
     def __init__(self):
         if self.name == "BasePolicy":
             raise NameError("New agent should be called different to BaseAgent")
         if self.config is None or not isinstance(self.config, dict):
             raise ValueError("Agent needs .config as a dict")
-        n = self.config.get("names", [])
-        n += [self.name]
-        self.config["names"] = n
 
     def __call__(self, state):
         return self.getAction(state)
@@ -69,7 +67,7 @@ class Policy(ABC):
             return self.actor.sampleAction(state)
         return None
         
-    def update(self, *infoDicts):
+    def update(self, batchDict):
         """
             From the information dictionaries,
             the policy should be updated. If tabular
@@ -102,8 +100,7 @@ class Policy(ABC):
         return None
 
     def __repr__(self):
-        s = "Policy {}\nFor environment {}\nDiscrete {}".format(self.name, 
-            self.environment, self.discrete)
+        s = "Policy {}\nDiscrete {}".format(self.name, self.discrete)
         return s
 
     def new(self):
@@ -117,3 +114,23 @@ class Policy(ABC):
             policy
         """
         raise NotImplementedError
+
+    def getActions(self, infoDict):
+        """
+            Batch mode for getAction method.
+
+            returns
+            -------
+            actions in batch, ids in batch
+
+        """
+        observations = infoDict["observation"]
+        N = observations.shape[0]
+        actions = []
+        for n in range(N):
+            actions.append(self.getAction(observations[n].unsqueeze(0)))
+
+        return actions, infoDict["id"]
+
+
+    

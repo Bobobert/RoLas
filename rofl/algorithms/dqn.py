@@ -73,6 +73,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     agent.tqdm = True
     trajectory = agent.getBatch(sizeTrajectory, 2.0)
     agent.fixedTrajectory = trajectory["st"]
+    agent.memory.reset()
     agent.reset()
     agent.tqdm = False
     # Fill memory replay

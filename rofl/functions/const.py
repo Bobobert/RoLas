@@ -1,6 +1,7 @@
 """
     Constansts and functions from libraries to use in all the files.
 """
+import os
 import torch
 import torch
 import torch.nn as nn
@@ -60,6 +61,8 @@ F_TDTYPE_DEFT = torch.float32
 I_TDTYPE_DEFT = torch.int64
 F_NDTYPE_DEFT = np.float32
 I_NDTYPE_DEFT = np.int32
+B_TDTYPE_DEFT = torch.bool
+B_NDTYPE_DEFT = np.bool_
 TENSOR = torch.Tensor
 ARRAY = np.ndarray
 
@@ -70,6 +73,8 @@ OPTIMIZER_DEF = "adam"
 OPTIMIZER_LR_DEF = 5e-5
 MINIBATCH_SIZE = 32
 PI = math.pi
+NCPUS = os.cpu_count()
+TRAIN_SEED, TEST_SEED = 117, 404
 
 ### DQN ###
 MEMORY_SIZE = 10**6

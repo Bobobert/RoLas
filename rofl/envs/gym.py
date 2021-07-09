@@ -1,4 +1,5 @@
 from gym import make
+from gym.spaces import Discrete
 import gym_cellular_automata as gymca
 
 try:
@@ -22,6 +23,11 @@ def gymEnvMaker(config):
         env = make(name)
         seeds = env.seed(seed)
         return env, seeds
+
+     # Register action_space on config
+    env, _ = ENV()
+    config["env"]["action_space"] = env.action_space
+    del env
 
     return ENV
 
@@ -50,6 +56,9 @@ def atariEnvMaker(config):
                         )
         seeds = env.seed(seed)
         return env, seeds
+
+    # Register action_space on config
+    config["env"]["action_space"] = Discrete(config["policy"].get("n_actions", 18))
 
     return ENV
 
@@ -91,5 +100,10 @@ def gymcaEnvMaker(config):
         env._wind = initWindKernel(*wind_params)
         env.seed(seed)
         return env, [seed]
+
+    # Register action_space on config
+    env, _ = ENV()
+    config["env"]["action_space"] = env.action_space
+    del env
 
     return ENV

@@ -71,8 +71,8 @@ class dqnPolicy(Policy):
     def getRandom(self):
         return np.random.randint(self.nActions)
 
-    def update(self, *infoDicts):
-        st1, st2, rewards, actions, dones, IS = unpackBatch(*infoDicts, device = self.device)
+    def update(self, infoDicts):
+        st1, st2, rewards, actions, dones, IS = unpackBatch(infoDicts, device = self.device)
         qValues = self.dqnOnline(st1).gather(1, actions)
         qTargets = dqnTarget(self.dqnOnline, self.dqnTarget, 
                                 st2, rewards, dones, self.gamma, self.double)

@@ -2,17 +2,22 @@ from rofl.algorithms.pg import train, config
 from rofl.agents.pg import pgFFAgent 
 from rofl.policies.pg import pgPolicy
 from rofl.networks.pg import forestFireActorPG, forestFireBaseline, ffActor, ffBaseline
-from rofl.envs import forestFireEnvMaker
+from rofl.envs import gymcaEnvMaker
 from rofl.functions import getDevice, SummaryWriter, linearSchedule
 from rofl.utils import seeder, Saver, expDir, saveConfig
-from gym.spaces import Discrete
+from gym.spaces import Discrete, MultiDiscrete
 
 EXP_NAME = "pg"
-ENV_NAME = "forest_fire_helicopter"
-N_ACTIONS = 9
+ENV_NAME = "ForestFireBulldozer-v1"
+N_ACTIONS = 9, 2
 
 #lr = linearSchedule(1e-3, 10**4, minValue = 1e-5)
 #lr_b = linearSchedule(1e-3, 10**4, minValue = 1e-5)
+
+# TODO support multidiscrete action space
+# TODO change nets to support the one tensor obs
+# TODO add to agent one tensor obs
+# TODO add to policy one tensor obs
 
 config["variables"] = []#[lr, lr_b]
 config["env"]["name"] = ENV_NAME
@@ -24,14 +29,12 @@ config["env"]["reward_tree"] = 1.0
 config["env"]["reward_fire"] = 0.0
 config["env"]["n_col"] = 50
 config["env"]["n_row"] = 50
-config["env"]["ip_tree"] = 0.4
-config["env"]["p_tree"] = 0.05
-config["env"]["p_fire"] = 0.005
-config["env"]["freeze"] = 9
-config["env"]["obs_shape"] = (26, 26, 3)
-config["env"]["steps_termination"] = 500
-config["env"]["action_space"] = Discrete(N_ACTIONS)
-config["policy"]["n_actions"] = 9
+config["env"]["wind_speed"] = 20
+config["env"]["wind_direction"] = 160
+config["env"]["obs_shape"] = (20, 20)
+config["env"]["obs_channels"] = True
+config["env"]["action_space"] = MultiDiscrete(N_ACTIONS)
+config["policy"]["n_actions"] = N_ACTIONS
 #config["policy"]["optimizer_args"] = {"weight_decay": 1e-5}
 config["policy"]["net_hidden_1"] = 512
 config["policy"]["learning_rate"] = 5e-5#lr
@@ -59,7 +62,7 @@ actor = ffActor(config).to(device)
 critic = ffBaseline(config).to(device)
 policy = pgPolicy(config, actor, critic, tbw = writer)
 
-envMaker = forestFireEnvMaker(config)
+envMaker = gymcaEnvMaker(config)
 agent = pgFFAgent(config, policy, envMaker, tbw = writer)
 
 if __name__ == "__main__":

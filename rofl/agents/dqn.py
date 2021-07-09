@@ -121,10 +121,6 @@ class dqnAtariAgent(Agent):
     def reportCustomMetric(self):
         return reportQmean(self)
 
-    def reset(self):
-        self.done = True
-        self.memory.reset()
-
     def currentState(self):
         """
             Returns a dict with all the required information

@@ -6,9 +6,14 @@ def getDevice(cudaTry:bool = True):
     return DEVICE_DEFT
 
 # Custom functions
-def toT(arr: ARRAY, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False):
-        arr = np.squeeze(arr)
-        return torch.as_tensor(arr, dtype = dtype, device = device).unsqueeze(0).requires_grad_(grad)
+def A2T(arr: ARRAY, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False):
+    # expecting arrays for single operations - returns always a 1-item batch
+    arr = np.squeeze(arr)
+    return torch.as_tensor(arr, dtype = dtype, device = device).unsqueeze(0).requires_grad_(grad)
+
+def L2T(arr:list, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False):
+    # expecting simple lists with single items (int, float, bool)
+    return torch.tensor(arr, dtype = dtype, device = device).unsqueeze(1).requires_grad_(grad)
 
 def copyDictState(net, grad:bool = True):
     newSD = dict()
@@ -118,3 +123,4 @@ def convertFromFlat(x, shapes):
         newX += [x[iL:iS].reshape(s)]
         iL = iS
     return newX
+    

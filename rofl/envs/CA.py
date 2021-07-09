@@ -1,6 +1,5 @@
 from .forestFire.helicopter import EnvMakerForestFire
-from .gym_cellular_automata.envs.bulldozer import BulldozerEnv
-from .gym_cellular_automata.envs.forest_fire import ForestFireEnv
+from gym.spaces import Discrete
 import numpy as np
 
 def forestFireEnvMaker(config):
@@ -20,13 +19,7 @@ def forestFireEnvMaker(config):
         env.rg = np.random.Generator(np.random.SFC64(seed))
         return env, [seed]
 
-    return ENV
+    # Register action_space on config
+    config["env"]["action_space"] = Discrete(config["policy"].get("n_actions", 18))
 
-def bulldozerEnvMaker_depr(config):
-    def ENV(seed = None):
-        env = BulldozerEnv()
-        env.seed(seed)
-        return env, [seed]
-        
     return ENV
-    
