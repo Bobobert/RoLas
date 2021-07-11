@@ -32,10 +32,16 @@ class agentMaster():
             nconfig["env"]["seedTest"] = s2 + i + 1
             worker.worker = ragnt.remote(nconfig, None, envMaker)
     
+    @property
+    def device(self):
+        return self.policy.device
+
     def reset(self):
-        for agent in self.agents.values():
-            agent.reset.remote()
-        return self.resolveAll()
+        for worker in self.workers.values():
+            worker.ref = worker().reset.remote()
+        results = self.resolveAll()
+        self.lastObs = mergeDicts(*results, targetDevice = self.device)
+        return results
 
     def envStep(self, actions, ids):
         # distribute actions
@@ -46,7 +52,7 @@ class agentMaster():
         # resolve workers
         results = self.resolveAll()
         # merge infoDicts
-        return mergeDicts(*results, targetDevice = self.policy.device)
+        return mergeDicts(*results, targetDevice = self.device)
 
     def fullStep(self):
         actions, ids = self.policy.getActions(self.lastObs)
@@ -73,6 +79,12 @@ class agentMaster():
         for i, r in enumerate(results):
             pass
         # TODO complete ?
+
+    def close(self):
+        for w in self.workers.values():
+            del w.worker
+        ray.shutdown()
+
 
 
 class Worker:
@@ -143,7 +155,7 @@ class Worker:
             worker is ready if timeout is None
         """
         if self.status != WORKING:
-            pass
+            return None
 
         if timeout is not None:
             timeout = timeout / 1000
@@ -151,7 +163,7 @@ class Worker:
         try:
             self.result = ray.get(self.ref, timeout = timeout)
         except:
-            pass
+            return None
 
     def __call__(self):
         return self.worker

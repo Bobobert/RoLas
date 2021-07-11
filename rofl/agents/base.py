@@ -285,7 +285,7 @@ class Agent(ABC):
             method with an action from the policy if available or a
             noOp action.
         """
-        action = self.policy.getAction(self.lastObs) if not random else self._randomAction()
+        action = self.policy.getAction(self.lastObs) if not random else self.exploratoryAction(self.lastObs)
         return self.envStep(action)
 
     def reset(self):
@@ -302,15 +302,22 @@ class Agent(ABC):
     def _startEnv(self, warmup = None):
         env = self.env
         self.done = False
+
         if warmup is not None:
             obs, steps, action = doWarmup(warmup, env, self.config["env"])
         else:
             obs, action = env.reset(), self._noop_
         self.lastObs = obs = self.processObs(obs, True)
-        return obsDict(obs, action, 0.0, 0, False, id = self.workerID)
 
-    def _randomAction(self):
+        return obsDict(obs, action, 0.0, 0, False, 
+                        accumulate_reward = self._ac,
+                        id = self.workerID)
+
+    def exploratoryAction(self, observation):
         """
+            Defines an exploration strategy for the agent.
+
+            Default
             Return a random action from the gym space
         """
         return self.env.action_space.sample()
@@ -351,4 +358,10 @@ class Agent(ABC):
             dict.
         """
         return {}
+
+    @property
+    def device(self):
+        if self.policy is None:
+            return None
+        return self.policy.device
         

@@ -10,7 +10,6 @@ class pgAgent(Agent):
     def __init__(self, config, policy, envMaker, tbw = None):
         self.config = config
         self.policy = policy
-        self.device = policy.device
         self.tbw = tbw
         self.env, _ = envMaker(config["env"]["seedTrain"])
         self.envTest, _ = envMaker(config["env"]["seedTest"])

@@ -10,7 +10,7 @@ class dummyPolicy(Policy):
         self._as = env.action_space
         self.nop = noOpSample(env)
 
-    def getAction(self, state):
+    def getAction(self, observation):
         return self.nop
 
     def getRandom(self):
