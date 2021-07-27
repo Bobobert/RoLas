@@ -1,7 +1,7 @@
 """
     Constansts and functions from libraries to use in all the files.
 """
-import os
+import os, sys
 import torch
 import torch
 import torch.nn as nn
@@ -73,7 +73,10 @@ OPTIMIZER_DEF = "adam"
 OPTIMIZER_LR_DEF = 5e-5
 MINIBATCH_SIZE = 32
 PI = math.pi
-NCPUS = os.cpu_count()
+PLATFORM = sys.platform
+NCPUS = os.cpu_count() 
+if PLATFORM == "win32":
+    NCPUS += -1
 TRAIN_SEED, TEST_SEED = 117, 404
 
 ### DQN ###

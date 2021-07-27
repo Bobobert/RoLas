@@ -14,3 +14,9 @@ def kl_normals(dist1, dist2):
 def kl_cats(dist1, dist2):
     ax1 = Tdiv(dist1.logits, dist2.logits)
     return Tsum(Tmul(dist1.probs, ax1))
+
+def klDiff(net, states, actions, oldLogprobs):
+    with no_grad():
+        dist = net.getDist(net(states))
+        logprobs = dist.log_prob(actions)
+    return Tmean(oldLogprobs - logprobs).item()

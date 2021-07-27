@@ -13,12 +13,7 @@ class dqnAtariAgent(Agent):
 
     def __init__(self, config, policy, envMaker,
                     tbw = None, useTQDM = False):
-
-        self.config = config.copy()
-        self.policy = policy
-        self.device = policy.device
-        self.env, _ = envMaker(config["env"]["seedTrain"])
-        self.envTest, _ = envMaker(config["env"]["seedTest"])
+        super(dqnAtariAgent, self).__init__(config, policy, envMaker, tbw)
         self.done, self.lives = True, None
         try:
             self.environment = self.env.name
@@ -41,7 +36,7 @@ class dqnAtariAgent(Agent):
 
         self.fixedTrajectory = None
         self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
-        super(dqnAtariAgent, self).__init__()
+        
 
     def processObs(self, obs, reset: bool = False):
         """

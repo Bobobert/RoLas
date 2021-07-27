@@ -7,86 +7,6 @@ READY = 1
 WORKING = 2
 DONE = 3
 
-class agentMaster():
-    reseted = False
-    def __init__(self, config, policy, envMaker, agentClass,
-                    tbw = None, **kwargs):
-
-        self.mainAgent = agentClass(config, policy, envMaker, **kwargs)
-        self.policy = policy
-        self.config = config
-
-        nags = config["agent"].get("workers", NCPUS)
-        self._nAgents = nags = NCPUS if nags > NCPUS or nags < 1 else nags
-
-        ray.init(num_cpus = nags)
-        ragnt = ray.remote(agentClass)
-
-        self.workers = workers = dict()
-        s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
-        for i in range(nags):
-            nconfig, worker = config.copy(), Worker()
-            workers[i] = worker
-            nconfig["agent"]["id"] = worker.id = i
-            nconfig["env"]["seedTrain"] = s1 + i + 1
-            nconfig["env"]["seedTest"] = s2 + i + 1
-            worker.worker = ragnt.remote(nconfig, None, envMaker)
-    
-    @property
-    def device(self):
-        return self.policy.device
-
-    def reset(self):
-        for worker in self.workers.values():
-            worker.ref = worker().reset.remote()
-        results = self.resolveAll()
-        self.lastObs = mergeDicts(*results, targetDevice = self.device)
-        return results
-
-    def envStep(self, actions, ids):
-        # distribute actions
-        for i, Id in enumerate(ids):
-            worker = self.workers[Id]
-            action = actions[i]
-            worker.ref = worker().envStep.remote(action)
-        # resolve workers
-        results = self.resolveAll()
-        # merge infoDicts
-        return mergeDicts(*results, targetDevice = self.device)
-
-    def fullStep(self):
-        actions, ids = self.policy.getActions(self.lastObs)
-        self.lastObs = obs = self.envStep(actions, ids)
-        return obs
-
-    def getBatch(self, size: int, proportion: float = 1.0):
-        pass
-    
-    def resolveAll(self):
-        """
-            Working in a synchronous manner. Resolver each worker
-            with a pending task
-        """
-        for w in self.workers.values():
-            w.resolve()
-        return [w.result for w in self.workers.values() if w.status == DONE]
-
-        working, ids = [], []
-        for w in self.workers.values():
-            working.append(w.objRef)
-            ids.append(w.id)
-        results = ray.get(working)
-        for i, r in enumerate(results):
-            pass
-        # TODO complete ?
-
-    def close(self):
-        for w in self.workers.values():
-            del w.worker
-        ray.shutdown()
-
-
-
 class Worker:
     """
         Design to store and manage the ray actors
@@ -168,5 +88,130 @@ class Worker:
     def __call__(self):
         return self.worker
 
-class workerManager:
-    None
+class agentMaster():
+    
+    def __init__(self, config, policy, envMaker, agentClass,
+                    tbw = None, **kwargs):
+
+        self.mainAgent = agentClass(config, policy, envMaker, **kwargs)
+        self.policy = policy
+        self.config = config
+
+        nags = config["agent"].get("workers", NCPUS)
+        nags += 1 if nags == 1 else 0
+        self._nAgents = nags = NCPUS if nags > NCPUS or nags < 1 else nags
+
+        ray.init(num_cpus = nags)
+        ragnt = ray.remote(agentClass)
+
+        self.workers = workers = dict()
+        s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
+        for i in range(nags):
+            nconfig, worker = config.copy(), Worker()
+            workers[i] = worker
+            nconfig["agent"]["id"] = worker.id = i
+            nconfig["env"]["seedTrain"] = s1 + i + 1
+            nconfig["env"]["seedTest"] = s2 + i + 1
+            worker.worker = ragnt.remote(nconfig, None, envMaker)
+    
+    @property
+    def device(self):
+        return self.policy.device
+
+    def reset(self):
+        for worker in self.workers.values():
+            worker.ref = worker().reset.remote()
+        results = self.resolveAll()
+        self.lastObs = mergeDicts(*results, targetDevice = self.device)
+        return results
+
+    def envStep(self, actions, ids):
+        # distribute actions
+        for i, Id in enumerate(ids):
+            worker = self.workers[Id]
+            action = actions[i]
+            worker.ref = worker().envStep.remote(action)
+        # resolve workers
+        results = self.resolveAll()
+        # merge infoDicts
+        return mergeDicts(*results, targetDevice = self.device)
+
+    def fullStep(self):
+        actions, ids = self.policy.getActions(self.lastObs)
+        self.lastObs = obs = self.envStep(actions, ids)
+        return obs
+
+    def getBatch(self, size: int, proportion: float = 1.0):
+        pass
+    
+    def resolveAll(self):
+        """
+            Working in a synchronous manner. Resolver each worker
+            with a pending task
+        """
+        for w in self.workers.values():
+            w.resolve()
+        return [w.result for w in self.workers.values() if w.status == DONE]
+
+    def close(self):
+        for w in self.workers.values():
+            del w.worker
+        ray.shutdown()
+
+class agentSync(agentMaster):
+    
+    def __init__(self, config, policy, envMaker, agentClass,
+                    tbw = None, **kwargs):
+
+        self.mainAgent = agentClass(config, policy, envMaker, **kwargs)
+        self.policy = policy
+        self.config = config
+
+        nags = config["agent"].get("workers", NCPUS)
+        self._nAgents = nags = NCPUS if nags > NCPUS or nags < 1 else nags
+
+        ray.init(num_cpus = nags)
+        ragnt = ray.remote(agentClass)
+
+        self.workers = workers = dict()
+        s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
+        for i in range(nags):
+            nconfig, worker = config.copy(), Worker()
+            workers[i] = worker
+            nconfig["agent"]["id"] = worker.id = i
+            nconfig["env"]["seedTrain"] = s1 + i + 1
+            nconfig["env"]["seedTest"] = s2 + i + 1
+            worker.worker = ragnt.remote(nconfig, policy.new(), envMaker)
+    
+    @property
+    def device(self):
+        return self.policy.device
+
+    def reset(self):
+        for worker in self.workers.values():
+            worker.ref = worker().reset.remote()
+        results = self.resolveAll()
+        self.lastObs = mergeDicts(*results, targetDevice = self.device)
+        return results
+
+    def fullStep(self):
+        for w in self.workers.values():
+            w.ref = w().fullStep.remote()
+        
+        return mergeDicts(*self.resolveAll, targetDevice = self.device)
+
+    def getEpisodes(self):
+        for w in self.workers.values():
+            w.ref = w().getEpisode.remote()
+
+        return mergeDicts(*self.resolveAll())
+
+    def sync(self, batch):
+        self.policy.update(batch)
+
+        state = self.policy.currentState()
+        for w in self.workers.values():
+            w.ref = w().loadState.remote(state)
+        
+        self.resolveAll()
+

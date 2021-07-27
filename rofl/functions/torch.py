@@ -124,3 +124,13 @@ def convertFromFlat(x, shapes):
         iL = iS
     return newX
     
+def getGradients(net):
+    grads = []
+    for p in net.parameters():
+        grads.append(p.grad.clone().detach_())
+    return grads
+
+def accumulateGrad(net, *grads):
+    for grad in grads:
+        for p, g in zip(net.parameters(), grad):
+            p.grad.add_(g)

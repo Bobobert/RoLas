@@ -13,14 +13,14 @@
 
 from .const import *
 
-def obsDict(obs, action, reward, step, done, info = {}, n = 1, **kwargs):
+def obsDict(obs, action, reward, step, done, info = {}, n = 1, **kwargs) -> dict:
     
     dev = obs.device if isinstance(obs, TENSOR) else DEVICE_DEFT
 
     c = {"observation": obs, "device": dev,
             "action": action, "reward": reward, 
             "step": step, "done": done, 
-            "info": info, "N":n,
+            "info": info, "N": n,
             }
 
     for k in kwargs.keys():

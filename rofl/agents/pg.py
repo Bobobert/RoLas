@@ -5,6 +5,23 @@ from rofl.functions.gym import noOpSample
 from rofl.utils.pg import Memory, MemoryFF
 from rofl.utils.cv import imgResize
 
+class pgAgent00(Agent):
+    name = "Policy Gradient Vanilla v0"
+    def __init__(self, config, policy, envMaker, tbw = None):
+        super().__init__(config, policy, envMaker)
+        self.clipReward = config["agent"].get("clip_reward", 0.0)
+        self.noOpSteps = config["agent"].get("no_op_start", 0)
+        self.noOpAction = noOpSample(self.envTest) if self.noOpSteps > 0 else None
+    
+        self.mem = Memory(config)
+
+        # To single path
+        self.done, self.episodes = True, 0
+        self.obs = None
+
+    def processObs(self, obs, reset=False):
+        return A2T(obs, device = self.policy.device)
+
 class pgAgent(Agent):
     name = "pg_agent_v0"
     def __init__(self, config, policy, envMaker, tbw = None):

@@ -1,10 +1,9 @@
-from warnings import WarningMessage
-from gym.core import RewardWrapper
 from rofl.functions.const import *
 from rofl.functions.torch import *
 from rofl.functions.dicts import obsDict
 from rofl.functions.gym import doWarmup, noOpSample
 from rofl.policies.dummy import dummyPolicy
+from rofl.utils.memory import episodicMemory
 from gym import Env
 from abc import ABC
 
@@ -12,16 +11,22 @@ class Agent(ABC):
     """
     Base class for actors. 
 
-    Must be initiated with:
-    - A Configuration dict
-    - A Environment Maker function
-    - Policy (to enable fullStep method)
-    Optionals:
-    - tensorboard writer in .tbw
+    Parameters
+    ----------
+    config: dict
+        A configuration dictionary
+    policy: Policy
+        A Policy Type object (NoneType results in No-operation policy)
+    envMaker: function
+        Environment maker function from the rofl.envs
+    tbw: tensorboard writer *optional
     
-    Main Methods:
-    - getBatch: With a size and proportion, returns a
-        trajectory dict
+    Main Methods
+    ------------
+    - getBatch: With a size and proportion, returns an infoDict
+        as batch
+    - getEpisode: Returns a full episode with the calculated 
+        returns in a infoDict
     - envStep: Recieves an action and executes into the selected
         environment
     - fullStep: Process an action from the policy and calls 
@@ -29,28 +34,27 @@ class Agent(ABC):
     - test: executes a test, returns results
     - reset: resets the state to start over
 
-    Customized methods:
+    Customizable methods
+    ------------------
     - processObs: Process the actual observation
         returns the new observation or the same. If required
     - processReward: Process the reward from the
         envStep operation. If required
     - isTerminal: Outputs if the actual state is a terminal
         type or not. If required
-    - prepareTest: if necesary prepares the agent to execute
-        a test, if not does nothing
-    - prepareAfterTest: Continuation to prepareTest, if necesary, 
-        set agent state after a test
-    - prepareCustomMetric: if needed, the agent can have a custom
-        method to calculate a metric while testing only. In training
-        can be writen inside the policy. This method will be called 
-        each time .test is called 
-    - calculateCustomMetric: if needed the previous one, each step of 
-        the test.
-    - reportCustomMetric: return the custom metric    
+    - For testing:
+        - prepareTest: if necesary prepares the agent to execute
+            a test, if not does nothing
+        - prepareAfterTest: Continuation to prepareTest, if necesary, 
+            set agent state after a test
+        - prepareCustomMetric: if needed, the agent can have a custom
+            method to calculate a metric while testing only. In training
+            can be writen inside the policy. This method will be called 
+            each time .test is called 
+        - calculateCustomMetric: if needed the previous one, each step of 
+            the test.
+        - reportCustomMetric: return the custom metric    
 
-    Properties:
-    - observation
-    - status
 
     Other methods: (in progress)
     - currentState: returns a dict
@@ -58,30 +62,43 @@ class Agent(ABC):
     """
     name = "BaseAgent"
     environment = None
-    policy = None
-    config = None
-    env, envTest = None, None
-    twb, testCalls = None, 0
-    _ac, _nstep, done = 0.0, 0, True
-    lastObs, lastReward, lastInfo =  None, 0.0, {}
-    _totSteps, _totEpisodes = 0, -1
 
-    def __init__(self):
+    twb, testCalls = None, 0
+    _acR_, _agentStep_, _envStep_, done = 0.0, 0, 0, True
+    lastObs, lastReward, lastInfo =  None, 0.0, {}
+    _totSteps, _totEpisodes = 0, 0
+
+    def __init__(self, config, policy, envMaker, tbw = None):
         if self.name == "BaseAgent":
             raise NameError("New agent should be called different to BaseAgent")
-        if self.config is None or not isinstance(self.config, dict):
-            raise ValueError("Agent needs .config as a dict")
-        if not isinstance(self.env, Env):
-            raise ValueError("At least self.env should be defined with a gym's environment")
-        if self.policy is None:
+
+        if config is None or not isinstance(config, dict):
+            raise ValueError("Agent needs config as a dict")
+
+        self.config = config
+        self.tbw = tbw
+        self.env, self.trainSeed = envMaker(config["env"]["seedTrain"])
+        self.envTest, self.testSeed = envMaker(config["env"]["seedTest"])
+        self._noop_ = noOpSample(self.env)
+
+        try:
+            self.environment = self.env.name
+        except:
+            self.environment = "unknown"
+
+        if policy is None:
             self.policy = dummyPolicy(self.env)
             print("Warning, agent working with a dummy plug policy!")
-        if self.envTest is None:
-            self.envTest = self.env
-            print("Warning, environment test not given. Test will be evaluated with the train environment!")
+        else:
+            self.policy = policy
+        
         # some administrative
-        self.workerID = self.config["agent"].get("id", 0)
-        self._noop_ = noOpSample(self.env)
+        self.workerID = config["agent"].get("id", 0)
+        self.gamma = config["agent"]["gamma"]
+        self.lmbd = config["agent"].get("lambda", 1.0)
+        self.gae = config["agent"].get("gae", False)
+        self.maxEpLen = config["env"].get("max_length", -1)
+        self.warmup = config["env"].get("warmup")
         
     def currentState(self):
         """
@@ -227,13 +244,52 @@ class Agent(ABC):
             reset: bool
                 If needed a flag that this observation is from a new
                 trajectory. As to reset the pipeline or not effect.
+            
+            returns
+            -------
+            torch.Tensor
         """
+        print("Warning: Agent {}. processObs method not defined!")
         return obs
 
     def processReward(self, reward, **kwargs):
+        """
+            If the agent needs to process the reward of the
+            environment. Write it here
+
+            parameters
+            ----------
+            reward: int, float
+
+            returns
+            -------
+            float
+        """
         return reward
 
     def isTerminal(self, obs, done, info, **kwargs):
+        """
+            If the agent has special conditions to mark
+            a state as terminal. Write it here.
+
+            Default(super) behavior, if config-> env ->max_length 
+            is greater than 0 and self._envStep_ is equal or greater
+            then is marked as terminal. 
+            
+            If the warmup adds steps to the environment those are consider
+            as well. Can use self._agentStep_ to watch the agent's steps
+            in the actual episode on the environment.
+
+            parameters
+            ----------
+            reward: int, float
+
+            returns
+            -------
+            float
+        """
+        if self.maxEpLen > 0 and self._envStep_ >= self.maxEpLen:
+            return done
         return done
     
     def envStep(self, action, **kwargs):
@@ -242,7 +298,12 @@ class Agent(ABC):
             the action. Adds the observation and reward to the agent's
             administrative state.
 
-            return:
+            parameters
+            ----------
+            action: int or ndarray
+
+            returns
+            --------
             infoDict
         """
         if self.done:
@@ -250,9 +311,12 @@ class Agent(ABC):
 
         env = self.env
         procObs, procRew, procTer = self.processObs, self.processReward, self.isTerminal
-        self._totSteps += 1
 
-        self._nstep += 1
+        # Incrementals
+        self._totSteps += 1
+        self._agentStep_ += 1
+        self._envStep_ += 1
+
         # TODO create a function that process actions for the policy
         # Process action from a batch
         ids = kwargs.get("ids")
@@ -271,12 +335,12 @@ class Agent(ABC):
         self.lastInfo = info
         self.done = done = procTer(obs, done, info)
 
-        self._ac += reward
+        self._acR_ += reward
         self._totEpisodes += 1 if done else 0
 
         return obsDict(pastObs, action, reward, 
-                        self._nstep, done, info, 
-                        accumulate_reward = self._ac,
+                        self._agentStep_, done, info, 
+                        accumulate_reward = self._acR_,
                         id = self.workerID) 
 
     def fullStep(self, random = False, **kwargs):
@@ -284,6 +348,16 @@ class Agent(ABC):
             Does a full step on the environment calling the envStep
             method with an action from the policy if available or a
             noOp action.
+
+            parameters
+            ----------
+            random: bool
+                If true overrides the policy action process and uses
+                a sample from the environment's action space
+
+            returns
+            -------
+            infoDict
         """
         action = self.policy.getAction(self.lastObs) if not random else self.exploratoryAction(self.lastObs)
         return self.envStep(action)
@@ -293,28 +367,30 @@ class Agent(ABC):
             Resets the main environment and emits an observation
             withour any warmup.
 
-            return:
+            returns
+            --------
             infoDict
         """
-        self._nstep, self._ac = 0, 0.0
-        return self._startEnv(warmup = self.config["env"].get("warmup"))
+        self._agentStep_, self._acR_ = 0, 0.0
+        return self._startEnv(warmup = self.warmup)
 
     def _startEnv(self, warmup = None):
         env = self.env
         self.done = False
 
         if warmup is not None:
-            obs, steps, action = doWarmup(warmup, env, self.config["env"])
+            obs, self._envStep_, action = doWarmup(warmup, env, self.config["env"])
         else:
-            obs, action = env.reset(), self._noop_
-        self.lastObs = obs = self.processObs(obs, True)
+            obs, self._envStep_, action = env.reset(), 0, self._noop_
 
+        self.lastObs = obs = self.processObs(obs, True)
         return obsDict(obs, action, 0.0, 0, False, 
-                        accumulate_reward = self._ac,
+                        accumulate_reward = self._acR_,
                         id = self.workerID)
 
     def exploratoryAction(self, observation):
         """
+            TODO
             Defines an exploration strategy for the agent.
 
             Default
@@ -328,6 +404,26 @@ class Agent(ABC):
             to feed the algorithm to update the policy.
         """
         return dict()
+
+    def getEpisode(self):
+        """
+            Develops or complete an entire episode in the environment.
+            Calculates the returns of the steps with a episodicMemory.
+
+            returns
+            -------
+            infoDict
+        """
+        if self._agentStep_ > 0:
+            self.reset()
+        
+        mem = episodicMemory(self.config)
+        mem.reset()
+
+        while not self.done:
+            mem.add(self.fullStep())
+    
+        return mem.getEpisode()
 
     def __repr__(self):
         s = "Agent {}\nFor environment {}\nPolicy {}".format(self.name, 

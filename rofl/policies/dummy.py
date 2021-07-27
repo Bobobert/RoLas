@@ -7,6 +7,7 @@ class dummyPolicy(Policy):
     config = {}
     def __init__(self, env):
         super().__init__()
+        self._env_ = env
         self._as = env.action_space
         self.nop = noOpSample(env)
 
@@ -19,3 +20,6 @@ class dummyPolicy(Policy):
     @property
     def device(self):
         return DEVICE_DEFT
+
+    def new(self):
+        return dummyPolicy(self._env_)
