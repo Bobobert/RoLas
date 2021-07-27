@@ -230,8 +230,3 @@ class MemoryFF(Memory):
         sample["obsType"] = "framePos"
         return sample
 
-def klDiff(net, states, actions, oldLogprobs):
-    with no_grad():
-        dist = net.getDist(net(states))
-        logprobs = dist.log_prob(actions)
-    return Tmean(oldLogprobs - logprobs).item()
