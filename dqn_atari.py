@@ -24,17 +24,17 @@ config["policy"]["epsilon"] = epsilon
 config["policy"]["double"] = True
 config["policy"]["freq_update_target"] = 10**4
 config["agent"]["memory_prioritized"] = False
-config["train"]["epochs"] = 1*10**6
+config["train"]["epochs"] = 1*10**4
 config["train"]["fill_memory"] = 5*10**4
 config["train"]["iters_test"] = 20
 config["train"]["expected_performance"] = 300
 
 device = getDevice()
 seeder(8088, device)
-expdir, tbdir = expDir(EXP_NAME, ENV_NAME)
+#expdir, tbdir = expDir(EXP_NAME, ENV_NAME)
 
-writer = SummaryWriter(tbdir)
-saver = Saver(expdir)
+writer = None#SummaryWriter(tbdir)
+saver = None#Saver(expdir)
 net = dqnAtari(config).to(device)
 policy = dqnPolicy(config, net, tbw = writer)
 

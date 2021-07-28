@@ -5,5 +5,6 @@ Welcome to this DRL implementation using Pytorch, Numba and Ray.
 - DQN
 - Vanilla Policy Gradient
 
-## Packages
+## Packages' version
 - 0.1 released as part of my dissertation experiments
+- 0.2 

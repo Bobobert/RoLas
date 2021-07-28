@@ -1,26 +1,20 @@
-from envRandom import calculateRatio
 from .base import Agent
 from rofl.functions.const import *
 from rofl.utils.dqn import MemoryReplay, MemoryReplayFF
 from rofl.utils.cv import imgResize, YChannelResize
 from rofl.functions.gym import noOpSample
 from rofl.functions import runningStat
+from rofl.functions.torch import updateNet
 from tqdm import tqdm
 
 class dqnAtariAgent(Agent):
 
     name = "dqnAgentv0"
 
-    def __init__(self, config, policy, envMaker,
-                    tbw = None, useTQDM = False):
-        super(dqnAtariAgent, self).__init__(config, policy, envMaker, tbw)
+    def initAgent(self, useTQDM = False, **kwargs):
+        config = self.config
         self.done, self.lives = True, None
-        try:
-            self.environment = self.env.name
-        except:
-            self.environment = "unknown"
 
-        self.gamma = config["agent"]["gamma"]
         obsShape, lhist  = config["env"]["obs_shape"], config["agent"]["lhist"]
         self.memory = MemoryReplay(capacity=config["agent"]["memory_size"],
                         state_shape = obsShape,
@@ -28,11 +22,11 @@ class dqnAtariAgent(Agent):
         self.obsShape = (lhist, *obsShape)
         self.clipReward = config["agent"].get("clip_reward", 0.0)
         self.noOpSteps = config["agent"].get("no_op_start", 0)
-        self.noOpAction = noOpSample(self.envTest) if self.noOpSteps > 0 else None
+        self.noOpAction = self._noop_ if self.noOpSteps > 0 else None
         self.frameSize = tuple(obsShape)
         self.isAtari = config["env"]["atari"]
         self.memPrioritized = config["agent"].get("memory_prioritized", False)
-        self.tbw, self.tqdm = tbw, useTQDM
+        self.tqdm = useTQDM
 
         self.fixedTrajectory = None
         self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
@@ -162,12 +156,12 @@ def reportRatio(obj):
 
 class dqnFFAgent(dqnAtariAgent):
     name = "dqnForestFireAgentv0"
-    def __init__(self, config, policy, envMaker,
-                    tbw = None, useTQDM = False):
-        # From the original agent
-        super(dqnFFAgent, self).__init__(config, policy, envMaker,
-                                            tbw = tbw, useTQDM=useTQDM)
 
+    def initAgent(self, useTQDM = False, **kwargs):
+        # From the original agent
+        super(dqnFFAgent, self).initAgent(**kwargs)
+
+        config = self.config
         obsShape, lhist  = config["env"]["obs_shape"], config["agent"]["lhist"]
         nCol, nRow = config["env"]["n_col"], config["env"]["n_row"]
         if not config["agent"].get("scale_pos", False):
@@ -229,3 +223,38 @@ class dqnFFAgent2(dqnAtariAgent):
 
     def reportCustomMetric(self):
         return reportRatio(self)
+
+class dqnRollout(Agent):
+    def initAgent(self, heuristic = None, **kwargs):
+        self.heuristic = heuristic
+        if heuristic is None:
+            raise ValueError("Heuristic needs to be not a NoneType")
+
+        self.ucbC = self.config["agent"].get("ubc_c", 1.0)
+        self.rolloutDepth = config["agent"].get("rollout_depth", 10)
+        self.rolloutSamples = config["agent"].get("rollout_samples", 30)
+        self.nActions = config["policy"]["n_actions"]
+
+    def startRollout(self, state, action):
+        
+        rt = 0.0
+        nt = np.zeros((self.rolloutDepth, self.nActions))
+
+        for i in range(self.rolloutSamples):
+            self.loadState(state)
+            obs, reward, done, info = self.env.step(action)
+            
+            # mean Rt
+            rt += i * rt / (i + 1)
+            
+
+
+    def loadState(self, state):
+        pass
+    
+    def runHeuristic(self):
+        return 0.0
+
+    def updateDQN(self, netParameters):
+        updateNet(self.policy.dqnOnline, netParameters)
+    

@@ -36,6 +36,7 @@ class Agent(ABC):
 
     Customizable methods
     ------------------
+    - initAgent: Initialize custom variables
     - processObs: Process the actual observation
         returns the new observation or the same. If required
     - processReward: Process the reward from the
@@ -68,7 +69,7 @@ class Agent(ABC):
     lastObs, lastReward, lastInfo =  None, 0.0, {}
     _totSteps, _totEpisodes = 0, 0
 
-    def __init__(self, config, policy, envMaker, tbw = None):
+    def __init__(self, config, policy, envMaker, tbw = None, **kwargs):
         if self.name == "BaseAgent":
             raise NameError("New agent should be called different to BaseAgent")
 
@@ -99,7 +100,21 @@ class Agent(ABC):
         self.gae = config["agent"].get("gae", False)
         self.maxEpLen = config["env"].get("max_length", -1)
         self.warmup = config["env"].get("warmup")
-        
+    
+        self.initAgent(**kwargs)
+
+    def initAgent(self, **kwargs):
+        """
+            If needed, write additional initialization for 
+            parameters and functions setup.
+
+            returns
+            -------
+            None
+            
+        """
+        pass
+
     def currentState(self):
         """
             Returns a dict with all the required information
