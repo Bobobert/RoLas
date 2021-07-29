@@ -84,7 +84,7 @@ class Policy(ABC):
             Returns a dict with all the required information
             of its state to start over or just to save it.
         """
-        return dict()
+        raise NotImplementedError
 
     def loadState(self, newState):
         """
@@ -93,7 +93,7 @@ class Policy(ABC):
             Must verify the name of the policy is the same and the
             type.
         """
-        return NotImplementedError
+        raise NotImplementedError
 
     @property
     def device(self):

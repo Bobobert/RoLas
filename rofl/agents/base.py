@@ -6,6 +6,7 @@ from rofl.policies.dummy import dummyPolicy
 from rofl.utils.memory import episodicMemory
 from gym import Env
 from abc import ABC
+from copy import deepcopy
 
 class Agent(ABC):
     """
@@ -120,7 +121,12 @@ class Agent(ABC):
             Returns a dict with all the required information
             of its state to start over or just to save it.
         """
-        return dict()
+        return {"name": self.name, "environment": self.environment,
+                "config": self.config, "policy_state": self.policy.currentState(),
+                "env_obs": self.lastObs, "env_state":None, "env_done": self.done,
+                "env_steps": self._envStep_, "agent_step": self._agentStep_,
+                "accumulated_reward": self._acR_, "reward": self.lastReward,
+                "env_info":self.lastInfo}
 
     def loadState(self, newState):
         """
@@ -129,7 +135,20 @@ class Agent(ABC):
             Must verify the name of the agent is the same and the
             type.
         """
-        return NotImplementedError
+        if newState["name"] != self.name:
+            raise ValueError("Agent type must be the same!")
+        if newState["environment"] != self.environment:
+            raise ValueError("Environment should be the same")
+        # Not a copy as many contain a VariableType and else
+        self.config = newState["config"] 
+        self.policy.loadState(newState["policy_state"])
+        # Agent variables
+        self.lastObs = tryCopy(newState["env_obs"])
+        self.lastReward = newState["reward"]
+        self.lastInfo = deepcopy(newState["env_info"])
+        self.done = newState["env_done"]
+        self._acR_ = newState["accumulated_reward"]
+        self._envStep_, self._agentStep_ = newState["env_steps"], newState["agent_step"]
 
     def test(self, iters:int = TEST_N_DEFT, prnt:bool = False):
         """

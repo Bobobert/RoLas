@@ -134,3 +134,12 @@ def accumulateGrad(net, *grads):
     for grad in grads:
         for p, g in zip(net.parameters(), grad):
             p.grad.add_(g)
+
+def tryCopy(T: TENSOR):
+    if isinstance(T, TENSOR): 
+        return T.clone().detach()
+    elif isinstance(T, ARRAY):
+        return np.copy(T)
+    else:
+        from copy import deepcopy
+        return deepcopy(T)

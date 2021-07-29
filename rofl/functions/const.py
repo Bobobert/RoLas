@@ -53,6 +53,24 @@ def assertIntPos(sus):
 def sqrConvDim(inpt,kernel,stride, pad = 0, dil = 1):
     return floor((inpt + 2*pad - dil*(kernel-1) - 1) /stride + 1)
 
+def runningMean(xt, y, t):
+    """
+        parameters
+        ----------
+        xt: float
+            mean
+        y: int/float
+            new value
+        t: int
+            observations included in xt
+        
+        returns
+        -------
+        xt1: float
+            new mean
+    """
+    return xt * t / (t + 1) + y / (t + 1)
+
 from typing import Union
 
 ### DEFAULTS TYPES ###

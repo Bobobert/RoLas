@@ -23,3 +23,9 @@ class dummyPolicy(Policy):
 
     def new(self):
         return dummyPolicy(self._env_)
+
+    def loadState(self, newState):
+        pass
+
+    def currentState(self):
+        return dict()
