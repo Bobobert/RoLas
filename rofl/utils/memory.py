@@ -51,15 +51,34 @@ class simpleMemory():
             self._li_ += 1
 
     def sample(self, size, device = DEVICE_DEFT):
+        """
+            Standard method to sample the memory. This is
+            intended to be used as the main method to interface
+            the memory.
+
+            returns
+            --------
+            obsDict
+        """
         if size > self._i_ - self._li_:
             raise ValueError("Not enough data to generate sample")
-        
+    
+        return self.processSample(self.gatherSample(size), device)
+
+    def gatherSample(self, size):
+        """
+            Gathers the items from the memory to be processed
+
+            returns
+            -------
+            list of obsDict
+        """
         sample = []
         for _ in range(size):
             n = random.randint(self._li_, self._i_ - 1)
             sample.append(self._mem_[n])
         
-        return self.processSample(sample, device)
+        return sample
 
     def processSample(self, sample, device):
         sample = mergeDicts(*sample, targetDevice = device)
@@ -102,3 +121,30 @@ class episodicMemory(simpleMemory):
 
     def getEpisode(self, device = DEVICE_DEFT):
         return self.processSample(self._mem_, device)
+
+class dqnMemory(simpleMemory):
+    def __init__(self, config):
+        super().__init__(config)
+        self.lhist = config["agent"]["lhist"]
+        assert self.lhist > 0, "Lhist needs to be at least 1"
+        self._keys_.append("rollout_return")
+
+    def gatherSample(self, size):
+        sample = []
+        for _ in range(size):
+            n = random.randint(self._li_ + self.lhist, self._i_ - 1)
+            sample.append(self.getLhist(n))
+        return sample
+    
+    def getLhist(self, i):
+        op = item = self._mem_[i]
+        obs = item["observation"]
+        newObs = torch.zeros((1, self.lhist, *obs.shape[1:]), dtype = F_TDTYPE_DEFT)
+        newObs[0,0] = obs.squeeze()
+        for j in range(1, self.lhist):
+            item = self._mem_[i - j]
+            if item["done"]:
+                break
+            newObs[0, j] = item["observation"].squeeze()
+        op["observation"] = newObs
+        return op

@@ -13,11 +13,11 @@ class BaseNet(nn.Module):
     - name
     - device
     """
+    name = "BaseNet"
     def __init__(self):
         super(BaseNet, self).__init__()
         self.discrete = True
         self.__dvc__ = None
-        self.name = "BaseNet"
 
     def new(self):
         """
@@ -36,9 +36,9 @@ class Value(BaseNet):
     """
     Class design to manage a state value function only
     """
+    name = "Value Base"
     def __init__(self):
         super(Value,self).__init__()
-        self.name = "ValueBase"
 
     def getValue(self, x):
         with no_grad():
@@ -49,11 +49,11 @@ class QValue(BaseNet):
     """
     Class design to manage an action-value function
     """
+    name = "QValue Base"
     def __init__(self):
         super(QValue, self).__init__()
         self.discrete = True
-        self.name = "QValue"
-
+        
     def processAction(self, action):
         if isItem(action):
             return action.item()
@@ -75,9 +75,9 @@ class Actor(BaseNet):
     """
     Class design to manage an actor only network
     """
+    name = "Actor Base"
     def __init__(self):
         super(Actor, self).__init__()
-        self.name = "ActorBase"
 
     def getDist(self, x):
         """
@@ -135,9 +135,9 @@ class ActorCritic(Actor):
     Class design to host both actor and critic for those architectures when a start 
     part is shared like a feature extraction from a CNN as for DQN-Atari.
     """
+    name = "Actor critic Base"
     def __init__(self):
         super(ActorCritic, self).__init__()
-        self.name = "Actor_critic"
         
     def sharedForward(self, x):
         """

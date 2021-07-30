@@ -356,3 +356,36 @@ class forestFireDQNth0(QValue):
     def new(self):
         new = forestFireDQNth0(self.config)
         return new
+
+def getObs(obj, obs, channels = False):
+    frame, pos_t = obs[:,:-3], obs[:,-3:]
+    if channels:
+        frame = frame.reshape((-1, obj.lHist * obj.obsShape[-1], *obj.obsShape[:-1]))
+    else:
+        frame = frame.reshape((-1, obj.lHist, obj.obsShape))
+    return frame, pos_t
+
+class ffDQNv4(forestFireDQN):
+    name = "forestFire DQN v4"
+
+    def forward(self, obs):
+        frame, pos_t = getObs(self, obs)
+        return super().forward(frame)
+
+    def new(self):
+        return ffDQNv4(self.config)
+
+class ffDQNv5(forestFireDQNv3):
+    name = "forestFire DQN v5"
+
+    def forward(self, obs):
+        frame, pos_t = getObs(self, obs)
+        x = self.rectifier(self.cv1(frame))
+        x = self.rectifier(self.cv2(x))
+        x = self.rectifier(self.cv3(x))
+        x = Tcat([x.flatten(1), pos_t[:,-1]], dim=1)
+        x = self.rectifier(self.fc1(x))
+        return self.fc2(x)        
+
+    def new(self):
+        return ffDQNv5(self.config)

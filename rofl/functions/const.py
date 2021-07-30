@@ -71,6 +71,12 @@ def runningMean(xt, y, t):
     """
     return xt * t / (t + 1) + y / (t + 1)
 
+def mutiplyIter(itm):
+    t = 1
+    for i in itm:
+        t *= i
+    return t
+
 from typing import Union
 
 ### DEFAULTS TYPES ###

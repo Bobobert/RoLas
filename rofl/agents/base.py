@@ -68,7 +68,7 @@ class Agent(ABC):
     twb, testCalls = None, 0
     _acR_, _agentStep_, _envStep_, done = 0.0, 0, 0, True
     lastObs, lastReward, lastInfo =  None, 0.0, {}
-    _totSteps, _totEpisodes = 0, 0
+    _totSteps, _totEpisodes, memory = 0, 0, None
 
     def __init__(self, config, policy, envMaker, tbw = None, **kwargs):
         if self.name == "BaseAgent":
@@ -432,12 +432,36 @@ class Agent(ABC):
         """
         return self.env.action_space.sample()
 
-    def getBatch(self, size: int, proportion: float = 1.0):
+    def getBatch(self, size: int, proportion: float = 1.0, 
+                        device = DEVICE_DEFT, **kwargs):
         """
             Prepares and return a batch of information or trajectories
             to feed the algorithm to update the policy.
+
+            parameters
+            ----------
+            size: int
+                Size of the batch to return
+            proportion: float
+                The ratio of wich the sample size respect
+                to the steps given. p = 0.5 means the agent
+                needs double the amount of steps respect to
+                the batch size.
+            device: torch.device
+
+            Returns
+            -------
+            batch infoDict
         """
-        return dict()
+        assert size > 1 and proportion > 0 and proportion <= 1, "Size must be greater than 1, proportion in range (0,1]"
+        memory = self.memory
+        if memory is None:
+            from rofl.utils.memory import simpleMemory
+            memory = simpleMemory(self.config)
+        for i in range(ceil(size / proportion)):
+            obsDict = self.fullStep(**kwargs)
+            memory.add(obsDict)
+        return memory.sample(size, device)
 
     def getEpisode(self):
         """

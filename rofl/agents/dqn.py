@@ -2,10 +2,7 @@ from .base import Agent
 from rofl.functions.const import *
 from rofl.utils.dqn import MemoryReplay, MemoryReplayFF
 from rofl.utils.cv import imgResize, YChannelResize
-from rofl.functions.gym import noOpSample
 from rofl.functions import runningStat
-from rofl.functions.torch import updateNet
-from tqdm import tqdm
 
 class dqnAtariAgent(Agent):
 
@@ -63,6 +60,7 @@ class dqnAtariAgent(Agent):
         # Generate iterator
         I = range(ceil(size * proportion))
         if self.tqdm:
+            from tqdm import tqdm
             I = tqdm(I, desc="Generating batch")
         # Do steps for batch
         self.policy.test = False
@@ -223,94 +221,3 @@ class dqnFFAgent2(dqnAtariAgent):
 
     def reportCustomMetric(self):
         return reportRatio(self)
-
-class dqnRollout(Agent):
-    _EPS_ = 1e-4
-
-    def initAgent(self, heuristic = None, **kwargs):
-        self.heuristic = heuristic
-        if heuristic is None:
-            raise ValueError("Heuristic needs to be not a NoneType")
-        config = self.config
-        self.ucbC = config["agent"].get("ubc_c", 1.0)
-        self.rolloutDepth = config["agent"].get("rollout_depth", 1)
-        self.rolloutLength = config["agent"].get("rollout_length", 10)
-        self.rolloutSamples = config["agent"].get("rollout_samples", 30)
-        self.nActions = config["policy"]["n_actions"]
-
-    def createNT(self):
-        """
-            Returns a Tensor that has a shape 
-            [Episode length, Number actions]
-        """
-        c = self.config
-        l = c["env"].get("max_length", 1024)
-        n = c["policy"]["n_actions"]
-        return torch.zeros((l, n), dtype = I_TDTYPE_DEFT)
-
-    def startRollout(self, state, action, nt):
-        
-        rt = 0.0 # mean R_t
-        gs = 0.0
-
-        for i in range(self.rolloutSamples):
-            # Reset state
-            self.loadState(state)
-            obs0 = self.envStep(action)
-            # mean Rt
-            rt = runningMean(rt, obs0["reward"], i)
-            rs, gm, keep, d = obs0["reward"], self.gamma, True, 0
-
-            if obs0["done"]: 
-                keep = False
-
-            while d < self.rolloutLength and keep:
-                # Do the UCB actions
-                if d < self.rolloutDepth:
-                    # take UCB action
-                    At = self.UCBAction(self._envStep_, nt[self._envStep_])
-                    nt[self._envStep_, At] += 1
-                else:
-                    # Use heuristic
-                    At = self.heuristic(self.lastObs)
-                obsDict = self.envStep(At)
-                rs += gm * obsDict["reward"]
-                d += 1
-                gm *= self.gamma
-                # Stop condition for the actual rollout
-                if obsDict["done"]:
-                    keep = False
-            # Bootstrap last value with dqn
-            if keep:
-                qvalues = self.getQvalues(self.lastObs)
-                rs += gm * qvalues.max().item()
-            gs = runningMean(gs, rs, i)
-            # TODO insert time / resources limit stop condition here
-
-        return gs, rt, nt
-            
-    def UCBAction(self, t, nt):
-        """
-            Consider nt as the array shape [n_actions,], that holds
-            how many times the action have been seen at time t.
-
-            parameters
-            ----------
-            t: int
-                step relative to the Tensor nt
-            nt: Tensor
-                Should have how manytimes an action has been seen
-                at the time t
-        """
-        qvalues = self.getQvalues(self.lastObs)
-        lnt = qvalues.new_empty(qvalues.shape).fill_(math.log(t))
-        qs = torch.addcdiv(qvalues, self.ucbC, lnt, nt + self._EPS_)
-
-        return qs.argmax().item()
-        
-    def getQvalues(self, obs):
-        return self.policy.dqnOnline.forward(obs).squeeze()
-
-    def updateDQN(self, netParameters):
-        updateNet(self.policy.dqnOnline, netParameters)
-    
