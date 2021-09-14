@@ -67,7 +67,14 @@ config = {
     },
 }
 
-def train(config:dict, agent:Agent, policy:Policy, saver = None):
+def fillRandomMemoryReplay(config:dict, agent:Agent):
+    # Fill memory replay
+    sizeInitMemory = config["train"]["fill_memory"]
+    I = tqdm(range(sizeInitMemory), desc="Filling memory replay")
+    for _ in I:
+        agent.step(randomPi = True)
+
+def fillFixedTrajectory(config, agent):
     # Generate fixed trajectory
     sizeTrajectory = config["train"]["fixed_q_trajectory"]
     agent.tqdm = True
@@ -76,11 +83,12 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     agent.memory.reset()
     agent.reset()
     agent.tqdm = False
-    # Fill memory replay
-    sizeInitMemory = config["train"]["fill_memory"]
-    I = tqdm(range(sizeInitMemory), desc="Filling memory replay")
-    for _ in I:
-        agent.step(randomPi = True)
+
+def train(config:dict, agent:Agent, policy:Policy, saver = None):
+    fillFixedTrajectory(config, agent)
+
+    fillRandomMemoryReplay(config, agent)
+
     # Train the net
     ## Init results and saver
     trainResults = initResultDict()
@@ -92,6 +100,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     def saverAll():
         if saver is not None:
             saver.saveAll()
+
     miniBatchSize = config["policy"]["minibatch_size"]
     stepsPerEpoch = config["agent"]["steps_per_epoch"]
     freqTest = config["train"]["freq_test"]

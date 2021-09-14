@@ -1,3 +1,6 @@
 from rofl.functions.const import *
 
-pass
+config = {}
+
+def train():
+    pass
