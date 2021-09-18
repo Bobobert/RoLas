@@ -16,7 +16,7 @@ def forestFireEnvMaker(config):
         reward_move= config.get("reward_move", -0.001), reward_hit=config.get("reward_hit",0.01),
         reward_tree = config.get("reward_tree", 1.0), reward_fire = config.get("reward_fire", -1.0),
         reward_empty=0.0)
-        env.rg = np.random.Generator(np.random.SFC64(seed))
+        env.rg = nprnd.Generator(nprnd.SFC64(seed))
         return env, [seed]
 
     # Register action_space on config

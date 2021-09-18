@@ -1,6 +1,6 @@
 from gym.spaces import Space
 from gym import Env
-from .const import ARRAY, random
+from .const import ARRAY, rnd
 
 def noOpSample(env):
     """
@@ -23,7 +23,7 @@ def assertActionSpace(config):
 def someSkips(min_steps, max_steps):
     max_steps = 1 if max_steps < min_steps else max_steps
     min_steps = 0 if min_steps < 0 else min_steps
-    return random.randint(min_steps, max_steps)
+    return rnd.randint(min_steps, max_steps)
 
 def skip(env, op, skips):
     obs = env.reset()

@@ -72,5 +72,5 @@ def conservative(env, obs, radius = 3):
 
     if np.sum(equals) > 1:
         # break tie in a random manner
-        return np.random.choice([i for i in range(10) if equals[i]])
+        return nprnd.choice([i for i in range(10) if equals[i]])
     return fires.argmax()

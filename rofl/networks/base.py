@@ -60,14 +60,20 @@ class QValue(BaseNet):
         else:
             return action.to(DEVICE_DEFT).squeeze().numpy()
 
-    def getAction(self, x):
+    def getQValues(self, state):
+        with no_grad():
+            return self.forward(state)
+
+    def getValue(self, state, action):
+        assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
+        return self.getQValues(state)[action].item()
+
+    def getAction(self, state):
         """
         Returns the max action from the Q network. Actions
         must be from 0 to n. That would be the network output
         """
-        with no_grad():
-            values = self.forward(x)
-            max_a = values.argmax(1)
+        max_a = self.getQValues(state).argmax(1)
 
         return self.processAction(max_a)
 

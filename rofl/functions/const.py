@@ -8,8 +8,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import math
-import random
+import random as rnd
 import numpy as np
+import numpy.random as nprnd
 
 ### FUNCTION FROM LIBS ###
 ceil = math.ceil

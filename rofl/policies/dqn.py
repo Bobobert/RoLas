@@ -16,7 +16,7 @@ def dqnTarget(onlineNet, targetNet, s2, r, t, gamma, double:bool = True):
         target = r + Tmul(t, Qs2_max).mul(gamma).reshape(r.shape)
     return target.unsqueeze(1)
 
-def ISNorm(IS):
+def importanceNorm(IS):
     IS = IS.unsqueeze(1)
     maxIS = IS.max()
     return IS / maxIS
@@ -27,7 +27,7 @@ class dqnPolicy(Policy):
     def __init__(self, config, dqn, tbw = None):
 
         self.config = config.copy()
-        self.dqnOnline = dqn
+        self.dqnOnline = self.actor = dqn
         self.dqnTarget = cloneNet(dqn)
         self.epsilon = EpsilonGreedy(config)
         self.gamma = config["agent"]["gamma"]
@@ -51,7 +51,7 @@ class dqnPolicy(Policy):
         super(dqnPolicy, self).__init__()
 
     def getAction(self, state):
-        throw = np.random.uniform()
+        throw = nprnd.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
         output = None
 
@@ -63,13 +63,13 @@ class dqnPolicy(Policy):
 
         if throw <= eps:
             if self.prioritized: calOut()
-            return self.getRandom()
+            return self.getRndAction()
         else:
             calOut()
             return self.dqnOnline.processAction(output.argmax(1))
 
-    def getRandom(self):
-        return np.random.randint(self.nActions)
+    def getRndAction(self):
+        return nprnd.randint(self.nActions)
 
     def update(self, infoDicts):
         st1, st2, rewards, actions, dones, IS = unpackBatch(infoDicts, device = self.device)
@@ -79,7 +79,7 @@ class dqnPolicy(Policy):
 
         loss = F.smooth_l1_loss(qValues, qTargets, reduction="none")
         if self.prioritized:
-            IS = ISNorm(IS)
+            IS = importanceNorm(IS)
             loss = Tmul(IS, loss)
         loss = Tmean(loss)
         self.optimizer.zero_grad()
@@ -100,19 +100,3 @@ class dqnPolicy(Policy):
     @property
     def device(self):
         return self.dqnOnline.device
-
-    def currentState(self):
-        """
-            Returns a dict with all the required information
-            of its state to start over or just to save it.
-        """
-        return dict()
-
-    def loadState(self, newState):
-        """
-            Form a dictionary state, loads all the values into
-            the policy.
-            Must verify the name of the policy is the same and the
-            type.
-        """
-        return NotImplementedError

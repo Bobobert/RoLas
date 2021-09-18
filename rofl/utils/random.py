@@ -13,8 +13,8 @@ def seeder(seed:int, device: Tdevice):
         device: torch.device
     """
     assert seed > 0, "seed must to be a positive number"
-    random.seed(seed)
-    np.random.seed(seed)
+    rnd.seed(seed)
+    nprnd.seed(seed)
     torch.manual_seed(seed)
     
     if device.type == "cuda": 

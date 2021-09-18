@@ -1,9 +1,9 @@
 from rofl.functions.const import *
-from rofl.functions.torch import *
+from rofl.functions.torch import tryCopy
 from rofl.functions.dicts import obsDict
 from rofl.functions.gym import doWarmup, noOpSample
+from rofl.functions.coach import episodicRollout
 from rofl.policies.dummy import dummyPolicy
-from rofl.utils.memory import episodicMemory
 from gym import Env
 from abc import ABC
 from copy import deepcopy
@@ -14,26 +14,27 @@ class Agent(ABC):
 
     Parameters
     ----------
-    config: dict
+    - config: dict
         A configuration dictionary
-    policy: Policy
+    - policy: Policy
         A Policy Type object (NoneType results in No-operation policy)
-    envMaker: function
+    - envMaker: function
         Environment maker function from the rofl.envs
-    tbw: tensorboard writer *optional
+    - tbw: tensorboard writer *optional
     
     Main Methods
     ------------
-    - getBatch: With a size and proportion, returns an infoDict
+    - getBatch: With a size and proportion, returns an obsDict
         as batch
     - getEpisode: Returns a full episode with the calculated 
-        returns in a infoDict
+        returns in a obsDict
     - envStep: Recieves an action and executes into the selected
         environment
     - fullStep: Process an action from the policy and calls 
         envStep
     - test: executes a test, returns results
     - reset: resets the state to start over
+    - rndAction: returns a sample from the environment's action space
 
     Customizable methods
     ------------------
@@ -59,15 +60,15 @@ class Agent(ABC):
 
 
     Other methods: (in progress)
+    -------------
     - currentState: returns a dict
     - loadState: Loads a state dict
     """
     name = "BaseAgent"
-    environment = None
 
     twb, testCalls = None, 0
     _acR_, _agentStep_, _envStep_, done = 0.0, 0, 0, True
-    lastObs, lastReward, lastInfo =  None, 0.0, {}
+    lastObs, lastReward, lastAction, lastInfo =  None, 0.0, None, {}
     _totSteps, _totEpisodes, memory = 0, 0, None
 
     def __init__(self, config, policy, envMaker, tbw = None, **kwargs):
@@ -81,18 +82,19 @@ class Agent(ABC):
         self.tbw = tbw
         self.env, self.trainSeed = envMaker(config["env"]["seedTrain"])
         self.envTest, self.testSeed = envMaker(config["env"]["seedTest"])
-        self._noop_ = noOpSample(self.env)
+        self.noOp = noOpSample(self.env)
 
         try:
-            self.environment = self.env.name
+            self.envName = self.env.name
         except:
-            self.environment = "unknown"
+            self.envName = "unknown"
 
         if policy is None:
-            self.policy = dummyPolicy(self.env)
+            self.policy = dummyPolicy(self.noOp)
             print("Warning, agent working with a dummy plug policy!")
         else:
             self.policy = policy
+        self.policy.rndFunc = self.rndAction
         
         # some administrative
         self.workerID = config["agent"].get("id", 0)
@@ -121,7 +123,7 @@ class Agent(ABC):
             Returns a dict with all the required information
             of its state to start over or just to save it.
         """
-        return {"name": self.name, "environment": self.environment,
+        return {"name": self.name, "envName": self.envName,
                 "config": self.config, "policy_state": self.policy.currentState(),
                 "env_obs": self.lastObs, "env_state":None, "env_done": self.done,
                 "env_steps": self._envStep_, "agent_step": self._agentStep_,
@@ -137,7 +139,7 @@ class Agent(ABC):
         """
         if newState["name"] != self.name:
             raise ValueError("Agent type must be the same!")
-        if newState["environment"] != self.environment:
+        if newState["envName"] != self.envName:
             raise ValueError("Environment should be the same")
         # Not a copy as many contain a VariableType and else
         self.config = newState["config"] 
@@ -338,13 +340,13 @@ class Agent(ABC):
 
             returns
             --------
-            infoDict
+            obsDict
         """
         if self.done:
             return self.reset()
 
         env = self.env
-        procObs, procRew, procTer = self.processObs, self.processReward, self.isTerminal
+        processObs, processReward, processTerminal = self.processObs, self.processReward, self.isTerminal
 
         # Incrementals
         self._totSteps += 1
@@ -353,21 +355,18 @@ class Agent(ABC):
 
         # TODO create a function that process actions for the policy
         # Process action from a batch
-        ids = kwargs.get("ids")
-        if ids is not None:
-            # TODO this is not a great way
-            for i, d in enumerate(ids):
-                if d == self.workerID:
-                    action = action[i]
-                    break
+        for i, d in enumerate(kwargs.get("ids"), []):
+            if d == self.workerID:
+                action = action[i]
+                break
 
         obs, reward, done, info = env.step(action)
 
         pastObs = self.lastObs
-        self.lastObs = obs = procObs(obs)
-        self.lastReward = reward = procRew(reward)
-        self.lastInfo = info
-        self.done = done = procTer(obs, done, info)
+        self.lastObs = obs = processObs(obs)
+        self.lastReward = reward = processReward(reward)
+        self.lastInfo, self.lastAction = info, action
+        self.done = done = processTerminal(obs, done, info)
 
         self._acR_ += reward
         self._totEpisodes += 1 if done else 0
@@ -380,8 +379,7 @@ class Agent(ABC):
     def fullStep(self, random = False, **kwargs):
         """
             Does a full step on the environment calling the envStep
-            method with an action from the policy if available or a
-            noOp action.
+            method with an action from the policy, or random action.
 
             parameters
             ----------
@@ -391,9 +389,11 @@ class Agent(ABC):
 
             returns
             -------
-            infoDict
+            obsDict
         """
-        action = self.policy.getAction(self.lastObs) if not random else self.exploratoryAction(self.lastObs)
+        action = self.policy.getAction(self.lastObs) if not random else self.rndAction(self.lastObs)
+
+        
         return self.envStep(action)
 
     def reset(self):
@@ -403,7 +403,7 @@ class Agent(ABC):
 
             returns
             --------
-            infoDict
+            obsDict
         """
         self._agentStep_, self._acR_ = 0, 0.0
         return self._startEnv(warmup = self.warmup)
@@ -415,25 +415,23 @@ class Agent(ABC):
         if warmup is not None:
             obs, self._envStep_, action = doWarmup(warmup, env, self.config["env"])
         else:
-            obs, self._envStep_, action = env.reset(), 0, self._noop_
+            obs, self._envStep_, action = env.reset(), 0, self.noOp
 
         self.lastObs = obs = self.processObs(obs, True)
+        self.lastReward, self.lastInfo, self.lastAction = 0.0, {}, action
+        
         return obsDict(obs, action, 0.0, 0, False, 
                         accumulate_reward = self._acR_,
                         id = self.workerID)
-
-    def exploratoryAction(self, observation):
+    
+    def rndAction(self):
         """
-            TODO
-            Defines an exploration strategy for the agent.
-
-            Default
-            Return a random action from the gym space
+            Returns a random action from the gym space
         """
         return self.env.action_space.sample()
 
-    def getBatch(self, size: int, proportion: float = 1.0, 
-                        device = DEVICE_DEFT, **kwargs):
+    def getBatch(self, size: int, proportion: float = 1.0, random = False,
+                        device = DEVICE_DEFT):
         """
             Prepares and return a batch of information or trajectories
             to feed the algorithm to update the policy.
@@ -451,7 +449,7 @@ class Agent(ABC):
 
             Returns
             -------
-            batch infoDict
+            batch obsDict
         """
         assert size > 1 and proportion > 0 and proportion <= 1, "Size must be greater than 1, proportion in range (0,1]"
         memory = self.memory
@@ -459,33 +457,24 @@ class Agent(ABC):
             from rofl.utils.memory import simpleMemory
             memory = simpleMemory(self.config)
         for i in range(ceil(size / proportion)):
-            obsDict = self.fullStep(**kwargs)
+            obsDict = self.fullStep(random = random)
             memory.add(obsDict)
         return memory.sample(size, device)
 
-    def getEpisode(self):
+    def getEpisode(self, random = False):
         """
             Develops or complete an entire episode in the environment.
             Calculates the returns of the steps with a episodicMemory.
 
             returns
             -------
-            infoDict
+            obsDict
         """
-        if self._agentStep_ > 0:
-            self.reset()
-        
-        mem = episodicMemory(self.config)
-        mem.reset()
-
-        while not self.done:
-            mem.add(self.fullStep())
-    
-        return mem.getEpisode()
+        return episodicRollout(self, random = random)
 
     def __repr__(self):
         s = "Agent {}\nFor environment {}\nPolicy {}".format(self.name, 
-            self.environment, self.policy)
+            self.envName, self.policy)
         return s
 
     def prepareCustomMetric(self):

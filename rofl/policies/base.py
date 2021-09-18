@@ -1,6 +1,6 @@
-from rofl.functions.const import *
-from rofl.functions.torch import *
+from rofl.networks.base import Value, QValue, Actor, ActorCritic
 from abc import ABC
+
 
 class Policy(ABC):
     """
@@ -12,25 +12,33 @@ class Policy(ABC):
     - Approximation functions
     - Exploratory strategy
 
-    Methods:
-    
+    Methods
+    -------
     - getAction: returns the action corresponding
         to the state given
-    - getRandom: returns a sample from the action space
+    - getActions: batch mode for getAction()
+    - exploreAgenda: means to manage the exploration of the policy for the
+        getAction method 
+    - getRndAction: returns a random action. Defaults uses an agent's
+        rndAction() as rndFunc
+    - getValue: if possible, will return the value for a state or
+        pair state-action
     - sampleAction: returns the action, probability, and entropy
-        from the action's distribution for actor based policies.
+        from the action's distribution for actor based policies
     - update: Depending the type of policy updates itself.
         Inputs must be always dictionaries containing the update's
         information or material for approximations
+
+    Other methods
+    ----------
     - currentState: returns a dict
     - loadState: Loads a state dict
-    - device: property if enable, otherwise None
     """
     name = "BasePolicy"
-    environment, config = None, None
+    envName, config = None, None
     discrete, test = True, False
     exploratory, tbw = None, None
-    actor = None
+    actor, rndFunc = None, None
 
     def __init__(self):
         if self.name == "BasePolicy":
@@ -41,7 +49,7 @@ class Policy(ABC):
     def __call__(self, state):
         return self.getAction(state)
     
-    def getAction(self, state):
+    def getAction(self, state, **kwargs):
         """
             From the given state, return an action
             as int if discrete or as a numpy.ndarray if
@@ -49,13 +57,40 @@ class Policy(ABC):
         """
         raise NotImplementedError
 
-    def getRandom(self):
+    def getRndAction(self):
         """
             Returns an action from the expected
-            action space. If there is an exploratory
-            agenda. This should not interact with it.
+            action space.
         """
-        raise NotImplementedError
+        if self.rndFunc is None:
+            raise NotImplementedError
+        return self.rndFunc()
+
+    def exploreAgenda(self, state, **kwargs):
+        """
+            Intended to be invoked in getAction method, to manage the
+            exploration agenda
+        """
+        pass
+
+    def getValue(self, state, action = None):
+        """
+            Calculates from the actor object a value for a given state repsentation, if possible.
+            
+            returns
+            --------
+            float
+        """
+        actor = self.actor
+        if actor is None:
+            raise TypeError("Policy does not have any object under the alias actor, thus cannot calculate any value")
+        if isinstance(actor, Actor):
+            raise TypeError("Policy's actor is an Actor network type, thus cannot calculate any value")
+        if isinstance(actor, (Value, ActorCritic)):
+            return actor.getValue(state)
+        if isinstance(actor, QValue):
+            assert action != None, "The actor alias points to a q-network, please provide the action argument"
+            return actor.getValue(state, action)
 
     def sampleAction(self, state):
         """
@@ -63,7 +98,7 @@ class Policy(ABC):
             from the action's distribution of the actor
             policy.
         """
-        if self.actor != None:
+        if self.actor != None and isinstance(self.actor, (Actor, ActorCritic)):
             return self.actor.sampleAction(state)
         return None
         
@@ -84,7 +119,7 @@ class Policy(ABC):
             Returns a dict with all the required information
             of its state to start over or just to save it.
         """
-        raise NotImplementedError
+        return dict()
 
     def loadState(self, newState):
         """
@@ -94,6 +129,14 @@ class Policy(ABC):
             type.
         """
         raise NotImplementedError
+
+    def registerAgent(self, agent):
+        """
+            If required, a policy can or should register an Agent
+            to reference some methods; eg. rndAction(), or attributes.
+        """
+        self.rndFunc = agent.rndAction
+        self.envName = agent.envName
 
     @property
     def device(self):
@@ -115,7 +158,7 @@ class Policy(ABC):
         """
         raise NotImplementedError
 
-    def getActions(self, infoDict):
+    def getActions(self, batchDict):
         """
             Batch mode for getAction method.
 
@@ -124,13 +167,13 @@ class Policy(ABC):
             actions in batch, ids in batch
 
         """
-        observations = infoDict["observation"]
+        observations = batchDict["observation"]
         N = observations.shape[0]
         actions = []
         for n in range(N):
             actions.append(self.getAction(observations[n].unsqueeze(0)))
 
-        return actions, infoDict["id"]
+        return actions, batchDict["id"]
 
 
     

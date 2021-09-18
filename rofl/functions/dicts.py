@@ -17,16 +17,16 @@ def obsDict(obs, action, reward, step, done, info = {}, n = 1, **kwargs) -> dict
     
     dev = obs.device if isinstance(obs, TENSOR) else DEVICE_DEFT
 
-    c = {"observation": obs, "device": dev,
+    dict_ = {"observation": obs, "device": dev,
             "action": action, "reward": reward, 
             "step": step, "done": done, 
             "info": info, "N": n,
             }
 
     for k in kwargs.keys():
-        c[k] = kwargs[k]
+        dict_[k] = kwargs[k]
 
-    return c
+    return dict_
 
 def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
     # Making work if more than one dict has came, else return the dict
@@ -97,3 +97,9 @@ def dev2devDict(infoDict: dict, targetDevice):
             infoDict[k] = target.to(device = targetDevice)
     infoDict["device"] = targetDevice
     return infoDict
+
+def addBootstrapArg(obsDict: obsDict):
+    obsDict['advantage'] = 0.0
+    obsDict['bootstrapping'] = 0.0
+    
+    return obsDict
