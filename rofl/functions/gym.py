@@ -90,8 +90,8 @@ def doWarmup(warmup:str, env: Env, envConfig):
         ------
         observation, steps_excuted
     """
-    mn = envConfig.get("min_steps", 0)
-    mx = envConfig.get("max_steps", 30)
+    mn = envConfig.get("warmup_min_steps", 0)
+    mx = envConfig.get("warmup_max_steps", 0)
     if warmup == "noop":
         return noOpStart(env, mn, mx)
     elif warmup == "random":

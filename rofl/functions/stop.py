@@ -30,7 +30,7 @@ def testEvaluation(config, agent, trainResults = None):
             From the config dict, if available evaluates
             if the train should stop or not.
     """
-    results = agent.test(iters = config["train"]["iters_test"])
+    results = agent.test(iters = config["train"]["test_iters"])
     if trainResults is None:
         trainResults = initResultDict()
     # Appending results

@@ -72,7 +72,7 @@ class Agent(ABC):
     lastObs, lastReward, lastAction, lastInfo =  None, 0.0, None, {}
     _totSteps, _totEpisodes, memory = 0, 0, None
 
-    def __init__(self, config, policy, envMaker, tbw = None, **kwargs):
+    def __init__(self, config, policy, envMaker, **kwargs):
         if self.name == "BaseAgent":
             raise NameError("New agent should be called different to BaseAgent")
 
@@ -80,7 +80,7 @@ class Agent(ABC):
             raise ValueError("Agent needs config as a dict")
 
         self.config = config
-        self.tbw = tbw
+        self.tbw = kwargs.get('tbw')
         self.env, self.trainSeed = envMaker(config["env"]["seedTrain"])
         self.envTest, self.testSeed = envMaker(config["env"]["seedTest"])
         self.noOp = noOpSample(self.env)
@@ -179,12 +179,13 @@ class Agent(ABC):
                 tests done
         """
         # Init
+        assert iters > 0, "iters is expected to be a positive number"
         env = self.env if self.envTest is None else self.envTest
         accRew, steps, testReg = np.zeros((iters)), np.zeros((iters)), 0
         maxReturn, minReturn = -np.inf, np.inf
         self.prepareCustomMetric()
-        episodeLen = self.config["env"].get("max_length", MAX_EPISODE_LENGTH)
-        testLen, totSteps, stepsDone = self.config["train"].get("max_steps_test", -1), 0, False
+        episodeLen = self.maxEpLen
+        testLen, totSteps, stepsDone = self.config["train"]['max_steps_per_test'], 0, False
         proc = self.processObs
         # Set policy to test mode
         self.prepareTest()

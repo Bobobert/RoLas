@@ -103,6 +103,7 @@ NCPUS = os.cpu_count()
 if PLATFORM == "win32":
     NCPUS += -1
 TRAIN_SEED, TEST_SEED = 117, 404
+DEFT_MEMORY_SIZE = 5*10**3
 
 ### DQN ###
 MEMORY_SIZE = 10**6

@@ -1,5 +1,4 @@
 from rofl.functions.const import *
-from rofl.utils.dqn import unpackBatch
 from rofl.functions.torch import *
 from rofl.functions import EpsilonGreedy
 from .base import Policy
@@ -25,58 +24,42 @@ def importanceNorm(IS):
 class dqnPolicy(Policy):
     discrete = True
     name = "dqnPolicy"
-    def __init__(self, config, dqn, tbw = None):
+    def initPolicy(self, **kwargs):
+        config = self.config
+        self.dqnOnline = self.actor
+        self.dqnTarget = cloneNet(self.actor)
 
-        self.config = config.copy()
-        self.dqnOnline = self.actor = dqn
-        self.dqnTarget = cloneNet(dqn)
         self.epsilon = EpsilonGreedy(config)
-        self.gamma = config["agent"]["gamma"]
         self.prioritized = config["agent"]["memory_prioritized"]
-        config = config["policy"]
-        self.updateTarget = config["freq_update_target"]
-        self.nActions = config["n_actions"]
-        self.double = config.get("double", False)
+
+        self.updateTarget = config["policy"]["freq_update_target"]
+        #self.nActions = config["policy"]["n_actions"]
+        self.double = config['policy'].get("double", False)
         
-        parameters, lr = self.dqnOnline.parameters(), config["learning_rate"]
-        if config["optimizer"] == "adam":
+        parameters, lr = self.dqnOnline.parameters(), config['policy']["learning_rate"]
+        if config['policy']["optimizer"] == "adam":
             self.optimizer = optim.Adam(parameters, lr = lr, **config.get("optimizer_args", {}))
-        elif config["optimizer"] == "rmsprop":
+        elif config['policy']["optimizer"] == "rmsprop":
             self.optimizer = optim.RMSprop(parameters, lr = lr, **config.get("optimizer_args", {}))
         
         self.epochs = 0
-        self.tbw = tbw
-        self.eva_maxg = config["evaluate_max_grad"]
-        self.eva_meang = config["evaluate_mean_grad"]
-        self.lastNetOutput = None
-        super(dqnPolicy, self).__init__()
 
     def getAction(self, state):
         throw = nprnd.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
-        output = None
 
-        def calOut():
-            nonlocal output
-            with no_grad():
-                output = self.dqnOnline(state)
-            self.lastNetOutput = output
+        self.lastNetOutput = self.actor.getQValues(state) if self.prioritized else None
 
         if throw <= eps:
-            if self.prioritized: calOut()
             return self.getRndAction()
         else:
-            calOut()
-            return self.dqnOnline.processAction(output.argmax(1))
-
-    def getRndAction(self):
-        return nprnd.randint(self.nActions)
+            output = self.lastNetOutput if self.prioritized else self.actor.getQValues(state)
+            return self.actor.processAction(output.argmax(1))
 
     def update(self, infoDict):
-        #st1, st2, rewards, actions, dones, IS = unpackBatch(infoDicts, device = self.device)
         st1, st2, rewards = infoDict['observation'], infoDict['next_observation'], infoDict['reward']
         actions, dones = infoDict['action'], infoDict['done']
-        IS = None
+        IS = None # TODO: add this part for sampling importance
         qValues = self.dqnOnline(st1).gather(1, actions)
         qTargets = dqnTarget(self.dqnOnline, self.dqnTarget, 
                                 st2, rewards, dones, self.gamma, self.double)
@@ -93,7 +76,7 @@ class dqnPolicy(Policy):
         if self.tbw != None:
             self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
             self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
+            max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
         if self.epochs % self.updateTarget == 0:

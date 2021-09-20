@@ -19,7 +19,7 @@ class simpleMemory():
 
     def __init__(self, config):
         self.config = config
-        self.size = config["agent"].get("memory_size", 10**3)
+        self.size = config["agent"].get("memory_size", DEFT_MEMORY_SIZE)
         self._slack_ *= self.size
         self.gamma = config["agent"]["gamma"]
         self.gae = config["agent"]["gae"]
@@ -131,7 +131,7 @@ class simpleMemory():
         return self.diff
 
     def __getitem__(self, i):
-        if i > self._i_ or i < self._li_:
+        if i >= self._i_ or i < self._li_:
             return dict()
         return self._mem_[i]
 

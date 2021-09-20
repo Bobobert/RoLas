@@ -47,7 +47,7 @@ config["agent"]["clip_reward"] = 0.0
 config["agent"]["no_op_start"] = 20
 config["train"]["epochs"] = 10**6
 config["train"]["fill_memory"] = 50000
-config["train"]["iters_test"] = 20
+config["train"]["test_iters"] = 20
 
 device = getDevice()
 seeder(8088, device)

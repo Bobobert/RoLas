@@ -35,16 +35,31 @@ class Policy(ABC):
     - loadState: Loads a state dict
     """
     name = "BasePolicy"
-    envName, config = None, None
-    discrete, test = None, False
+    config, discrete, test = {}, None, False
     exploratory, tbw = None, None
     actor, rndFunc, valueBased = None, None, None
+    gamma, lmbd, gae = 1.0, 1.0, False
 
-    def __init__(self):
+    def __init__(self, config, actor, **kwargs):
         if self.name == "BasePolicy":
-            raise ValueError("New agent should be called different to BaseAgent")
-        if not isinstance(self.config, dict):
-            raise ValueError("Attribute config should be a dict type")
+            raise ValueError("New agent should be called different to BasePolicy")
+        
+        if config is None or not isinstance(config, dict):
+            raise ValueError("Agent needs config as a dict")
+
+        self.config = config
+        self.actor = actor
+        self.tbw = kwargs.get('tbw')
+
+        self.gamma, self.lmbd = config['agent']['gamma'], config['agent']['lambda']
+        self.evalMaxGrad = config['policy']["evaluate_max_grad"]
+        self.evalMeanGrad = config['policy']["evaluate_mean_grad"]
+        self.clipGrad = config['policy']['clip_grad']
+
+        self.initPolicy(**kwargs)
+        self.__checkInit__()
+
+    def __checkInit__(self):
         # testing for valueBased, required for agent class working for any value method
         if isinstance(self.actor, (Actor)):
             self.valueBased = False
@@ -57,6 +72,18 @@ class Policy(ABC):
                 self.discrete = self.actor.discrete
             except AttributeError:
                 raise ValueError("Attribute .discrete should be declared to a boolean type")
+
+    def initPolicy(self, **kwargs):
+        """
+            If needed, write additional initialization for 
+            parameters and functions setup.
+
+            returns
+            -------
+            None
+            
+        """
+        pass
 
     def __call__(self, state):
         return self.getAction(state)

@@ -41,8 +41,8 @@ class pgPolicy(Policy):
         # Administrative
         self.config, self.epochs = config, 0
         self.tbw = tbw
-        self.eva_maxg = pconfig["evaluate_max_grad"]
-        self.eva_meang = pconfig["evaluate_mean_grad"]
+        self.evalMaxGrad = pconfig["evaluate_max_grad"]
+        self.evalMeanGrad = pconfig["evaluate_mean_grad"]
         self.clipGrad = pconfig.get("clip_grad", 0.0)
 
     def getAction(self, state):
@@ -87,7 +87,7 @@ class pgPolicy(Policy):
 
         if self.tbw != None:
             self.tbw.add_scalar('train/Actor loss', loss.item(), self.epochs)
-            max_g, mean_g = analysisGrad(self.actor, self.eva_meang, self.eva_maxg)
+            max_g, mean_g = analysisGrad(self.actor, self.evalMeanGrad, self.evalMaxGrad)
             self.tbw.add_scalar("train/Actor max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/Actor mean grad",  mean_g, self.epochs)
             #if self.baseline != None:

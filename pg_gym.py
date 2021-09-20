@@ -22,10 +22,10 @@ config["policy"]["n_actions"] = N_ACTIONS
 config["policy"]["clip_grad"] = 0.0
 config["policy"]["entropy_bonus"] = 0.0
 config["train"]["epochs"] = 10**4
-config["train"]["freq_test"] = 500
+config["train"]["test_freq"] = 500
 config["train"]["batch_size"] = 500
 config["train"]["batch_proportion"] = 1
-config["train"]["iters_test"] = 20
+config["train"]["test_iters"] = 20
 config["train"]["max_performance"] = 200
 
 device = getDevice()

@@ -109,7 +109,7 @@ class drqnPolicy(dqnPolicy):
 
         if self.tbw != None:
             self.tbw.add_scalar('train/Loss', np.mean(losses), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
+            max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
         if self.epochs % self.updateTarget == 0:
@@ -145,7 +145,7 @@ class drqnPolicy(dqnPolicy):
 
         if self.tbw != None:
             self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
+            max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
         if self.epochs % self.updateTarget == 0:

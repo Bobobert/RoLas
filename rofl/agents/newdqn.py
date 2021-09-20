@@ -7,7 +7,7 @@ from rofl.utils.cv import imgResize, YChannelResize
 class dqnAtariAgent(Agent):
     name = 'dqn agent v1'
 
-    def initAgent(self):
+    def initAgent(self, **kwargs):
         self.lives = None
         self.lhist = self.config['agent']['lhist']
         self.memory = dqnMemory(self.config)
@@ -15,7 +15,7 @@ class dqnAtariAgent(Agent):
         self.frameSize = tuple(self.config['env']['obs_shape'])
         self.frameStack = genFrameStack(self.config)
         self.isAtari = self.config['env'].get('atari', True)
-
+        self.envActions = self.config['policy']['n_actions']
         self.fixedTrajectory = None
 
     def processObs(self, obs, reset: bool = False):
@@ -57,3 +57,6 @@ class dqnAtariAgent(Agent):
     
     def reportCustomMetric(self):
         return reportQmean(self)
+
+    def rndAction(self):
+        return nprnd.randint(self.envActions)

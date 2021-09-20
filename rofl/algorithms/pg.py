@@ -20,8 +20,8 @@ config = {
         "epochs": 10**3,
         "batch_size": -1,
         "batch_proportion" : 1.0,
-        "freq_test": 10**2,
-        "iters_test": 20,
+        "test_freq": 10**2,
+        "test_iters": 20,
         "expected_perfomance": None,
         "max_performance": None,
         "max_time": None,
@@ -84,7 +84,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
         if saver is not None:
             saver.saveAll()
     batchSize, p = config["train"]["batch_size"], config["train"]["batch_proportion"]
-    freqTest = config["train"]["freq_test"]
+    freqTest = config["train"]["test_freq"]
     epochs, stop = config["train"]["epochs"], False
     I = tqdm(range(epochs + 1), unit = "update", desc = "Training Policy")
     ## Train loop
