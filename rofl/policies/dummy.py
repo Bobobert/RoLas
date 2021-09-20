@@ -11,7 +11,7 @@ class dummyPolicy(Policy):
         ----------
         noOp: from a noOpSample of the target environment
     """
-    name = "DummyPlug"
+    name, discrete, valueBased = "DummyPlug", True, False
     config = {}
     def __init__(self, noOp):
         super().__init__()

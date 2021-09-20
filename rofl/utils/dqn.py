@@ -1,4 +1,56 @@
 from rofl.functions.const import *
+from rofl.functions import runningStat
+
+def genFrameStack(config):
+    return np.zeros((config['agent']['lhist'], *config['env']['obs_shape']), dtype = np.uint8)
+
+def lHistObsProcess(agent, obs, reset):
+    """
+        From an already processed observation image type, modifies the
+        lhist framestack.
+        Agent is supossed to have a frameStack atribute.
+    """
+    try:
+        framestack = agent.frameStack
+    except AttributeError:
+        agent.frameStack = framestack = genFrameStack(agent.config)
+        print("Warning: obs invalid, agent didn't had frameStack declared") # TODO: add debuger level
+    if reset:
+        framestack.fill(0)
+    else:
+        framestack = np.roll(framestack, 1, axis = 0)
+    framestack[0] = obs
+    agent.frameStack = framestack
+
+    return torch.from_numpy(framestack).unsqueeze(0).to(agent.device).float().div(255)
+
+def prepare4Ratio(obj):
+    obj.ratioTree = runningStat()
+
+def calRatio(obj, env):
+    # Calculate ratio from environment
+    cc = env.cell_counts
+    tot = env.n_col * env.n_row
+    obj.ratioTree += cc[env.tree] / tot
+
+def reportQmean(obj):
+    if obj.fixedTrajectory is None:
+        return 0.0
+    with no_grad():
+        model_out = obj.policy.dqnOnline(obj.fixedTrajectory)
+        mean = Tmean(model_out.max(1).values).item()
+    if obj.tbw != None:
+        obj.tbw.add_scalar("test/mean max Q", mean, obj.testCalls)
+    return mean
+
+def reportRatio(obj):
+    meanQ = reportQmean(obj)
+    if obj.tbw != None:
+        obj.tbw.add_scalar("test/mean tree ratio", obj.ratioTree.mean, obj.testCalls)
+        obj.tbw.add_scalar("test/std tree ratio", obj.ratioTree.std, obj.testCalls)
+    return {"mean_q": meanQ, 
+            "mean tree ratio": obj.ratioTree.mean, 
+            "std tree ratio":obj.ratioTree.std}
 
 class MemoryReplay(object):
     """
@@ -87,7 +139,7 @@ class MemoryReplay(object):
     def getIDS(self, size, prioritized = False):
         s = self.capacity if self.FO else self._i - 1
         if not prioritized:
-            ids = np.random.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
+            ids = nprnd.randint(self.LHist, self.capacity - 1 if self.FO else self._i - 2, 
                                     size=size)
             ps = np.ones(size, dtype = F_NDTYPE_DEFT)
         else:
@@ -95,7 +147,7 @@ class MemoryReplay(object):
             totTD = self.sumTD if self.FO else self.sumTD - self.e_buffer[s]
             ps = self.e_buffer[a]
             ps = ps / np.sum(ps)
-            ids = np.random.choice(a, size=size, p = ps, replace = True)
+            ids = nprnd.choice(a, size=size, p = ps, replace = True)
             ps = 1 / ps[ids] / s
         return ids, ps
 
@@ -154,7 +206,7 @@ class MemoryReplay(object):
     def showBuffer(self, samples:int = 20, Wait:int = 3):
         import matplotlib.pyplot as plt
         # Drawing samples
-        Samplei = np.random.randint(self._i if not self.FO else self.capacity, size=samples)
+        Samplei = nprnd.randint(self._i if not self.FO else self.capacity, size=samples)
         for i in Samplei:
             plt.ion()
             fig = plt.figure(figsize=(10,3))

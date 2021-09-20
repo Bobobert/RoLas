@@ -2,9 +2,9 @@ from rofl.functions.const import *
 from rofl.agents.base import Agent
 from rofl.agents.multi import agentMaster
 from rofl.functions.torch import updateNet
+from rofl.functions.exploratory import qUCBAction
 
 class dqnRolloutAgent(Agent):
-    _EPS_ = 1e-4
     name = "dqn-rollout agent base"
 
     def initAgent(self, heuristic = None, **kwargs):
@@ -39,7 +39,7 @@ class dqnRolloutAgent(Agent):
                 # Do the UCB actions
                 if d < self.rolloutDepth:
                     # take UCB action
-                    At = self.UCBAction(self._envStep_, nt[self._envStep_])
+                    At = qUCBAction(self, self._envStep_, nt[self._envStep_], self.ucbC)
                     nt[self._envStep_, At] += 1
                 else:
                     # Use heuristic
@@ -59,25 +59,6 @@ class dqnRolloutAgent(Agent):
             # TODO insert time / resources limit stop condition here
 
         return gs, rt, nt, action
-            
-    def UCBAction(self, t, nt):
-        """
-            Consider nt as the array shape [n_actions,], that holds
-            how many times the action have been seen at time t.
-
-            parameters
-            ----------
-            t: int
-                step relative to the Tensor nt
-            nt: Tensor
-                Should have how manytimes an action has been seen
-                at the time t
-        """
-        qvalues = self.getQvalues(self.lastObs)
-        lnt = qvalues.new_empty(qvalues.shape).fill_(math.log(t))
-        qs = torch.addcdiv(qvalues, self.ucbC, lnt, nt + self._EPS_)
-
-        return qs.argmax().item()
     
     def heuristicAction(self):
         return self.heuristic(self.env, self.lastObs, **self.heuristicArgs)
@@ -210,7 +191,7 @@ class multiAgentRollout(agentMaster):
             gs_actions[action] = gs
             rt_actions[action] = rt
         if len(max_action) > 1:
-            max_action = np.random.choice(max_action)
+            max_action = nprnd.choice(max_action)
         else:
             max_action = max_action[-1]
         

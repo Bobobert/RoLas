@@ -15,9 +15,9 @@ from .const import *
 
 def obsDict(obs, action, reward, step, done, info = {}, n = 1, **kwargs) -> dict:
     
-    dev = obs.device if isinstance(obs, TENSOR) else DEVICE_DEFT
+    zeroDevice = obs.device if isinstance(obs, TENSOR) else DEVICE_DEFT
 
-    dict_ = {"observation": obs, "device": dev,
+    dict_ = {"observation": obs, "device": zeroDevice,
             "action": action, "reward": reward, 
             "step": step, "done": done, 
             "info": info, "N": n,
@@ -33,47 +33,45 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
     if len(batchDicts) > 1:
         # Construct the manager dict
         zero = batchDicts[0]
-        mngd, dtps, shps, dev = {}, {}, {}, zero["device"]
+        templateDict, dtypes, shapes, zeroDevice = {}, {}, {}, zero["device"]
         for k in zero.keys():
-            mngd[k] = None
+            templateDict[k] = None
             try:
-                shps[k] = zero[k].shape
-                dtps[k] = zero[k].dtype
+                shapes[k] = zero[k].shape
+                dtypes[k] = zero[k].dtype
             except AttributeError:
-                shps[k] = None
-                dtps[k] = None
+                shapes[k] = None
+                dtypes[k] = None
             
         # Collecting N, checking ir device dispair
         N, allSameDev = 0, True
         for d in batchDicts:
             N += d["N"]
-            allSameDev *= d["device"] == dev
+            allSameDev *= d["device"] == zeroDevice
 
         # Complete manager dict
-        for k in mngd.keys():
+        for k in templateDict.keys():
             type_ = type(zero[k])
-            dtype, shape = dtps[k], shps[k]
+            dtype, shape = dtypes[k], shapes[k]
             if type_ == ARRAY:
-                new = np.zeros((N, *shape[1:]), 
-                                   dtype = dtype)
+                new = np.zeros((N, *shape), dtype = dtype)
             elif type_ == TENSOR:
-                new = torch.zeros((N, *shape[1:]), 
-                                      dtype = dtype,
-                                      device = dev if allSameDev else DEVICE_DEFT)
+                new = torch.zeros((N, *shape), dtype = dtype,
+                                      device = zeroDevice if allSameDev else DEVICE_DEFT)
             elif type_ == List:
                 new = List()
             else:
                 new = list()
-            mngd[k] = new
+            templateDict[k] = new
 
         # Iterate from the dicts
         m = 0
         for d in batchDicts:
             n = d["N"]
             for k in d.keys():
-                ref, target= mngd[k], d[k]
+                ref, target= templateDict[k], d[k]
                 if isinstance(target, (TENSOR, ARRAY)):
-                    ref[m:m+n] = target
+                    ref[m:m+n] = target # TODO; check how it behaves
                 elif isinstance(target, List):
                     for i in target:
                         ref.append(i)
@@ -82,9 +80,9 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
                 else:
                     ref.append(target)
             m += n
-        mngd["device"] = dev if allSameDev else DEVICE_DEFT
-        mngd["N"] = N
-        return dev2devDict(mngd, targetDevice)
+        templateDict["device"] = zeroDevice if allSameDev else DEVICE_DEFT
+        templateDict["N"] = N
+        return dev2devDict(templateDict, targetDevice)
     else:
         return dev2devDict(batchDicts[0], targetDevice)
         
@@ -98,7 +96,7 @@ def dev2devDict(infoDict: dict, targetDevice):
     infoDict["device"] = targetDevice
     return infoDict
 
-def addBootstrapArg(obsDict: obsDict):
+def addBootstrapArg(obsDict: dict):
     obsDict['advantage'] = 0.0
     obsDict['bootstrapping'] = 0.0
     

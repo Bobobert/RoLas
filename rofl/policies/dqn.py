@@ -10,11 +10,12 @@ def dqnTarget(onlineNet, targetNet, s2, r, t, gamma, double:bool = True):
         if double:
             On_model_out = onlineNet.forward(s2)
             a_greedy = On_model_out.max(1)[1]
-            Qs2_max = model_out.gather(1, a_greedy.unsqueeze(1)).squeeze(1)
+            Qs2_max = model_out.gather(1, a_greedy.unsqueeze(1))
         else:
-            Qs2_max = model_out.max(1)[0] 
+            Qs2_max = model_out.max(1)[0].unsqueeze(1)
+        t = t.bitwise_not()
         target = r + Tmul(t, Qs2_max).mul(gamma).reshape(r.shape)
-    return target.unsqueeze(1)
+    return target
 
 def importanceNorm(IS):
     IS = IS.unsqueeze(1)
@@ -71,8 +72,11 @@ class dqnPolicy(Policy):
     def getRndAction(self):
         return nprnd.randint(self.nActions)
 
-    def update(self, infoDicts):
-        st1, st2, rewards, actions, dones, IS = unpackBatch(infoDicts, device = self.device)
+    def update(self, infoDict):
+        #st1, st2, rewards, actions, dones, IS = unpackBatch(infoDicts, device = self.device)
+        st1, st2, rewards = infoDict['observation'], infoDict['next_observation'], infoDict['reward']
+        actions, dones = infoDict['action'], infoDict['done']
+        IS = None
         qValues = self.dqnOnline(st1).gather(1, actions)
         qTargets = dqnTarget(self.dqnOnline, self.dqnTarget, 
                                 st2, rewards, dones, self.gamma, self.double)

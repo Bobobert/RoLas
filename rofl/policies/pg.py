@@ -48,7 +48,7 @@ class pgPolicy(Policy):
     def getAction(self, state):
         return self.actor.getAction(state)
 
-    def getRandom(self):
+    def getRndAction(self):
         return self.AS.sample()
 
     @property
@@ -116,7 +116,7 @@ class pgPolicy(Policy):
         else:
             loss = 0
             for _ in range(minibatches):
-                iDx = np.random.randint(0, returns.shape[0], size=minibatchSize)
+                iDx = nprnd.randint(0, returns.shape[0], size=minibatchSize)
                 baselines = self.baseline(cloneState(states, True, iDx))
                 loss += backLoss(baselines, returns[iDx])
             loss = loss / minibatches

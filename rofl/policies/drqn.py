@@ -72,12 +72,12 @@ class drqnPolicy(dqnPolicy):
         self.zeroHidden = recurrentArguments(config)
 
     def getAction(self, state):
-        throw = np.random.uniform()
+        throw = nprnd.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
         with no_grad(): # Always accumulates the hidden state
             outValue = self.dqnOnline(state, self.recurrentState)
         if throw <= eps:
-            return self.getRandom()
+            return self.getRndAction()
         else:
             return outValue.argmax(1).item()
 

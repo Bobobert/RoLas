@@ -7,6 +7,7 @@ from rofl.policies.dummy import dummyPolicy
 from gym import Env
 from abc import ABC
 from copy import deepcopy
+from tqdm import tqdm
 
 class Agent(ABC):
     """
@@ -67,7 +68,7 @@ class Agent(ABC):
     name = "BaseAgent"
 
     twb, testCalls = None, 0
-    _acR_, _agentStep_, _envStep_, done = 0.0, 0, 0, True
+    _acR_, _agentStep_, _envStep_, done, _reseted = 0.0, 0, 0, True, False
     lastObs, lastReward, lastAction, lastInfo =  None, 0.0, None, {}
     _totSteps, _totEpisodes, memory = 0, 0, None
 
@@ -324,9 +325,10 @@ class Agent(ABC):
             -------
             float
         """
+        self.done = done
         if self.maxEpLen > 0 and self._envStep_ >= self.maxEpLen:
-            return done
-        return done
+            self.done = True
+        return self.done
     
     def envStep(self, action, **kwargs):
         """
@@ -344,7 +346,9 @@ class Agent(ABC):
         """
         if self.done:
             return self.reset()
-
+        if self._reseted:
+            self._reseted = False
+        
         env = self.env
         processObs, processReward, processTerminal = self.processObs, self.processReward, self.isTerminal
 
@@ -355,7 +359,7 @@ class Agent(ABC):
 
         # TODO create a function that process actions for the policy
         # Process action from a batch
-        for i, d in enumerate(kwargs.get("ids"), []):
+        for i, d in enumerate(kwargs.get("ids", [])):
             if d == self.workerID:
                 action = action[i]
                 break
@@ -364,9 +368,9 @@ class Agent(ABC):
 
         pastObs = self.lastObs
         self.lastObs = obs = processObs(obs)
-        self.lastReward = reward = processReward(reward)
+        self.lastReward = reward = processReward(reward, **kwargs)
         self.lastInfo, self.lastAction = info, action
-        self.done = done = processTerminal(obs, done, info)
+        done = processTerminal(obs, done, info, **kwargs)
 
         self._acR_ += reward
         self._totEpisodes += 1 if done else 0
@@ -391,9 +395,9 @@ class Agent(ABC):
             -------
             obsDict
         """
-        action = self.policy.getAction(self.lastObs) if not random else self.rndAction(self.lastObs)
+        action = self.policy.getAction(self.lastObs) if not random else self.rndAction()
 
-        
+        #TODO: add the sample of the action for actor policies
         return self.envStep(action)
 
     def reset(self):
@@ -419,7 +423,8 @@ class Agent(ABC):
 
         self.lastObs = obs = self.processObs(obs, True)
         self.lastReward, self.lastInfo, self.lastAction = 0.0, {}, action
-        
+        self._reseted = True
+
         return obsDict(obs, action, 0.0, 0, False, 
                         accumulate_reward = self._acR_,
                         id = self.workerID)
@@ -431,7 +436,7 @@ class Agent(ABC):
         return self.env.action_space.sample()
 
     def getBatch(self, size: int, proportion: float = 1.0, random = False,
-                        device = DEVICE_DEFT):
+                        device = DEVICE_DEFT, progBar: bool = False):
         """
             Prepares and return a batch of information or trajectories
             to feed the algorithm to update the policy.
@@ -441,22 +446,33 @@ class Agent(ABC):
             size: int
                 Size of the batch to return
             proportion: float
-                The ratio of wich the sample size respect
-                to the steps given. p = 0.5 means the agent
-                needs double the amount of steps respect to
+                The ratio sample size / steps required.
+                proportion = 0.5 means the agent
+                needs to do double the amount of steps respect to
                 the batch size.
+            random: bool
+                Default False. If the action are generated as samples
+                of the environments action space.
             device: torch.device
+
+            progBar: bool
+                Default False. To show a progress bar using tdqm
 
             Returns
             -------
             batch obsDict
         """
-        assert size > 1 and proportion > 0 and proportion <= 1, "Size must be greater than 1, proportion in range (0,1]"
+        assert proportion > 0, "Proportion needs to be positive"
+        
         memory = self.memory
         if memory is None:
             from rofl.utils.memory import simpleMemory
             memory = simpleMemory(self.config)
-        for i in range(ceil(size / proportion)):
+
+        iter = range(ceil(size / proportion))
+        if progBar:
+            iter = tqdm(iter, desc = 'Generating batch', unit = 'envStep')
+        for _ in iter:
             obsDict = self.fullStep(random = random)
             memory.add(obsDict)
         return memory.sample(size, device)

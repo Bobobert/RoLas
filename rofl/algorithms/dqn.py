@@ -15,6 +15,8 @@ config = {
         "no_op_start": 30,
         "scale_pos": True,
         "memory_prioritized": False,
+        "gae": 1.0,
+        "lambda": 1.0,
     },
     "train":{
         "fill_memory":10**5,
@@ -72,21 +74,20 @@ def fillRandomMemoryReplay(config:dict, agent:Agent):
     sizeInitMemory = config["train"]["fill_memory"]
     I = tqdm(range(sizeInitMemory), desc="Filling memory replay")
     for _ in I:
-        agent.step(randomPi = True)
+        expDict = agent.fullStep(random = True)
+        agent.memory.add(expDict)
 
-def fillFixedTrajectory(config, agent):
+def fillFixedTrajectory(config, agent, device):
     # Generate fixed trajectory
     sizeTrajectory = config["train"]["fixed_q_trajectory"]
-    agent.tqdm = True
-    trajectory = agent.getBatch(sizeTrajectory, 2.0)
-    agent.fixedTrajectory = trajectory["st"]
+    trajectory = agent.getBatch(sizeTrajectory, progBar = True, device = device)
+    agent.fixedTrajectory = trajectory["observation"]
     agent.memory.reset()
     agent.reset()
-    agent.tqdm = False
 
 def train(config:dict, agent:Agent, policy:Policy, saver = None):
-    fillFixedTrajectory(config, agent)
-
+    agent.memory.reset()
+    fillFixedTrajectory(config, agent, policy.device)
     fillRandomMemoryReplay(config, agent)
 
     # Train the net
@@ -104,13 +105,13 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     miniBatchSize = config["policy"]["minibatch_size"]
     stepsPerEpoch = config["agent"]["steps_per_epoch"]
     freqTest = config["train"]["freq_test"]
-    p = stepsPerEpoch / miniBatchSize
+    p = miniBatchSize / stepsPerEpoch
     epochs, stop = config["train"]["epochs"], False
     I = tqdm(range(epochs + 1), unit = "update", desc = "Training Policy")
     ## Train loop
     for epoch in I:
         # Train step
-        miniBatch = agent.getBatch(miniBatchSize, p)
+        miniBatch = agent.getBatch(miniBatchSize, p, device = policy.device)
         policy.update(miniBatch)
         updateVar(config)
         # Check for test

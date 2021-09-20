@@ -66,6 +66,10 @@ def singlePathRollout(agent, maxLength = -1, memoryType = simpleMemory,
         Memory
 
     """
+    if maxLength > agent.maxEpLength:
+        maxLength = -1
+        print('Warning: maxLength wont be reached, as the agents maxLength is lesser') # TODO: add debug level
+
     if reset and agent._agentStep_ > 0:
         agent.done = True
     memory = simpleMemory(agent.config)
@@ -82,7 +86,9 @@ def singlePathRollout(agent, maxLength = -1, memoryType = simpleMemory,
             obsDict['advantage'] = obsDict['return'] - lastGt
             obsDict['G_t'] = lastGt
             lastGt = obsDict['bootstrapping']
-        if obsDict['done'] or (obsDict['step'] - stepsInit >= maxLength and maxLength > 0):
+        if maxLength > 0:
+            endBySteps = True if obsDict['step'] - stepsInit >= maxLength else False
+        if obsDict['done'] or endBySteps:
             prepareBootstrapping(agent, obsDict) if not advantages else None
             obsDict['done'], done = True, True
         memory.add(obsDict)

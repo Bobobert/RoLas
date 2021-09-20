@@ -1,8 +1,7 @@
 from .base import Agent
 from rofl.functions.const import *
-from rofl.utils.dqn import MemoryReplay, MemoryReplayFF
+from rofl.utils.dqn import *
 from rofl.utils.cv import imgResize, YChannelResize
-from rofl.functions import runningStat
 
 class dqnAtariAgent(Agent):
 
@@ -16,17 +15,16 @@ class dqnAtariAgent(Agent):
         self.memory = MemoryReplay(capacity=config["agent"]["memory_size"],
                         state_shape = obsShape,
                         LHist= lhist)
-        self.obsShape = (lhist, *obsShape)
         self.clipReward = config["agent"].get("clip_reward", 0.0)
         self.noOpSteps = config["agent"].get("no_op_start", 0)
-        self.noOpAction = self._noop_ if self.noOpSteps > 0 else None
+        self.noOpAction = self.noOp if self.noOpSteps > 0 else None
         self.frameSize = tuple(obsShape)
         self.isAtari = config["env"]["atari"]
         self.memPrioritized = config["agent"].get("memory_prioritized", False)
         self.tqdm = useTQDM
 
         self.fixedTrajectory = None
-        self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
+        self.frameStack, self.lastObs, self.lastFrame = genFrameStack(config), None, None
         
 
     def processObs(self, obs, reset: bool = False):
@@ -34,17 +32,11 @@ class dqnAtariAgent(Agent):
             If the agent needs to process the observation of the
             environment. Write it here
         """
-        if reset:
-            self.frameStack.fill(0)
-        else:
-            self.frameStack = np.roll(self.frameStack, 1, axis = 0)
         if self.isAtari:
-            self.lastFrame = YChannelResize(obs, size = self.frameSize)
+            obs = self.lastFrame = YChannelResize(obs, size = self.frameSize)
         else:
-            self.lastFrame = imgResize(obs, size = self.frameSize)
-        self.frameStack[0] = self.lastFrame
-        newObs = torch.from_numpy(self.frameStack).to(self.device)
-        return newObs.unsqueeze(0).float().div(255)
+            obs = self.lastFrame = imgResize(obs, size = self.frameSize)
+        return lHistObsProcess(self, obs, reset)
 
     def getBatch(self, size:int, proportion: float = 1.0):
         """
@@ -78,7 +70,7 @@ class dqnAtariAgent(Agent):
             obs = env.reset()
             # No op, no actions when starting
             if self.noOpSteps > 0:
-                for _ in range(random.randint(1, self.noOpSteps)):
+                for _ in range(rnd.randint(1, self.noOpSteps)):
                     obs, _, _, info = env.step(self.noOpAction)
                 self.lives = info.get("ale.lives", 0)
             obs = proc(obs, True)
@@ -86,7 +78,7 @@ class dqnAtariAgent(Agent):
             obs = self.lastObs
         # Take action
         if randomPi:
-            action = pi.getRandom()
+            action = pi.getRndAction()
         else:
             action = pi.getAction(obs)
         nextObs, reward, done, info = env.step(action)
@@ -107,50 +99,6 @@ class dqnAtariAgent(Agent):
 
     def reportCustomMetric(self):
         return reportQmean(self)
-
-    def currentState(self):
-        """
-            Returns a dict with all the required information
-            of its state to start over or just to save it.
-        """
-        return dict()
-
-    def loadState(self, newState):
-        """
-            Form a dictionary state, loads all the values into
-            the agent.
-            Must verify the name of the agent is the same and the
-            type.
-        """
-        return NotImplementedError
-
-def prepare4Ratio(obj):
-    obj.ratioTree = runningStat()
-
-def calRatio(obj, env):
-    # Calculate ratio from environment
-    cc = env.cell_counts
-    tot = env.n_col * env.n_row
-    obj.ratioTree += cc[env.tree] / tot
-
-def reportQmean(obj):
-    if obj.fixedTrajectory is None:
-        return 0.0
-    with no_grad():
-        model_out = obj.policy.dqnOnline(obj.fixedTrajectory)
-        mean = Tmean(model_out.max(1).values).item()
-    if obj.tbw != None:
-        obj.tbw.add_scalar("test/mean max Q", mean, obj.testCalls)
-    return mean
-
-def reportRatio(obj):
-    meanQ = reportQmean(obj)
-    if obj.tbw != None:
-        obj.tbw.add_scalar("test/mean tree ratio", obj.ratioTree.mean, obj.testCalls)
-        obj.tbw.add_scalar("test/std tree ratio", obj.ratioTree.std, obj.testCalls)
-    return {"mean_q": meanQ, 
-            "mean tree ratio": obj.ratioTree.mean, 
-            "std tree ratio":obj.ratioTree.std}
 
 class dqnFFAgent(dqnAtariAgent):
     name = "dqnForestFireAgentv0"

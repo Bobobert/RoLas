@@ -1,6 +1,6 @@
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
+import torch.nn as nn
 from abc import ABC
-
 
 class Policy(ABC):
     """
@@ -36,15 +36,27 @@ class Policy(ABC):
     """
     name = "BasePolicy"
     envName, config = None, None
-    discrete, test = True, False
+    discrete, test = None, False
     exploratory, tbw = None, None
-    actor, rndFunc = None, None
+    actor, rndFunc, valueBased = None, None, None
 
     def __init__(self):
         if self.name == "BasePolicy":
-            raise NameError("New agent should be called different to BaseAgent")
-        if self.config is None or not isinstance(self.config, dict):
-            raise ValueError("Agent needs .config as a dict")
+            raise ValueError("New agent should be called different to BaseAgent")
+        if not isinstance(self.config, dict):
+            raise ValueError("Attribute config should be a dict type")
+        # testing for valueBased, required for agent class working for any value method
+        if isinstance(self.actor, (Actor)):
+            self.valueBased = False
+        if isinstance(self.actor, (Value, QValue, ActorCritic)):
+            self.valueBased = True
+        if self.valueBased is None: # as ActorCritic is based on Actor, those will be tested twice
+                raise ValueError("Attribute .valueBased should be declared to a boolean type")
+        if self.discrete is None:
+            try:
+                self.discrete = self.actor.discrete
+            except AttributeError:
+                raise ValueError("Attribute .discrete should be declared to a boolean type")
 
     def __call__(self, state):
         return self.getAction(state)
@@ -81,26 +93,19 @@ class Policy(ABC):
             --------
             float
         """
-        actor = self.actor
-        if actor is None:
-            raise TypeError("Policy does not have any object under the alias actor, thus cannot calculate any value")
-        if isinstance(actor, Actor):
-            raise TypeError("Policy's actor is an Actor network type, thus cannot calculate any value")
-        if isinstance(actor, (Value, ActorCritic)):
-            return actor.getValue(state)
-        if isinstance(actor, QValue):
-            assert action != None, "The actor alias points to a q-network, please provide the action argument"
-            return actor.getValue(state, action)
+        if self.valueBased:
+            return self.actor.getValue(state, action)
+        raise TypeError("{} is not value based, thus cannot calculate any value".format(self.name))
 
     def sampleAction(self, state):
         """
             Return the raw action, log_prob and entropy
             from the action's distribution of the actor
-            policy.
+            network.
         """
-        if self.actor != None and isinstance(self.actor, (Actor, ActorCritic)):
+        if isinstance(self.actor, Actor):
             return self.actor.sampleAction(state)
-        return None
+        raise TypeError("{} does not have an Actor type as .actor".format(self.name))
         
     def update(self, batchDict):
         """
@@ -140,6 +145,8 @@ class Policy(ABC):
 
     @property
     def device(self):
+        if isinstance(self.actor, nn.Module):
+            return self.actor.device
         return None
 
     def __repr__(self):

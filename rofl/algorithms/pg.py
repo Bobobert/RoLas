@@ -62,7 +62,9 @@ config = {
         "reward_tree": 0.8,
         "frameskip": 4,
         "max_length": -1,
-        "freeze":9,
+        "freeze": 9,
+        "seedTrain": 1,
+        "seedTest": 2,
     },
 }
 

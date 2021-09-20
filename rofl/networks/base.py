@@ -5,6 +5,13 @@ def isItem(T):
         return True
     return False
 
+def simpleActionProc(action, discrete):
+    if discrete and isItem(action):
+        action = action.item()
+    else:
+        action = action.to(DEVICE_DEFT).squeeze().numpy()
+    return action
+
 class BaseNet(nn.Module):
     """
     Class base for all the networks. Common methods.
@@ -14,10 +21,9 @@ class BaseNet(nn.Module):
     - device
     """
     name = "BaseNet"
+    discrete, __dvc__ = True, None
     def __init__(self):
         super(BaseNet, self).__init__()
-        self.discrete = True
-        self.__dvc__ = None
 
     def new(self):
         """
@@ -37,10 +43,11 @@ class Value(BaseNet):
     Class design to manage a state value function only
     """
     name = "Value Base"
+    discrete = False
     def __init__(self):
         super(Value,self).__init__()
 
-    def getValue(self, x):
+    def getValue(self, x, action = None):
         with no_grad():
             value = self.forward(x)
         return value.item()
@@ -52,13 +59,9 @@ class QValue(BaseNet):
     name = "QValue Base"
     def __init__(self):
         super(QValue, self).__init__()
-        self.discrete = True
         
     def processAction(self, action):
-        if isItem(action):
-            return action.item()
-        else:
-            return action.to(DEVICE_DEFT).squeeze().numpy()
+        return simpleActionProc(action, self.discrete)
 
     def getQValues(self, state):
         with no_grad():
@@ -97,11 +100,7 @@ class Actor(BaseNet):
             Given the network properties, process the actions
             accordingly
         """
-        if self.discrete and isItem(action):
-            action = action.item()
-        else:
-            action = action.to(DEVICE_DEFT).squeeze().numpy()
-        return action
+        return simpleActionProc(action, self.discrete)
 
     def getAction(self, x):
         """
@@ -186,7 +185,7 @@ class ActorCritic(Actor):
             action, _, _ = self.sampleAction(distParams)
         return self.processAction(action)
 
-    def getValue(self, x):
+    def getValue(self, x, action = None):
         """
         Form a tensor observation returns the value approximation 
         for it with no_grad operation.

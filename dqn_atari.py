@@ -1,5 +1,5 @@
 from rofl.algorithms.dqn import train, config
-from rofl.agents.dqn import dqnAtariAgent
+from rofl.agents.newdqn import dqnAtariAgent
 from rofl.policies.dqn import dqnPolicy
 from rofl.networks.dqn import dqnAtari
 from rofl.envs.gym import atariEnvMaker
@@ -24,12 +24,12 @@ config["policy"]["epsilon"] = epsilon
 config["policy"]["double"] = True
 config["policy"]["freq_update_target"] = 10**4
 config["agent"]["memory_prioritized"] = False
-config["train"]["epochs"] = 1*10**4
-config["train"]["fill_memory"] = 5*10**4
+config["train"]["epochs"] = 5*10**3
+config["train"]["fill_memory"] = 1*10**4
 config["train"]["iters_test"] = 20
 config["train"]["expected_performance"] = 300
 
-device = getDevice()
+device = getDevice(False)
 seeder(8088, device)
 #expdir, tbdir = expDir(EXP_NAME, ENV_NAME)
 
@@ -40,11 +40,11 @@ policy = dqnPolicy(config, net, tbw = writer)
 
 envMaker = atariEnvMaker(config)
 agent = dqnAtariAgent(config, policy, envMaker, tbw = writer)
-saveConfig(config, expdir)
+#saveConfig(config, expdir)
 
 def trainy():
     train(config, agent, policy, saver = saver)
 #import cProfile
 #cProfile.run("trainy()")
 trainy()
-writer.close()
+#writer.close()

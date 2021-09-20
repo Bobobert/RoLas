@@ -6,10 +6,11 @@ def getDevice(cudaTry:bool = True):
     return DEVICE_DEFT
 
 # Custom functions
-def array2Tensor(arr: ARRAY, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False):
-    # expecting arrays for single operations - returns always a 1-item batch
-    arr = np.squeeze(arr)
-    return torch.as_tensor(arr, dtype = dtype, device = device).unsqueeze(0).requires_grad_(grad)
+def array2Tensor(arr: ARRAY, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False, batch: bool = False):
+    arr = arr if batch else np.squeeze(arr)
+    tensor = torch.from_numpy(arr).to(device).to(dtype).requires_grad_(grad)
+    tensor = tensor if batch else tensor.unsqueeze(0)
+    return tensor
 
 def list2Tensor(arr:list, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False):
     # expecting simple lists with single items (int, float, bool)
