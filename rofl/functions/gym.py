@@ -27,12 +27,13 @@ def someSkips(min_steps, max_steps):
 
 def skip(env, op, skips):
     obs = env.reset()
+    action = op(obs)
     for _ in range(skips):
-        ac = op(obs)
-        obs, r, done, _ = env.step(ac)
+        obs, r, done, _ = env.step(action)
         if done:
-            return False, None, ac
-    return True, obs, ac
+            return False, None, action
+        action = op(obs)
+    return True, obs, action
 
 def warmUp(env, op, min_steps, max_steps):
     """
@@ -44,7 +45,7 @@ def warmUp(env, op, min_steps, max_steps):
 
     """
     TRIES = 5
-    skips = someSkips()
+    skips = someSkips(min_steps, max_steps)
     
     for _ in range(TRIES):
         achieved, obs, action = skip(env, op, skips)

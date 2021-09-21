@@ -36,7 +36,7 @@ class Policy(ABC):
     """
     name = "BasePolicy"
     config, discrete, test = {}, None, False
-    exploratory, tbw = None, None
+    exploratory, tbw, tbwFreq = None, None, None
     actor, rndFunc, valueBased = None, None, None
     gamma, lmbd, gae = 1.0, 1.0, False
 
@@ -50,6 +50,7 @@ class Policy(ABC):
         self.config = config
         self.actor = actor
         self.tbw = kwargs.get('tbw')
+        self.tbwFreq = config['policy']['evaluate_freq']
 
         self.gamma, self.lmbd = config['agent']['gamma'], config['agent']['lambda']
         self.evalMaxGrad = config['policy']["evaluate_max_grad"]

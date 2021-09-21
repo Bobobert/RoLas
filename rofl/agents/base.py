@@ -153,7 +153,7 @@ class Agent(ABC):
         self._acR_ = newState["accumulated_reward"]
         self._envStep_, self._agentStep_ = newState["env_steps"], newState["agent_step"]
 
-    def test(self, iters:int = TEST_N_DEFT, prnt:bool = False):
+    def test(self, iters:int = TEST_N_DEFT, prnt:bool = False, progBar: bool = False):
         """
             Main method to evaluate any policy for the envinroment, 
             this should not be changed.
@@ -164,6 +164,9 @@ class Agent(ABC):
                 Number of test to execute. More the better
             prnt: bool
                 If it should print the main results or not
+            progBar:
+                Default False. To print a tqdm bar progress of the
+                episodes per test.
             
             returns
             -------
@@ -191,7 +194,10 @@ class Agent(ABC):
         self.prepareTest()
         self.policy.test = True
         # Iterations for the n_test
-        for test in range(iters):
+        iters = range(iters)
+        if progBar:
+            iters = tqdm(iters, desc = 'Testing agent', unit = 'episode')
+        for test in iters:
             testDone, testGain, testSteps = False, 0.0, 0
             obs = env.reset()
             obs = proc(obs, reset = True)

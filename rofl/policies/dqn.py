@@ -73,7 +73,7 @@ class dqnPolicy(Policy):
         loss.backward()
         self.optimizer.step()
 
-        if self.tbw != None:
+        if (self.tbw != None) and (self.epochs % self.tbwFreq == 0):
             self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
             self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epochs)
             max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)

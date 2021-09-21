@@ -14,7 +14,7 @@ class EpsilonGreedy():
             self._var_ = c["epsilon"]
         else:
             #Legacy
-            self._var_ = linearSchedule(c["epsilon_start"], c["epsilon_life"], c["epsilon_end"])
+            self._var_ = linearSchedule(c["epsilon_start"], c["epsilon_end"], c["epsilon_life"])
         
         self._test_ = c.get("epsilon_test", 0.0)
         

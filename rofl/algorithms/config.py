@@ -21,6 +21,7 @@ train = {
 }
 
 policy = {
+    'evaluate_freq' : 10,
     'evaluate_max_grad' : True,
     'evaluate_mean_grad' : True,
     'clip_grad' : 0,
