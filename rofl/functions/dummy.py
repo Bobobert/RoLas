@@ -4,7 +4,7 @@
 """
 
 class dummyTBW:
-    egg = "You talk to the DUMMY . . ."
+    egg = "You talked to the DUMMY . . ."
     def __init__(self, *args):
         None
     def __call__(self, *args):
@@ -13,3 +13,7 @@ class dummyTBW:
         if x is None:
             return True
         return False
+    def __repr__(self):
+        return self.egg
+    def close(self):
+        pass

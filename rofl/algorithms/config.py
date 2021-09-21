@@ -6,7 +6,7 @@ from rofl.functions.const import *
 agent = {
     'id' : 0,
     'gamma' : GAMMA,
-    'lambda' : 1.0,
+    'lambda' : LAMDA_GAE,
     'gae' : False,
 }
 

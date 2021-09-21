@@ -530,4 +530,11 @@ class Agent(ABC):
         if self.policy is None:
             return None
         return self.policy.device
+
+    def close(self):
+        self.env.close()
+        if self.envTest != None:
+            self.envTest.close()
+        if self.tbw != None:
+            self.tbw.close()
         
