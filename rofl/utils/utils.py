@@ -1,11 +1,12 @@
+"""
+    Utils for misc stuff about manipulating data, time, etc.
+"""
+import sys, time, json, pickle, re
 from pathlib import Path
-import sys
-import time
 from torch import save, load, device
-import pickle
-import json
 from rofl.functions.vars import Variable
-import re
+from .strucs import Stack, minHeap, maxHeap
+
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -45,12 +46,36 @@ def expDir(expName:str, envName:str):
     return genDir(expName, envName, t), genDir(expName, envName, "tensorboard", t)
 
 def genDir(*args) -> Path:
+    dr = getDir(*args)
+    dr.mkdir(parents = True, exist_ok = True)
+    return dr
+
+def getDir(*args):
+    """
+        Returns a Path from $HOME/rl_results/ and the extra
+        folders given as args.
+    """
     dr = Path.home()
     adds = ["rl_results", *args]
     for s in adds:
         dr /= s
-    dr.mkdir(parents = True, exist_ok = True)
     return dr
+
+def getExpDir(expName:str, envName:str):
+    expDir = getDir(expName, envName)
+    folders = []
+    for folder in expDir.iterdir():
+        stem = folder.stem
+        if stem != 'tensorboard' and folder.is_dir():
+            print('{}: {}'.format(len(folders), stem))
+            folders.append(folder)
+    while True:
+        select = input('Insert number corresponding to folder: ')
+        select = int(select)
+        if select >= 0 and select < len(folders):
+            break
+        print('Error: {} is not a valid option, please try again'.format(select))
+    return folders[select]
 
 def configPath(path: Path) -> Path:
     return (path / "config.json")
@@ -108,26 +133,7 @@ class Tocker:
         remaind = tHz - remaind
         if remaind > 0:
             time.sleep(remaind)
-            return True
-
-class Stack:
-    """
-    Dict stack working in a FIFO manner
-    """
-    def __init__(self):
-        self.stack = dict()
-        self.min = 0
-        self.actual = 0
-    def add(self, obj):
-        self.stack[self.actual] = obj
-        self.actual += 1
-    def pop(self):
-        poped = self.stack[self.min]
-        self.stack.pop(self.min)
-        self.min += 1
-        return poped
-    def __len__(self):
-        return len(self.stack)
+            return True        
 
 class Reference:
     _loaded_ = False
@@ -136,23 +142,29 @@ class Reference:
                         limit:int,
                         torchType:bool = False,
                         device = device("cpu"),
-                        loadOnly:bool = True):
+                        loadOnly:bool = True,
+                        key = '', discardMin = True):
         self.torchType = torchType
         self.name = name
         self.ref = obj
-        self.prevVersions = Stack()
+        f = minHeap if discardMin else maxHeap
+        self.prevVersions = Stack() if key == '' else f()
         self.limit = limit
         self.device = device
         self._version = 0
         self._LO_ = loadOnly
+        self.key = key
     
-    def save(self, path):
+    def save(self, path, results):
+        value = None
+        if self.key != '':
+            value = results[self.key]
         if self._LO_:
             None
         if self.torchType:
-            self.saveTorch(path)
+            self.saveTorch(path, value)
         else:
-            self.savePy(path)
+            self.savePy(path, value)
         self.clean(path)
 
     def clean(self, path):
@@ -160,27 +172,26 @@ class Reference:
             self.prevVersions.pop().unlink(missing_ok = True)
     
     @staticmethod
-    def loaderAssist(path):
+    def loaderAssist(path, name = ''): #TODO, add name func
         print("Files on direction:")
-        totFiles, files = 0, []
+        files = 0, []
         for file in path.iterdir():
-            if file.is_file():
+            if file.is_file() and file.name[:len(name)] == name:
+                print("{} : {}".format(len(files), file))
                 files.append(file)
-                print("{} : {}".format(totFiles, file))
-                totFiles += 1
-        while 1:
+        while True:
             choice = input("Enter the number for the file to load :")
             choice = int(choice)
-            if choice > len(totFiles) or not isinstance(choice, int) or choice < 0:
+            if choice >= len(files) or choice < 0:
                 print("Number not valid. Please try again.")
             else:
                 break
         return files[choice]
 
-    def load(self, path):
+    def load(self, path, assist = True):
         self._loaded_ = True
         print("Trying to load in object {}".format(self.name))
-        target = self.loaderAssist(path)
+        target = self.loaderAssist(path, self.name) if assist else path
         self._version = int(re.findall("_v\d+", target)[0][2:]) + 1
         if self.torchType:
             self.loadTorch(target, self.device)
@@ -198,28 +209,29 @@ class Reference:
         fileHandler.close()
         print("Object successfully loaded from ", path)
 
-    def saveTorch(self, path):
+    def saveTorch(self, path, value):
         name = self._gen_name() + ".modelst"
         target = path / name
         try:
             stateDict = self.ref.state_dict()
             save(stateDict, target)
-            self.prevVersions.add(target)
+            self.prevVersions.add(target, value)
         except:
             None
 
-    def savePy(self, path):
+    def savePy(self, path, value):
         name = self._gen_name() + ".pyobj"
         target = path / name
         if sys.getsizeof(self.ref) < LIMIT_4G:
             fileHandler = target.open("wb")
             pickle.dump(self.ref, fileHandler)
             fileHandler.close()
-            self.prevVersions.add(target)
+            self.prevVersions.add(target, value)
 
-    def _gen_name(self):
+    def _gen_name(self, value):
+        keyAddOn = '_{}: {}'.format(self.key, value) if self.key != '' else ''
         self._version += 1
-        return self.name + "_v{}".format(self._version) + "_" + timeFormated()
+        return self.name + "_v{}".format(self._version) + keyAddOn + "_T-" + timeFormated()
 
 class Saver():
     """
@@ -252,25 +264,41 @@ class Saver():
             self.saveAll()
             self.time.tick
 
-    def addObj(self, obj, 
-                objName:str,
-                isTorch:bool = False,
-                device = device("cpu"),
-                loadOnly:bool = False):
+    def addObj(self, obj, objName:str, isTorch:bool = False,
+                device = device("cpu"), loadOnly:bool = False,
+                key = '', discardMin: bool = True):
+        """
+            Method to add an object to the saver references.
 
+            parameters
+            -----------
+            obj: Any
+                The object or pytorch module to save.
+            objName: str
+                A name to recongnize the object in memory.
+            isTorch: bool
+                Default False. If the object is a torch module as a 
+                nn or optim type pass a True flag to save it properly.
+            device: torch.device
+                If isTorch the pass the device in which this module is working
+            loadOnly: bool
+                Skips saveing into memory this object. Crucial when just reading.
+            key: str
+                Default ''. When using saveAll(), if pass a non-empty string will
+                keep versions on memory with the maximum values for this number.
+            discardMin: bool
+                Default True. If using key do tell if want to discard the minimum or
+                maximum value.
+        """
         if objName in self.names:
             raise KeyError
         self.names.add(objName)
-        self._objRefs_ += [Reference(obj, 
-                                    objName, 
-                                    self.limit,
-                                    isTorch,
-                                    device,
-                                    loadOnly)]
+        self._objRefs_ += [Reference(obj, objName, self.limit, isTorch, device, loadOnly,
+                                        key, discardMin)]
     
-    def saveAll(self):
+    def saveAll(self, results = None):
         for ref in self._objRefs_:
-            ref.save(self.dir)
+            ref.save(self.dir, results)
 
     def load(self, path):
         for ref in self._objRefs_:

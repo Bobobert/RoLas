@@ -1,4 +1,5 @@
 from .const import *
+from rofl.functions.functions import no_grad, Tlog, Tdiv, Tsum, Tmul, Tmean, Tpow
 from torch.distributions.kl import register_kl, kl_divergence
 from torch.distributions import Distribution, Categorical, Normal
 

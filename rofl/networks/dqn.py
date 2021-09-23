@@ -1,4 +1,4 @@
-from rofl.functions.const import *
+from rofl.functions.functions import *
 from .base import QValue
 
 class dqnAtari(QValue):

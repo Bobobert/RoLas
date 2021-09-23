@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rofl.functions.functions import rnd
 from rofl.functions.dicts import mergeDicts
 from rofl.functions.torch import array2Tensor, list2Tensor
 

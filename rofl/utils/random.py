@@ -1,4 +1,5 @@
-from rofl.functions.const import *
+from rofl.functions.functions import rnd, nprnd, torch
+from rofl.functions.const import Tdevice
 
 def seeder(seed:int, device: Tdevice):
     """
@@ -22,4 +23,3 @@ def seeder(seed:int, device: Tdevice):
         torch.cuda.manual_seed_all(seed) # gpu vars
         torch.backends.cudnn.deterministic = True  #needed
         torch.backends.cudnn.benchmark = False
-

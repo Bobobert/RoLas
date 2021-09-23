@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rofl.functions.functions import nn, no_grad
 
 def isItem(T):
     if T.squeeze().shape == ():
@@ -40,7 +41,7 @@ class BaseNet(nn.Module):
 
 class Value(BaseNet):
     """
-    Class design to manage a state value function only
+    Class design to manage a observation value function only
     """
     name = "Value Base"
     discrete = False
@@ -63,20 +64,20 @@ class QValue(BaseNet):
     def processAction(self, action):
         return simpleActionProc(action, self.discrete)
 
-    def getQValues(self, state):
+    def getQValues(self, observation):
         with no_grad():
-            return self.forward(state)
+            return self.forward(observation)
 
-    def getValue(self, state, action):
+    def getValue(self, observation, action):
         assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
-        return self.getQValues(state)[action].item()
+        return self.getQValues(observation)[action].item()
 
-    def getAction(self, state):
+    def getAction(self, observation):
         """
         Returns the max action from the Q network. Actions
         must be from 0 to n. That would be the network output
         """
-        max_a = self.getQValues(state).argmax(1)
+        max_a = self.getQValues(observation).argmax(1)
 
         return self.processAction(max_a)
 
@@ -102,7 +103,7 @@ class Actor(BaseNet):
         """
         return simpleActionProc(action, self.discrete)
 
-    def getAction(self, x):
+    def getAction(self, observation):
         """
         From a tensor observation returns the sampled actions and 
         their corresponding log_probs from the distribution.
@@ -112,9 +113,9 @@ class Actor(BaseNet):
         action, log_prob, entropy
         """
         with no_grad():
-            distParams = self.forward(x)
-            action, _, _ = self.sampleAction(distParams)
-        return self.processAction(action)
+            distParams = self.forward(observation)
+            action, logProb, entropy = self.sampleAction(distParams)
+        return self.processAction(action), logProb, entropy
         
     def sampleAction(self, params):
         """
@@ -130,9 +131,7 @@ class Actor(BaseNet):
         """
         dist = self.getDist(params)
         action = dist.sample()
-        log_prob = dist.log_prob(action)
-        entropy = dist.entropy()
-
+        log_prob, entropy = dist.log_prob(action), dist.entropy()
         return action, log_prob, entropy
 
 class ActorCritic(Actor):
@@ -180,10 +179,10 @@ class ActorCritic(Actor):
         -------
         action, log_prob, entropy
         """
-        with torch.no_grad():
+        with no_grad():
             distParams = self.actorForward(self.sharedForward(x))
-            action, _, _ = self.sampleAction(distParams)
-        return self.processAction(action)
+            action, logProb, entropy = self.sampleAction(distParams)
+        return self.processAction(action), logProb, entropy
 
     def getValue(self, x, action = None):
         """

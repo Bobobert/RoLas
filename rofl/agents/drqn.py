@@ -1,6 +1,6 @@
 from .dqn import dqnAtariAgent
 from rofl.utils.dqn import *
-from rofl.utils.cv import imgResize, YChannelResize
+from rofl.utils.openCV import imgResize, YChannelResize
 from rofl.utils.drqn import recurrentArguments, MemoryReplayRecurrentFF
 
 class drqnFFAgent(dqnAtariAgent):

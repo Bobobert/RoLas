@@ -1,8 +1,9 @@
 from .base import Agent
 from rofl.functions.const import *
+from rofl.functions.functions import nprnd
 from rofl.utils.memory import dqnMemory
 from rofl.utils.dqn import genFrameStack, lHistObsProcess, reportQmean
-from rofl.utils.cv import imgResize, YChannelResize
+from rofl.utils.openCV import imgResize, YChannelResize
 
 class dqnAtariAgent(Agent):
     name = 'dqn agent v1'

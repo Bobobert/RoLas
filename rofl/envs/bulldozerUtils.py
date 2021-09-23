@@ -1,7 +1,7 @@
 from rofl.envs.forestFire.helicopter import EMPTY
 from numpy import empty
 from rofl.functions.const import *
-import numba
+from rofl.functions.functions import nb, floor, ceil
 
 def initWindKernel(direction, speed, c1):
     """
@@ -57,7 +57,7 @@ def initWindKernel(direction, speed, c1):
 
 TREE, EMPTY, FIRE, BURNT, AGENT = 100, 0, 200, 50, 255
 
-@numba.njit
+@nb.njit
 def quickGrid(grid:ARRAY, shape,
                 fire, tree, empty, burnt,
                 lRow, hRow, lCol, hCol,
@@ -91,7 +91,7 @@ def quickGrid(grid:ARRAY, shape,
         i += 1
     return img
 
-@numba.njit
+@nb.njit
 def quickGridC(grid:ARRAY, shape,
                 fire, tree, empty, burnt,
                 lRow, hRow, lCol, hCol,

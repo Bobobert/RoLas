@@ -1,5 +1,6 @@
 from rofl.functions.const import *
 from rofl.functions.torch import *
+from rofl.functions.functions import no_grad, Tmul, nprnd, F
 from rofl.functions import EpsilonGreedy
 from .base import Policy
 
@@ -35,12 +36,8 @@ class dqnPolicy(Policy):
         self.updateTarget = config["policy"]["freq_update_target"]
         #self.nActions = config["policy"]["n_actions"]
         self.double = config['policy'].get("double", False)
-        
-        parameters, lr = self.dqnOnline.parameters(), config['policy']["learning_rate"]
-        if config['policy']["optimizer"] == "adam":
-            self.optimizer = optim.Adam(parameters, lr = lr, **config.get("optimizer_args", {}))
-        elif config['policy']["optimizer"] == "rmsprop":
-            self.optimizer = optim.RMSprop(parameters, lr = lr, **config.get("optimizer_args", {}))
+
+        self.optimizer = getOptimizer(config, self.dqnOnline)
         
         self.epochs = 0
 

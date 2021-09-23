@@ -84,13 +84,13 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
             I.write("Testing ...")
             results, trainResults, stop = testEvaluation(config, agent, trainResults)
             I.write("Test results {}".format(results))
+        # Check the saver status
+        if saver is not None:
+            saver.check()
         # Stop condition
         if stop:
             saverAll()
             break
-        # Check the saver status
-        if saver is not None:
-            saver.check()
     saverAll()
     return trainResults
     

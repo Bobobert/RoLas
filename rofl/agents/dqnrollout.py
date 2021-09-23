@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rofl.functions.functions import nprnd, runningMean, multiplyIter
 from rofl.agents.base import Agent
 from rofl.agents.multi import agentMaster
 from rofl.functions.torch import updateNet
@@ -82,7 +83,7 @@ class dqnRollFFAgent(dqnRolloutAgent):
         self.memory = dqnMemory(config)
 
         obsShape, lhist  = config["env"]["obs_shape"], config["agent"]["lhist"]
-        self.obsShape = (lhist, mutiplyIter(obsShape) + 3)
+        self.obsShape = (lhist, multiplyIter(obsShape) + 3)
         self.fixedTrajectory = None
         self.frameStack = np.zeros(self.obsShape, dtype = F_NDTYPE_DEFT)
 

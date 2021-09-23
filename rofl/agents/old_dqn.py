@@ -1,7 +1,7 @@
 from .base import Agent
 from rofl.functions.const import *
 from rofl.utils.dqn import *
-from rofl.utils.cv import imgResize, YChannelResize
+from rofl.utils.openCV import imgResize, YChannelResize
 
 class dqnAtariAgent(Agent):
 

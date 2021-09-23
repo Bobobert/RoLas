@@ -32,7 +32,7 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
     # Making work if more than one dict has came, else return the dict
     if len(batchDicts) > 1:
         # Construct the manager dict
-        zero = batchDicts[0]
+        zero = batchDicts[1] 
         templateDict, dtypes, shapes, zeroDevice = {}, {}, {}, zero["device"]
         for k in zero.keys():
             templateDict[k] = None

@@ -1,9 +1,9 @@
 from rofl.functions.const import *
+from rofl.functions.functions import np, torch, math, ceil
 from rofl.functions.torch import tryCopy
 from rofl.functions.dicts import obsDict
 from rofl.functions.gym import doWarmup, noOpSample
 from rofl.functions.coach import episodicRollout
-from rofl.policies.dummy import dummyPolicy
 from gym import Env
 from abc import ABC
 from copy import deepcopy
@@ -91,6 +91,7 @@ class Agent(ABC):
             self.envName = "unknown"
 
         if policy is None:
+            from rofl.policies.dummy import dummyPolicy
             self.policy = dummyPolicy(self.noOp)
             print("Warning, agent working with a dummy plug policy!")
         else:
@@ -352,7 +353,8 @@ class Agent(ABC):
             obsDict
         """
         if self.done:
-            return self.reset()
+            print("Warning: environment is done. Needs to reset agent.") #TODO: debugger level
+            return {}
         if self._reseted:
             self._reseted = False
         
@@ -402,10 +404,19 @@ class Agent(ABC):
             -------
             obsDict
         """
-        action = self.policy.getAction(self.lastObs) if not random else self.rndAction()
-
-        #TODO: add the sample of the action for actor policies
-        return self.envStep(action)
+        if self.done:
+            self.reset()
+        dist, obs = None, self.lastObs
+        if random:
+            action = self.rndAction()
+        elif self.policy.stochastic: # TODO, is it best to pass those here? or better not to worry until needed.
+            action, logProb, entropy = self.policy.sampleAction(obs)
+        else:
+            action = self.policy.getAction(obs)
+        obsDict = self.envStep(action)
+        if dist is not None:
+            obsDict['log_prob'], obsDict['entropy'] = logProb, entropy
+        return obsDict
 
     def reset(self):
         """
@@ -532,6 +543,10 @@ class Agent(ABC):
         return self.policy.device
 
     def close(self):
+        """
+            Meant to close the agent's environments and SummaryWriter
+            if any.
+        """
         self.env.close()
         if self.envTest != None:
             self.envTest.close()

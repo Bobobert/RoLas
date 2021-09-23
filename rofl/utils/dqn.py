@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rofl.functions.functions import no_grad, Tmean
 from rofl.functions import runningStat
 
 def genFrameStack(config):

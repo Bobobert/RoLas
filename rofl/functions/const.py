@@ -1,87 +1,13 @@
 """
-    Constansts and functions from libraries to use in all the files.
+    Constants to use in all the files. Side effect of from .THIS import * is to 
+    have torch, numpy (as np), math, os, sys imported as well.
 """
 import os, sys
-import torch
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import math
-import random as rnd
-import numpy as np
-import numpy.random as nprnd
-
-### FUNCTION FROM LIBS ###
-ceil = math.ceil
-floor = math.floor
-Tsum = torch.sum
-Tlog = torch.log
-Tcat = torch.cat
-Tmul = torch.mul
-Tdiv = torch.div
-Tpow = torch.pow
-Tmean = torch.mean
-Tstd = torch.std
-Tdevice = torch.device
-Texp = torch.exp
-Tdot = torch.dot
-Tsqrt = torch.sqrt
-Tstack = torch.stack
-no_grad = torch.no_grad
-try:
-    from numba.typed import List
-except:
-    print("Numba support not available. Errors could be heading one's way")
-try:
-    from torch.utils.tensorboard import SummaryWriter
-except:
-    from .dummy import dummyTBW as SummaryWriter
-
-#### LITTLE USEFUL FUNCTIONS ###
-def assertProb(sus):
-    f = (sus >= 0.0) and (sus <= 1.0)
-    if not f:
-        raise ValueError("Value must be in [0,1]")
-    return sus
-
-def assertIntPos(sus):
-    f = (sus > 0) and isinstance(sus, (int))
-    if not f:
-        raise ValueError("Value must be an integer greater than 0")
-    return sus
-
-def sqrConvDim(inpt,kernel,stride, pad = 0, dil = 1):
-    return floor((inpt + 2*pad - dil*(kernel-1) - 1) /stride + 1)
-
-def runningMean(xt, y, t):
-    """
-        parameters
-        ----------
-        xt: float
-            mean
-        y: int/float
-            new value
-        t: int
-            observations included in xt
-        
-        returns
-        -------
-        xt1: float
-            new mean
-    """
-    return xt * t / (t + 1) + y / (t + 1)
-
-def mutiplyIter(itm):
-    t = 1
-    for i in itm:
-        t *= i
-    return t
-
-from typing import Union
+from .functions import torch, np, math
+from numba.typed import List
 
 ### DEFAULTS TYPES ###
-DEVICE_DEFT = Tdevice("cpu")
+DEVICE_DEFT = torch.device("cpu")
 F_TDTYPE_DEFT = torch.float32
 I_TDTYPE_DEFT = torch.int64
 F_NDTYPE_DEFT = np.float32
@@ -90,6 +16,7 @@ B_TDTYPE_DEFT = torch.bool
 B_NDTYPE_DEFT = np.bool_
 TENSOR = torch.Tensor
 ARRAY = np.ndarray
+Tdevice = torch.device
 
 ### CONSTANTS DEFAULTS ###
 TEST_N_DEFT = 20

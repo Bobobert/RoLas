@@ -1,5 +1,5 @@
 from .vars import linearSchedule
-from .const import assertProb, math, torch
+from .functions import math, torch
 
 class EpsilonGreedy():
     """

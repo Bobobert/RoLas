@@ -1,13 +1,13 @@
 from .base import Agent
-from rofl.functions.const import np, torch, rnd, DEVICE_DEFT
+from rofl.functions.const import DEVICE_DEFT
+from rofl.functions.functions import np, torch, rnd, no_grad, ceil
 from rofl.functions.torch import array2Tensor
-from rofl.functions.gym import noOpSample
 from rofl.utils.pg import Memory, MemoryFF
 from rofl.functions.coach import singlePathRollout
-from rofl.utils.cv import imgResize
+from rofl.utils.openCV import imgResize
 
 class pgAgentNOT(Agent):
-    name = "pg_agent_v0"
+    name = "pg_agent_v0" #TO BE DELETED
 
     def initAgent(self, **kwargs):
 

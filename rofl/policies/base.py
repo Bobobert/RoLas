@@ -1,5 +1,5 @@
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
-import torch.nn as nn
+from rofl.functions.functions import nn, no_grad
 from abc import ABC
 
 class Policy(ABC):
@@ -15,14 +15,14 @@ class Policy(ABC):
     Methods
     -------
     - getAction: returns the action corresponding
-        to the state given
+        to the observation given
     - getActions: batch mode for getAction()
     - exploreAgenda: means to manage the exploration of the policy for the
         getAction method 
     - getRndAction: returns a random action. Defaults uses an agent's
         rndAction() as rndFunc
-    - getValue: if possible, will return the value for a state or
-        pair state-action
+    - getValue: if possible, will return the value for a observation or
+        pair observation-action
     - sampleAction: returns the action, probability, and entropy
         from the action's distribution for actor based policies
     - update: Depending the type of policy updates itself.
@@ -32,12 +32,12 @@ class Policy(ABC):
     Other methods
     ----------
     - currentState: returns a dict
-    - loadState: Loads a state dict
+    - loadState: Loads a observation dict
     """
     name = "BasePolicy"
     config, discrete, test = {}, None, False
     exploratory, tbw, tbwFreq = None, None, None
-    actor, rndFunc, valueBased = None, None, None
+    actor, rndFunc, valueBased, stochastic = None, None, None, False
     gamma, lmbd, gae = 1.0, 1.0, False
 
     def __init__(self, config, actor, **kwargs):
@@ -63,7 +63,7 @@ class Policy(ABC):
     def __checkInit__(self):
         # testing for valueBased, required for agent class working for any value method
         if isinstance(self.actor, (Actor)):
-            self.valueBased = False
+            self.stochastic = True
         if isinstance(self.actor, (Value, QValue, ActorCritic)):
             self.valueBased = True
         if self.valueBased is None: # as ActorCritic is based on Actor, those will be tested twice
@@ -86,12 +86,12 @@ class Policy(ABC):
         """
         pass
 
-    def __call__(self, state):
-        return self.getAction(state)
+    def __call__(self, observation):
+        return self.getAction(observation)
     
-    def getAction(self, state, **kwargs):
+    def getAction(self, observation, **kwargs):
         """
-            From the given state, return an action
+            From the given observation, return an action
             as int if discrete or as a numpy.ndarray if
             continuous
         """
@@ -106,40 +106,42 @@ class Policy(ABC):
             raise NotImplementedError
         return self.rndFunc()
 
-    def exploreAgenda(self, state, **kwargs):
+    def exploreAgenda(self, observation, **kwargs):
         """
             Intended to be invoked in getAction method, to manage the
             exploration agenda
         """
         pass
 
-    def getValue(self, state, action = None):
+    def getValue(self, observation, action = None):
         """
-            Calculates from the actor object a value for a given state repsentation, if possible.
+            Calculates from the actor object a value for a given observation repsentation, if possible.
             
             returns
             --------
             float
         """
         if self.valueBased:
-            return self.actor.getValue(state, action)
+            return self.actor.getValue(observation, action)
         raise TypeError("{} is not value based, thus cannot calculate any value".format(self.name))
 
-    def sampleAction(self, state):
+    def sampleAction(self, observation):
         """
             Return the raw action, log_prob and entropy
             from the action's distribution of the actor
             network.
         """
-        if isinstance(self.actor, Actor):
-            return self.actor.sampleAction(state)
+        if self.stochastic:
+            with no_grad():
+                params = self.actor(observation)
+            return self.actor.sampleAction(observation)
         raise TypeError("{} does not have an Actor type as .actor".format(self.name))
         
     def update(self, batchDict):
         """
             From the information dictionaries,
             the policy should be updated. If tabular
-            make the incremental or new state.
+            make the incremental or new observation.
             If using approximations, this would have
             to contain the information to update the 
             parameters. Meaning the optimizer should be given 
@@ -150,13 +152,13 @@ class Policy(ABC):
     def currentState(self):
         """
             Returns a dict with all the required information
-            of its state to start over or just to save it.
+            of its observation to start over or just to save it.
         """
         return dict()
 
     def loadState(self, newState):
         """
-            Form a dictionary state, loads all the values into
+            Form a dictionary observation, loads all the values into
             the policy.
             Must verify the name of the policy is the same and the
             type.

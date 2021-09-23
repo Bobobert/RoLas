@@ -1,4 +1,5 @@
 from .const import *
+from .functions import Tmean, Tcat, nn, optim
 
 def getDevice(cudaTry:bool = True):
     if torch.cuda.is_available() and cudaTry:
@@ -144,3 +145,40 @@ def tryCopy(T: TENSOR):
     else:
         from copy import deepcopy
         return deepcopy(T)
+
+def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF):
+    """
+        Usually all optimizers need at least two main arguments
+
+        parameters of the network and a learning rate. More argumens
+        should be declared in the 'optimizer_args' into config.policy
+
+        parameters
+        ----------
+        configDict: dict
+        network: a nn.Module type object
+        deftLR: float
+            A default learning rate if there's none declared in the config
+            dict. A config dict by deault does not have this argument.
+
+        returns
+        --------
+        optimizer for network
+    """
+    name = config['policy'].get('optimizer')
+    lr = config['policy'].get('learning_rate', deftLR)
+
+    if name == 'adam':
+        FOpt = optim.Adam
+    elif name == 'rmsprop':
+        FOpt = optim.RMSprop
+    elif name == 'sgd':
+        FOpt = optim.SGD
+    elif name == 'adagrad':
+        FOpt = optim.Adagrad
+    else:
+        print("Warning: {} is not a valid optimizer. {} was generated instead".format(name, OPTIMIZER_DEF))
+        from rofl.algorithms.config import createConfig
+        return getOptimizer(createConfig(), network)
+
+    return FOpt(network.parameters(), lr = lr, **config['policy']["optimizer_args"])

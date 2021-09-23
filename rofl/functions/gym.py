@@ -1,6 +1,7 @@
 from gym.spaces import Space
 from gym import Env
-from .const import ARRAY, rnd
+from .const import ARRAY
+from .functions import rnd
 
 def noOpSample(env):
     """
