@@ -3,7 +3,7 @@ from rofl.functions.const import *
 from rofl.functions.stop import testEvaluation, initResultDict
 from rofl.functions.vars import updateVar
 from tqdm import tqdm
-
+# TODO: reduce this dict
 config = {
     "agent":{
         "lhist":LHIST,

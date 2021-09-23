@@ -8,7 +8,7 @@
         
 """
 
-from rofl.functions.const import *
+from rofl.functions.functions import nprnd, np
 
 AGENT, NORTH, SOUTH, EAST, WEST, NEAST, NWEST, SEAST, SWEST = 0, 1, 4, 3, 4, 6, 5, 8, 7
 

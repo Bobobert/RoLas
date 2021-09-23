@@ -1,6 +1,6 @@
 from rofl.functions.const import *
+from rofl.functions.functions import np, nb, nprnd
 from rofl.functions.torch import *
-import numba as nb
 
 BASELINE_CONFIG_DEFT = {"optimizer": OPTIMIZER_DEF,
                         "learning_rate":OPTIMIZER_LR_DEF,

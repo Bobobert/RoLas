@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rofl.functions.functions import torch,np
 from rofl.utils.dqn import MemoryReplayFF
 
 def newZeroFromT(T):
@@ -106,7 +107,7 @@ class recurrentArguments:
             u.reset()
         self.obs = None
     
-class MemoryReplayRecurrentFF(MemoryReplayFF):
+class MemoryReplayRecurrentFF(MemoryReplayFF): # TODO: erase and change it to memory, with new mem structure ? (heavy memory use)
     """
     Main Storage for the transitions experienced by the actors.
 

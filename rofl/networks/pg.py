@@ -1,5 +1,6 @@
 from .base import Actor, Value
 from rofl.functions.const import *
+from rofl.functions.functions import torch, nn, F
 from rofl.functions.distributions import Categorical
 
 class dcontrolActorPG(Actor):

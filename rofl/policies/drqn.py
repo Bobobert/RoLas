@@ -3,6 +3,7 @@ from rofl.functions.torch import *
 from rofl.policies.dqn import dqnPolicy
 from rofl.utils.drqn import recurrentArguments, unpackBatch, newZero
 
+# TODO: change and review this code for obsDicts, validation still missing
 def procState(state):
     if isinstance(state, dict):
         states = []
