@@ -2,6 +2,7 @@ from rofl import Agent, Policy
 from rofl.functions.const import *
 from rofl.functions.stop import testEvaluation, initResultDict
 from rofl.functions.vars import updateVar
+from rofl.utils import Saver
 from tqdm import tqdm
 
 dqnConfig = {
@@ -50,7 +51,7 @@ def fillFixedTrajectory(config, agent, device):
     agent.memory.reset()
     agent.reset()
 
-def train(config:dict, agent:Agent, policy:Policy, saver = None):
+def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     agent.memory.reset()
     fillFixedTrajectory(config, agent, policy.device)
     fillRandomMemoryReplay(config, agent)
@@ -60,7 +61,8 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     trainResults = initResultDict()
     saver.addObj(trainResults, "training_results")
     saver.addObj(policy.dqnOnline,"online_net",
-                isTorch = True, device = policy.device)
+                isTorch = True, device = policy.device,
+                key = 'mean_return')
     saver.start()
 
     miniBatchSize = config["policy"]["minibatch_size"]

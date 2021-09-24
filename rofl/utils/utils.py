@@ -330,7 +330,7 @@ class Reference:
         try:
             stateDict = self.ref.state_dict()
             save(stateDict, target)
-            self.prevVersions.add(target, value)
+            self.prevVersions.add(target, value = value)
         except:
             None
 
@@ -341,10 +341,10 @@ class Reference:
             fileHandler = target.open("wb")
             pickle.dump(self.ref, fileHandler)
             fileHandler.close()
-            self.prevVersions.add(target, value)
+            self.prevVersions.add(target, value = value)
 
     def _gen_name(self, value):
-        keyAddOn = '_{}: {}'.format(self.key, value) if self.key != '' else ''
+        keyAddOn = '_%s: %.3f'%(self.key, value) if self.key != '' else ''
         self._version += 1
         return self.name + "_v{}".format(self._version) + keyAddOn + "_T-" + timeFormated()
 

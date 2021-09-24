@@ -246,7 +246,7 @@ class Agent(ABC):
         self.prepareAfterTest()
         # Printing
         if prnt:
-            print("Test results mean Return:{%.2f}, mean Steps:{%.2f}, std Return:{%.3f}, std Steps:{%.3f}" % (\
+            print("Test results mean Return: %.2f, mean Steps: %.2f, std Return: %.3f, std Steps: %.3f" % (\
                 meanAccReward, meanSteps, stdMean, stdMeanSteps))
         # Generating results
         results = {"mean_return": meanAccReward,
