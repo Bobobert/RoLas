@@ -4,8 +4,8 @@ from rofl.agents.dqn import dqnAtariAgent
 from rofl.policies.dqn import dqnPolicy
 from rofl.networks.dqn import dqnAtari
 from rofl.envs.gym import atariEnvMaker
-from rofl.functions import getDevice, SummaryWriter, linearSchedule
-from rofl.utils import seeder, Saver, expDir, saveConfig
+from rofl.functions import getDevice, linearSchedule
+from rofl.utils import seeder, pathManager
 
 device = getDevice()
 seeder(8088, device)
@@ -33,7 +33,7 @@ def setUp():
                         'warmup' : 'noop',
                     }}
 
-    config = createConfig(dqnConfig, envConfig)
+    config = createConfig(dqnConfig, envConfig, expName = 'dqnTest')
     config["variables"] = [epsilon]
     config['agent']['memory_size'] = 6*10**5
     config["policy"]["n_actions"] = 4
@@ -42,29 +42,30 @@ def setUp():
     config["policy"]["epsilon"] = epsilon
     config["policy"]["double"] = True
     config["policy"]["freq_update_target"] = 10**4
-    config["train"]["epochs"] = 2*10**4
+    config["train"]["epochs"] = 1*10**4
     config["train"]["fill_memory"] = 5*10**4
     config['train']['test_freq'] = 5*10**4
     config["train"]["max_steps_per_test"] = 10**4
     config["train"]["test_iters"] = 20
     config["train"]["expected_performance"] = 300
 
-    expdir, tbdir = expDir('dqn', config['env']['name'])
-
-    writer = SummaryWriter(tbdir)
-    saver = Saver(expdir)
+    manager = pathManager(config)
+    manager.saveConfig()
+    manager.startSaver()
+    writer = manager.startTBW()
     net = dqnAtari(config).to(device)
     policy = dqnPolicy(config, net, tbw = writer)
 
     envMaker = atariEnvMaker(config)
     agent = dqnAtariAgent(config, policy, envMaker, tbw = writer)
-    saveConfig(config, expdir)
-    return config, agent, policy, saver
+    
+    return config, agent, policy, manager
 
 if __name__ == '__main__':
-    config, agent, policy, saver = setUp()
-    train(config, agent, policy, saver = saver)
+    config, agent, policy, manager = setUp()
+    train(config, agent, policy, saver = manager.saver)
     agent.close()
+    manager.close()
     #import cProfile
     #cProfile.run("trainy()")
     #trainy()

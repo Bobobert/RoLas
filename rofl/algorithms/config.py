@@ -65,8 +65,9 @@ def completeDict(targetDict:dict, otherDict:dict):
             targetDict[key] = load
     return targetDict
 
-def createConfig(*targetDicts:dict):
+def createConfig(*targetDicts:dict, expName: str = 'unknown'):
     newConfig = config.copy()
+    newConfig['experiment'] = expName
     for targetDict in targetDicts:
         newConfig = completeDict(targetDict, newConfig)
     return newConfig

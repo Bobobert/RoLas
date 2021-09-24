@@ -6,7 +6,7 @@ from pathlib import Path
 from torch import save, load, device
 from rofl.functions.vars import Variable
 from .strucs import Stack, minHeap, maxHeap
-
+from .dummy import dummyTBW, dummySaver
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -110,6 +110,121 @@ def timeToStop(results, expected = None):
         stop = True if (diff // 60) >= expected else False
     return results, stop
 
+class pathManager():
+    """
+        Creates and keeps the path for a given experiment.
+        Packs all the useful functions related to save and load
+        from said path.
+
+        The experiments can be found in $HOME/rl_results/
+
+        Parameters
+        ----------
+        config: configuration dictionary from createConfig
+        dummy: bool
+            Default False. Does not create anything, and works by doing the
+            best a dummy can do, nothing.
+        
+        Methods
+        -------
+        - saveConfig(config)
+        - loadConfig()
+        - startSaver(**optionals)
+            If not a dummy will create a proper Saver class, else will return 
+            a dummySaver.
+        - startTBW()
+            Starts a SummaryWriter for tensorboard loggin. If dummy this will be
+            a dummyTBW
+        - close()
+            To properly close everything
+
+        Properties
+        ----------
+        - path: main path of the experiment
+        - tensorboard: a previously started SummaryWriter for tensorboard
+        - saver: a previously started saver
+
+    """
+    egg = 'Dummy managed to stare blankly back to you'
+    dummy, _saver, _tbw = False, None, None
+    def __init__(self, config, dummy: bool = False) -> None:
+        self.config = config
+        if dummy:
+            self.dummy = True
+            return
+        self.expName = expName = config['experiment']
+        self.envName = envName = config['env']['name']
+        self.timeID = t = timeFormatedS()
+        if expName == 'unknown':
+            print("Warning!!! expName in config has default name. Please consider setting a different name.")
+        self._path = genDir(expName, envName, t)
+
+    def __dumm__(self):
+        print(self.egg)
+        return
+
+    @property
+    def path(self):
+        if self.dummy: return self.__dumm__()
+        return self._path
+    
+    @property
+    def tensorboard(self):
+        if self._tbw is None:
+            raise AttributeError("TBW must be first created with the startTBW() method.")
+        if self.dummy: self.__dumm__()
+        return self.tbw
+
+    @property
+    def saver(self):
+        if self._saver is None:
+            raise AttributeError("Saver must be first created with the startSaver() method.")
+        return self._saver
+
+    def saveConfig(self):
+        if self.dummy: return self.__dumm__()
+        saveConfig(self.config, self.path)
+
+    def loadConfig(self):
+        if self.dummy: return self.__dumm__()
+        self.config = loadConfig(self.path)
+        return self.config
+    
+    def startSaver(self, limitTimes:int = 10, saveFreq:int = 30):
+        """
+            If not a dummy will create a proper Saver class, else will return 
+            a dummySaver.
+
+            parameters
+            -----------
+            limitTimes: int
+                How many version a reference can have in disc at any time.
+            saveFreq: int
+                In minutes, how often an auto save is done.
+        """
+        if self.dummy:
+            self._saver =  dummySaver()
+        else:
+            self._saver = Saver(self.path, limitTimes, saveFreq)
+        return self._saver
+
+    def startTBW(self):
+        if self.dummy:
+            self._tbw = dummyTBW()
+        else:
+            try:
+                from torch.utils.tensorboard import SummaryWriter
+                self.tbPath = genDir(self.expName, self.envName, "tensorboard", self.timeID)
+                self._tbw = SummaryWriter(self.tbPath)
+            except ImportError:
+                self._tbw = dummyTBW()
+                print('Tensorboard installation within pytorch was not found. DummyTBW created')
+        return self._tbw
+    
+    def close(self):
+        if self.dummy: return self.__dumm__()
+        self._tbw.close()
+
 class Tocker:
     def __init__(self):
         self.tick
@@ -153,7 +268,7 @@ class Reference:
         self.device = device
         self._version = 0
         self._LO_ = loadOnly
-        self.key = key
+        self.key, self._discardMin = key, discardMin
     
     def save(self, path, results):
         value = None
@@ -210,7 +325,7 @@ class Reference:
         print("Object successfully loaded from ", path)
 
     def saveTorch(self, path, value):
-        name = self._gen_name() + ".modelst"
+        name = self._gen_name(value) + ".modelst"
         target = path / name
         try:
             stateDict = self.ref.state_dict()
@@ -220,7 +335,7 @@ class Reference:
             None
 
     def savePy(self, path, value):
-        name = self._gen_name() + ".pyobj"
+        name = self._gen_name(value) + ".pyobj"
         target = path / name
         if sys.getsizeof(self.ref) < LIMIT_4G:
             fileHandler = target.open("wb")
@@ -232,6 +347,14 @@ class Reference:
         keyAddOn = '_{}: {}'.format(self.key, value) if self.key != '' else ''
         self._version += 1
         return self.name + "_v{}".format(self._version) + keyAddOn + "_T-" + timeFormated()
+
+    def __repr__(self) -> str:
+        s =  'Reference {}. Torch is {}. Last version is {}.'.format(self.name, self.torchType, self._version)
+        if self._LO_:
+            s += ' Load only is enabled.'
+        if self.key != '':
+            s += ' Has key {}, with minimum as {}.'.format(self.key, self._discardMin)
+        return s
 
 class Saver():
     """
@@ -259,9 +382,9 @@ class Saver():
     def start(self):
         self.time.tick
 
-    def check(self):
+    def check(self, results = None):
         if self.time.tocktock >= self.freq:
-            self.saveAll()
+            self.saveAll(results)
             self.time.tick
 
     def addObj(self, obj, objName:str, isTorch:bool = False,
@@ -303,3 +426,9 @@ class Saver():
     def load(self, path):
         for ref in self._objRefs_:
             ref.load(path)
+
+    def __repr__(self) -> str:
+        s = 'Saver in path: {} with {} objects:\n'.format(self.path, len(self._objRefs_))
+        for obj in self._objRefs_:
+            s += ' - ' + obj.__repr__() + '\n'
+        return s

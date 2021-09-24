@@ -12,10 +12,6 @@ import random as rnd
 import numpy as np
 import numpy.random as nprnd
 import numba as nb
-try:
-    from torch.utils.tensorboard import SummaryWriter
-except:
-    from .dummy import dummyTBW as SummaryWriter
 
 ### FUNCTION FROM LIBS ###
 ceil = math.ceil

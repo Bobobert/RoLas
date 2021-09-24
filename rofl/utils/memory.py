@@ -3,6 +3,20 @@ from rofl.functions.functions import rnd
 from rofl.functions.dicts import mergeDicts
 from rofl.functions.torch import array2Tensor, list2Tensor
 
+def itemsSeq(low, high):
+    """
+        Generator for the range [low, high)
+    """
+    for i in range(low, high):
+        yield i
+
+def itemsRnd(low, high, nItems):
+    """
+        Generator for nItems in the interval [low, high]
+    """
+    for i in range(nItems):
+        yield rnd.randint(low, high)
+
 class simpleMemory():
     """
 
@@ -12,19 +26,26 @@ class simpleMemory():
         parameters
         ----------
         config: dict
+
+        aditionalKeys: tuple(str, Any dtype)
+            Specify what aditional keys are required to process after
+            gathering a sample to a torch.tensor and its data type.
+            eg. ('return', torch.float16)
         
     """
     _mem_ = None
     _keys_ = [("reward", F_TDTYPE_DEFT), ("done", B_TDTYPE_DEFT)]
-    _exp_, _slack_ = None, 10
+    _exp_, _slack_ = None, 4
 
-    def __init__(self, config):
+    def __init__(self, config, *aditionalKeys):
         self.config = config
         self.size = config["agent"].get("memory_size", DEFT_MEMORY_SIZE)
         self._slack_ *= self.size
         self.gamma = config["agent"]["gamma"]
         self.gae = config["agent"]["gae"]
         self.lmbda = config["agent"]["lambda"]
+        for key in aditionalKeys:
+            self._keys_.append(key)
 
     def reset(self,):
         self._mem_, self._i_ = [], 0
@@ -60,44 +81,51 @@ class simpleMemory():
             --------
             obsDict
         """
-        if size < 0:
-            raise ValueError("sample size should be greater than 0")
         if size > self.diff:
             raise ValueError("Not enough data to generate sample")
-    
-        return self.processSample(self.gatherSample(size), device)
+        if size == len(self) or size < 0:
+            return self.createSample(self.gatherMem(), device)
+        return self.createSample(self.gatherSample(size), device)
 
-    def gatherSample(self, size):
+    def gatherMem(self):
         """
-            Gathers the items from the memory to be processed
+            Returns all the items from memory
 
             returns
             -------
-            list of obsDict
+            index generator
         """
-        sample = []
-        for _ in range(size):
-            n = rnd.randint(self._li_, self._i_ - 1)
-            sample.append(self._mem_[n])
-        
-        return sample
+        return itemsSeq(self._li_, self._i_)
 
-    def processSample(self, sample, device):
+    def gatherSample(self, size):
         """
-            Process the sample from the gathe sample method. It should
-            the this item per item or in bulk. Either way is expected to
+            Gathers the indexes from memory for the sample
+            generation.
+
+            returns
+            -------
+            index generator
+        """
+        return itemsRnd(self._li_, self._i_ - 1, size)
+
+    def createSample(self, genSample, device):
+        """
+            Generates and process the sample from the gatherSample method. 
+            This could be done per item or in bulk. Either way is expected to
             return a single obsDict.
 
             returns
             --------
             obsDict
         """
-        sample = mergeDicts(*sample, targetDevice = device)
+        sample = mergeDicts(*[self[i] for i in genSample], targetDevice = device)
 
         for key, dtype in self._keys_:
             aux = sample.get(key)
             if isinstance(aux, list):
                 sample[key] = list2Tensor(aux, device, dtype)
+            else:
+                raise NotImplementedError('This wasnt expected yet... oopsy')
 
         return sample
     
@@ -137,10 +165,11 @@ class simpleMemory():
         return self._mem_[i]
 
 class episodicMemory(simpleMemory):
-
+    """
+        Meant to store and process one episode at a time
+    """
     def __init__(self, config):
-        super().__init__(config)
-        self._keys_.append(("return", F_TDTYPE_DEFT))
+        super().__init__(config, ("return", F_TDTYPE_DEFT))
 
     def reset(self):
         super().reset()
@@ -165,13 +194,14 @@ class episodicMemory(simpleMemory):
         self._lastEpisode_ = self._i_ - 1
 
     def getEpisode(self, device = DEVICE_DEFT):
-        return self.processSample(self._mem_, device)
+        return self.createSample(self.gatherMem(), device)
 
 class dqnMemory(simpleMemory):
     def __init__(self, config):
         super().__init__(config)
         self.lhist = config["agent"]["lhist"]
         assert self.lhist > 0, "Lhist needs to be at least 1"
+        self.zeroFrame = None
         #self._keys_.append("rollout_return")
     
     @staticmethod
@@ -189,18 +219,26 @@ class dqnMemory(simpleMemory):
         return item
 
     def gatherSample(self, size):
-        sample = []
-        for _ in range(size):
-            i = rnd.randint(self._li_ + self.lhist, self._i_ - 2)
-            item, nxItem = self[i], self[i + 1]
-            item['next_frame'] = nxFrame = nxItem['frame'] 
-            if item['done']:
-                item['next_frame'] = np.zeros(nxFrame.shape, nxFrame.dtype)
-            sample.append(item)
-        return sample
+        return itemsRnd(self._li_ + self.lhist, self._i_ - 2, size)
 
-    def processSample(self, sample, device):
-        sample = super().processSample(sample, device)
+    def add(self, infoDict):
+        super().add(infoDict)
+        if self.zeroFrame is None:
+            frame = infoDict['frame']
+            self.zeroFrame = np.zeros(frame.shape, frame.dtype)
+
+    def __getitem__(self, i):
+        item = super().__getitem__(i)
+        if item.get('next_frame') is None:
+            nxItem = super().__getitem__(i-1)
+            if item['done'] or nxItem.get('frame') is None:
+                item['next_frame'] = self.zeroFrame# this should keep only references
+            else:
+                item['next_frame'] = nxItem['frame'] 
+        return item
+
+    def createSample(self, genSample, device):
+        sample = super().createSample(genSample, device)
         sample['observation'] = array2Tensor(sample['frame'], device, grad=True, batch=True).div(255)
         sample['next_observation'] = array2Tensor(sample['next_frame'], device, batch=True).div(255)
         sample['action'] = list2Tensor(sample['action'], device, torch.int64)

@@ -485,14 +485,13 @@ class Agent(ABC):
         memory = self.memory
         if memory is None:
             from rofl.utils.memory import simpleMemory
-            memory = simpleMemory(self.config)
+            memory = simpleMemory(self.config).reset()
 
         iter = range(ceil(size / proportion))
         if progBar:
             iter = tqdm(iter, desc = 'Generating batch', unit = 'envStep')
         for _ in iter:
-            obsDict = self.fullStep(random = random)
-            memory.add(obsDict)
+            memory.add(self.fullStep(random = random))
         return memory.sample(size, device)
 
     def getEpisode(self, random = False):
@@ -544,12 +543,9 @@ class Agent(ABC):
 
     def close(self):
         """
-            Meant to close the agent's environments and SummaryWriter
-            if any.
+            Meant to close the agent's environments.
         """
         self.env.close()
         if self.envTest != None:
             self.envTest.close()
-        if self.tbw != None:
-            self.tbw.close()
         

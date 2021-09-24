@@ -58,14 +58,10 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
     # Train the net
     ## Init results and saver
     trainResults = initResultDict()
-    if saver is not None:
-        saver.addObj(trainResults, "training_results")
-        saver.addObj(policy.dqnOnline,"online_net",
-                    isTorch = True, device = policy.device)
-        saver.start()
-    def saverAll():
-        if saver is not None:
-            saver.saveAll()
+    saver.addObj(trainResults, "training_results")
+    saver.addObj(policy.dqnOnline,"online_net",
+                isTorch = True, device = policy.device)
+    saver.start()
 
     miniBatchSize = config["policy"]["minibatch_size"]
     stepsPerEpoch = config["agent"]["steps_per_epoch"]
@@ -84,13 +80,13 @@ def train(config:dict, agent:Agent, policy:Policy, saver = None):
             I.write("Testing ...")
             results, trainResults, stop = testEvaluation(config, agent, trainResults)
             I.write("Test results {}".format(results))
-        # Check the saver status
-        if saver is not None:
-            saver.check()
-        # Stop condition
-        if stop:
-            saverAll()
-            break
-    saverAll()
+            # Check the saver status
+            if not stop:
+                saver.check(results)
+            else:
+                saver.saveAll(results)
+                return trainResults
+        
+    saver.saveAll(results)
     return trainResults
     
