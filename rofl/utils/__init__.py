@@ -5,6 +5,5 @@
 """
 
 from rofl.utils.utils import Saver, pathManager
-from rofl.utils.dummy import dummySaver, dummyTBW
 from rofl.utils.random import seeder
 from rofl.utils.gx import graphResults

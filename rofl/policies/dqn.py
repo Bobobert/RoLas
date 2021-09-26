@@ -39,8 +39,6 @@ class dqnPolicy(Policy):
 
         self.optimizer = getOptimizer(config, self.dqnOnline)
         
-        self.epochs = 0
-
     def getAction(self, state):
         throw = nprnd.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
@@ -70,17 +68,10 @@ class dqnPolicy(Policy):
         loss.backward()
         self.optimizer.step()
 
-        if (self.tbw != None) and (self.epochs % self.tbwFreq == 0):
-            self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
-            self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)
-            self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
-            self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
-        if self.epochs % self.updateTarget == 0:
-            # Updates the net
+        if (self.tbw != None) and (self.epoch % self.tbwFreq == 0):
+            self.tbw.add_scalar('train/Loss', loss.item(), self.epoch)
+            self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epoch)
+            self._evalTBWActor_()
+        if self.epoch % self.updateTarget == 0:
             updateNet(self.dqnTarget, self.dqnOnline.state_dict())
-        self.epochs += 1
-
-    @property
-    def device(self):
-        return self.dqnOnline.device
+        self.epoch += 1

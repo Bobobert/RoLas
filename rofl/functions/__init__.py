@@ -4,3 +4,4 @@ from .torch import getDevice
 from .stop import initResultDict, testEvaluation
 from .dicts import obsDict, mergeDicts
 from .gym import noOpSample, doWarmup, assertActionSpace
+from .config import createConfig

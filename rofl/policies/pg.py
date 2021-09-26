@@ -1,8 +1,8 @@
 from .base import Policy
-from rofl.functions.const import *
-from rofl.functions.gym import assertActionSpace
-from rofl.functions.torch import *
-from rofl.utils.pg import BASELINE_CONFIG_DEFT, unpackBatch
+from rofl.networks.base import ActorCritic
+from rofl.functions.functions import Tmul, Tsum, F, torch
+from rofl.functions.const import DEVICE_DEFT, ENTROPY_LOSS
+from rofl.functions.torch import clipGrads, getOptimizer
 
 class pgPolicy(Policy):
     """
@@ -11,6 +11,77 @@ class pgPolicy(Policy):
         Update method expects results from an episodic
         task, therefore gae is not used.
     """
+    name = "policy gradient v0"
+    actorHasCritic = False
+
+    def initPolicy(self, **kwargs):
+        config = self.config
+        self.entropyBonus = abs(config['policy'].get('entropy_bonus', ENTROPY_LOSS))
+        self.lossPolicyC = abs(config['policy']['loss_policy_const'])
+        self.lossValueC = abs(config['policy']['loss_value_const'])
+
+        self.optimizer = getOptimizer(config, self.actor)
+
+        if (baseline := kwargs.get('baseline')) is not None:
+            self.valueBased = True
+            self.blOptimizer = getOptimizer(config, baseline, key = 'baseline')
+        self.baseline = baseline
+
+        if isinstance(self.actor, ActorCritic):
+            self.actorHasCritic = True
+            self.baseline = self.actor
+
+    def getAction(self, state):
+        return self.actor.getAction(state)
+
+    def update(self, batchDict):
+        observations, actions, returns = batchDict['observation'], batchDict['action'], batchDict['return']
+        
+        self.batchUpdate(observations, actions, returns) # TODO, a minibatch generator to slip large batches
+        
+
+    def batchUpdate(self, observations, actions, returns):
+        if self.baseline is None:
+            baselines = returns.zeros(returns.shape)
+        elif not self.actorHasCritic:
+            baselines = self.baseline(observations)
+        else:
+            baselines, params = self.actor(observations)
+        
+        params = params if self.actorHasCritic else self.actor.onlyActor(observations)
+        dist = self.actor.getDist(params)
+        log_probs = dist.log_prob(actions)
+        entropy = dist.entropy()
+
+        advantages = returns - baselines.detach()
+        lossPolicy = -1.0 * Tsum(Tmul(log_probs, advantages))
+        lossEntropy = self.entropyBonus * entropy
+        lossBaseline = F.mse_loss(baselines, returns) if self.actorHasCritic else torch.zeros((1,), device=self.device)
+
+        loss = self.lossPolicyC * lossPolicy + lossEntropy + self.lossValueC * lossBaseline
+        self.optimizer.zero_grad()
+        loss.backward()
+        if self.clipGrad > 0:
+            clipGrads(self.actor, self.clipGrad)
+        self.optimizer.step()
+
+        if self.baseline is not None and not self.actorHasCritic:
+            lossB = F.mse_loss(baselines, returns)
+            self.blOptimizer.zero_grad()
+            lossB.backward()
+            self.blOptimizer.step()
+
+        if self.tbw != None and (self.epoch % self.tbwFreq == 0):
+            self.tbw.add_scalar('train/Actor loss', -1 * lossPolicy.item(), self.epoch)
+            self.tbw.add_scalar('train/Total loss', loss.item(), self.epoch)
+            self._evalTBWActor_()
+        
+        self.epoch += 1
+
+# TODO, delete code
+"""
+class pgPolicyNOT(Policy):
+    
     name = "pgPolicyv0"
     def __init__(self, config, actor, baseline = None, tbw = None):
         self.actor = actor
@@ -139,4 +210,4 @@ class pgPolicy(Policy):
     def new(self, device = DEVICE_DEFT):
         actor = cloneNet(self.actor).to(device)
         baseline = None if self.baseline is None else cloneNet(self.baseline).to(device)
-        return pgPolicy(self.config, actor, baseline)
+        return pgPolicy(self.config, actor, baseline)"""

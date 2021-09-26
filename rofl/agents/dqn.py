@@ -1,6 +1,6 @@
 from .base import Agent
 from rofl.functions.const import *
-from rofl.functions.functions import nprnd
+from rofl.functions.functions import clipReward, nprnd, isTerminalAtari
 from rofl.utils.memory import dqnMemory
 from rofl.utils.dqn import genFrameStack, lHistObsProcess, reportQmean
 from rofl.utils.openCV import imgResize, YChannelResize
@@ -33,25 +33,15 @@ class dqnAtariAgent(Agent):
     def isTerminal(self, obs, done, info, **kwargs):
         if super().isTerminal(obs, done, info):
             return True
-        done = False
-        if self.isAtari:
-            lives = info.get('ale.lives', 0)
-            if self._reseted:
-                self.lives = lives
-            elif lives != self.lives:
-                self.lives = lives
-                done = True # marked as terminal but no reset required
-        return done
+        return isTerminalAtari(self, info)
             
     def processReward(self, reward, **kwargs):
-        if self.clipReward != 0:
-            return np.clip(reward, -self.clipReward, self.clipReward)
-        return reward
+        return clipReward(self, reward)
         
     def envStep(self, action):
         obsDict = super().envStep(action)
         # sligth mod to the obsDict from DQN memory
-        obsDict['frame'] = self.frameStack.copy()
+        obsDict['next_frame'] = self.frameStack.copy()
         obsDict['observation'] = None # Deletes the reference to the tensor generated, mem expensive while GPU
         obsDict['device'] = DEVICE_DEFT
         return obsDict

@@ -36,7 +36,8 @@ def atariEnvMaker(config):
     Standard gym atari environment maker
     From config-env needs:
         - name
-    Accepts:
+
+    Optionals:
         - obsType
         - mode
         - difficulty
@@ -69,7 +70,8 @@ def gymcaEnvMaker(config):
 
     From config-env needs:
         - name
-    Accepts:
+        
+    Optionals:
         - n_row
         - n_col
         - wind_speed

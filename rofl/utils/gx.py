@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rofl.functions.functions import nprnd
 import matplotlib.pyplot as plt
 from rofl.utils.utils import timeFormated
 
@@ -49,3 +50,8 @@ def showBuffer(memory, samples:int = 20, Wait:int = 3):
             plt.axis('off')
         plt.pause(Wait)
         plt.close(fig)
+
+def showFrameFromTensor(obs, i = 0):
+    obsClone = obs.clone().detach().cpu().squeeze().numpy()
+    plt.imshow(obsClone[i])
+    plt.show(block = False)

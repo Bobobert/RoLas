@@ -69,6 +69,9 @@ class minHeap():
     def min(self):
         return self[1]
 
+    def rootValue(self):
+        return self[1][0]
+
     def heapUp(self, i):
         parentIx = self.parent(i)
         if parentIx == i:
@@ -120,7 +123,7 @@ class maxHeap(minHeap):
     def empty(self):
         return self._convert(super().empty)
     def add(self, obj = None, value = -np.inf):
-        super().add(-value, obj)
+        super().add(obj, -value)
     def extractMin(self):
         print(self.egg)
     def extractMax(self):

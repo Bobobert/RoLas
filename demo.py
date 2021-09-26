@@ -1,7 +1,7 @@
 from rofl.agents.pg import pgAgent00
 from rofl.envs.gym import gymEnvMaker
 from rofl.agents.multi import agentMaster, agentSync
-from rofl.policies.dummy import dummyPolicy
+from rofl.policies.base import dummyPolicy
 from rofl.utils.memory import simpleMemory, episodicMemory
 from tqdm import tqdm
 

@@ -38,24 +38,24 @@ dqnConfig = {
 def fillRandomMemoryReplay(config:dict, agent:Agent):
     # Fill memory replay
     sizeInitMemory = config["train"]["fill_memory"]
-    I = tqdm(range(sizeInitMemory), desc="Filling memory replay")
+    I = tqdm(range(sizeInitMemory), desc="Filling memory replay", unit="envStep")
     for _ in I:
-        expDict = agent.fullStep(random = True)
-        agent.memory.add(expDict)
+        agent.memory.add(agent.fullStep(random = True))
 
-def fillFixedTrajectory(config, agent, device):
+def fillFixedTrajectory(config:dict, agent:Agent, device):
     # Generate fixed trajectory
     sizeTrajectory = config["train"]["fixed_q_trajectory"]
-    trajectory = agent.getBatch(sizeTrajectory, progBar = True, device = device)
+    trajectory = agent.getBatch(sizeTrajectory, random = True, progBar = True, device = device)
     agent.fixedTrajectory = trajectory["observation"]
     agent.memory.reset()
     agent.reset()
 
 def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     agent.memory.reset()
+    policy.test = True
     fillFixedTrajectory(config, agent, policy.device)
     fillRandomMemoryReplay(config, agent)
-
+    policy.train = True
     # Train the net
     ## Init results and saver
     trainResults = initResultDict()

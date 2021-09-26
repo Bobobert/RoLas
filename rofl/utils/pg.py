@@ -2,12 +2,6 @@ from rofl.functions.const import *
 from rofl.functions.functions import np, nb, nprnd
 from rofl.functions.torch import *
 
-BASELINE_CONFIG_DEFT = {"optimizer": OPTIMIZER_DEF,
-                        "learning_rate":OPTIMIZER_LR_DEF,
-                        "minibatch_size" : MINIBATCH_SIZE,
-                        "batch_minibatches" : 10,
-                        }
-
 @nb.njit
 def calculateReturns(rewards: List, notTerminals: List, gamma:float, lmbd:float):
     n = len(rewards)

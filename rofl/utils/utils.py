@@ -6,7 +6,6 @@ from pathlib import Path
 from torch import save, load, device
 from rofl.functions.vars import Variable
 from .strucs import Stack, minHeap, maxHeap
-from .dummy import dummyTBW, dummySaver
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -109,6 +108,38 @@ def timeToStop(results, expected = None):
     if expected is not None:
         stop = True if (diff // 60) >= expected else False
     return results, stop
+
+class dummyTBW:
+    egg = "You talked to the DUMMY beside the chalkboard. . ."
+    egg2 = "You encountered the Dummy\nA cotton heart and a button eye"
+    def __init__(self, *args):
+        None
+    def __call__(self, *args):
+        return None
+    def __eq__(self, x):
+        if x is None:
+            return True
+        return False
+    def __repr__(self):
+        return self.egg
+    def close(self):
+        pass
+
+class dummySaver():
+    egg = 'This dummy smells like flowers, someone stored a bunch inside it'
+    def start(self):
+        pass
+    def check(self, results = None):
+        pass
+    def addObj(self, *args, **kwargs):
+        pass
+    def saveAll(self, results = None):
+        pass
+    def load(self):
+        print(self.egg)
+    def __repr__(self) -> str:
+        return self.egg
+
 
 class pathManager():
     """
@@ -223,7 +254,8 @@ class pathManager():
     
     def close(self):
         if self.dummy: return self.__dumm__()
-        self._tbw.close()
+        if self._tbw != None:
+            self._tbw.close()
 
 class Tocker:
     def __init__(self):
@@ -271,11 +303,9 @@ class Reference:
         self.key, self._discardMin = key, discardMin
     
     def save(self, path, results):
-        value = None
-        if self.key != '':
-            value = results[self.key]
-        if self._LO_:
-            None
+        value = None if self.key == '' else results[self.key]
+        if self._LO_ or not self.keepIt(value):
+            return
         if self.torchType:
             self.saveTorch(path, value)
         else:
@@ -283,8 +313,20 @@ class Reference:
         self.clean(path)
 
     def clean(self, path):
-        if len(self.prevVersions) >= self.limit:
+        if len(self.prevVersions) > self.limit:
             self.prevVersions.pop().unlink(missing_ok = True)
+
+    def keepIt(self, value):
+        if value is None:
+            return True
+        if len(self.prevVersions) <= self.limit:
+            return True
+        ans = True
+        if self._discardMin and value < self.prevVersions.rootValue():
+            ans = False
+        elif not self._discardMin and value > self.prevVersions.rootValue():
+            ans = False
+        return ans
     
     @staticmethod
     def loaderAssist(path, name = ''): #TODO, add name func
@@ -332,7 +374,8 @@ class Reference:
             save(stateDict, target)
             self.prevVersions.add(target, value = value)
         except:
-            None
+            print('Warning: {} couldnt be saved'.format(self))
+            pass
 
     def savePy(self, path, value):
         name = self._gen_name(value) + ".pyobj"
@@ -373,7 +416,7 @@ class Saver():
                     saveFreq:int = 30):
         
         self.dir = path
-        self._objRefs_ = []
+        self._objRefs_, self._objRefsWkey_ = [], []
         self.names = set()
         self.limit = limitTimes
         self.time = Tocker()
@@ -386,6 +429,8 @@ class Saver():
         if self.time.tocktock >= self.freq:
             self.saveAll(results)
             self.time.tick
+        for ref in self._objRefsWkey_:
+            ref.save(self.dir, results)
 
     def addObj(self, obj, objName:str, isTorch:bool = False,
                 device = device("cpu"), loadOnly:bool = False,
@@ -407,17 +452,23 @@ class Saver():
             loadOnly: bool
                 Skips saveing into memory this object. Crucial when just reading.
             key: str
-                Default ''. When using saveAll(), if pass a non-empty string will
-                keep versions on memory with the maximum values for this number.
+                Default '', keeps only the newer versions. 
+                When using saveAll() or check(), if pass a non-empty string will
+                keep versions on memory with the maximum or minimum values. This could lead
+                to not add the newest versions if the values associated are less or greater;
+                respectevely.
             discardMin: bool
-                Default True. If using key do tell if want to discard the minimum or
-                maximum value.
+                Default True, keeps the versions with greater value.
+                If using key do tell if want to discard the minimum or
+                maximum value saves when the limit of versions is reached.
         """
         if objName in self.names:
-            raise KeyError
+            raise KeyError('{} already declared in this saver!'.format(objName))
         self.names.add(objName)
         self._objRefs_ += [Reference(obj, objName, self.limit, isTorch, device, loadOnly,
                                         key, discardMin)]
+        if key != '':
+            self._objRefsWkey_.append(self._objRefs_[-1])
     
     def saveAll(self, results = None):
         for ref in self._objRefs_:

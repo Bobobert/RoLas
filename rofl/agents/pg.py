@@ -1,109 +1,32 @@
 from .base import Agent
 from rofl.functions.const import DEVICE_DEFT
-from rofl.functions.functions import np, torch, rnd, no_grad, ceil
+from rofl.functions.functions import clipReward, np, torch, rnd, no_grad, ceil
 from rofl.functions.torch import array2Tensor
-from rofl.utils.pg import Memory, MemoryFF
 from rofl.functions.coach import singlePathRollout
 from rofl.utils.openCV import imgResize
 
-class pgAgentNOT(Agent):
-    name = "pg_agent_v0" #TO BE DELETED
-
-    def initAgent(self, **kwargs):
-
-        config = self.config
-        self.clipReward = config["agent"].get("clip_reward", 0.0)
-        self.noOpSteps = config["agent"].get("no_op_start", 0)
-    
-        self.memory = Memory(config)
-
-    def processObs(self, obs, reset=False):
-        return array2Tensor(obs, device = self.policy.device)
-
-    def singlePath(self):
-        # Init from last
-        env = self.env
-        obs = self.obs
-        delta = 0.0
-        endBySteps = False
-        stepsDone = 0
-        pi, baseline = self.policy.actor, self.policy.baseline
-        proc = self.processObs
-
-        # Reseting env and variables
-        if self.done:
-            obs = env.reset()
-            # No op, no actions when starting
-            if self.noOpSteps > 0:
-                for _ in range(rnd.randint(1, self.noOpSteps)):
-                    obs, _, _, info = env.step(self.noOp)
-            obs = proc(obs, True)
-            self.done = False
-        if baseline is not None:
-            baselineObs = baseline.getValue(obs)
-        else:
-            baselineObs = 0.0
-        
-        # Env Loop
-        while True:
-            stepsDone += 1
-            with no_grad():
-                action, log_action, _ = pi.sampleAction(pi(obs))
-                nextObs, reward, done, _ = env.step(pi.processAction(action))
-                nextObs = proc(nextObs)
-                reward = float(reward)
-                # Clip reward if needed
-                if self.clipReward > 0.0:
-                    reward = np.clip(reward, -self.clipReward, self.clipReward)
-                # Baseline calculation
-                if baseline is not None:
-                    nextBaseline = baseline.getValue(nextObs) if not done else 0.0
-                else:
-                    nextBaseline = False
-            if self.gae:
-                # Calculate delta_t
-                delta = reward + self.gamma * nextBaseline - baselineObs
-            # Enough steps, can do bootstrapping for the last value
-            if (stepsDone == self.maxEpLen) and (baseline is not None):
-                reward += self.gamma * nextBaseline
-                endBySteps = True
-            self.memory.add(obs, action, log_action, reward, done or endBySteps, advantage=delta)
-            obs = nextObs
-            baselineObs = nextBaseline
-            # End of loop
-            if done:
-                self.done = True
-                self.episodes += 1
-                break
-            elif endBySteps:
-                break
-        
-        self.obs = obs
-    
-    def getBatch(self, size:int, proportion:float = 1.0):
-        minSample = ceil(size * proportion) if size > 0 else 1
-        self.policy.test = False
-        while len(self.memory) < minSample:
-            self.singlePath()
-        sample = self.memory.sample(minSample if size > 0 else -1, device = self.device)
-        self.memory.clean()
-        return sample
-
 class pgAgent(Agent):
+    name = "pg gym agent"
     def initAgent(self, **kwargs):
         config = self.config
         self.clipReward = config["agent"].get("clip_reward", 0.0)
-        self.noOpSteps = config["agent"].get("no_op_start", 0)
 
     def processReward(self, reward):
-        return np.clip(reward, -self.clipReward, self.clipReward)
+        return clipReward(self, reward)
 
     def processObs(self, obs):
-        return array2Tensor(obs, device = self.policy.device)
+        return array2Tensor(obs, device = self.device)
 
-    def getEpisode(self, random):
-        return singlePathRollout(self, self.maxEpLen, random)
+    def getBatch(self, size: int, proportion: float = 1, random=False, 
+                    device=DEVICE_DEFT, progBar: bool = False):
+        return super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
+    # the idea of having in coach the singlePathRollout is to use it as to do n-step updates!
+    # no new memory should be required
+    # TODO, generate a batch of those type of rollouts
 
+    #def getEpisode(self, random):
+    #    return singlePathRollout(self, self.maxEpLen, random = random)
+    
 
 class pgFFAgent(pgAgent):
     name = "forestFire_pgAgent"
@@ -112,12 +35,13 @@ class pgFFAgent(pgAgent):
         super(pgFFAgent, self).__init__(config, policy, envMaker, tbw)
         self.isAtari = config["env"]["atari"]
         obsShape, lhist  = config["env"]["obs_shape"], config["agent"]["lhist"]
-        self.memory = MemoryFF(config)
+        #self.memory = MemoryFF(config)
         self.obsShape = (lhist, *obsShape)
         self.frameSize = obsShape
         self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
         
-    def processObs(self, obs, reset: bool = False):
+    def processObs(self, obs, reset: bool = False): # TODO: pass this to a function that uses lHistObsProcess
+        # with reward type, compose the outputs as a tensor alone always.
         """
             If the agent needs to process the observation of the
             environment. Write it here

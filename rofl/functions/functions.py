@@ -69,3 +69,19 @@ def multiplyIter(itm):
     for i in itm:
         result_ *= i
     return result_
+
+def clipReward(agent, reward):
+    clipTarget = agent.clipReward
+    if clipTarget!= 0:
+        clipTarget = abs(clipTarget)
+        return np.clip(reward, -clipTarget, clipTarget)
+    return reward
+
+def isTerminalAtari(agent, info):
+    done, lives = False, info.get('ale.lives', 0)
+    if agent._reseted:
+        agent.lives = lives
+    elif lives != agent.lives:
+        agent.lives = lives
+        done = True # marked as terminal but no reset required
+    return done

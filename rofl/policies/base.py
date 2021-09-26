@@ -1,5 +1,7 @@
+from rofl.functions.torch import maxGrad, meanGrad
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
 from rofl.functions.functions import nn, no_grad
+from rofl.functions.const import DEVICE_DEFT
 from abc import ABC
 
 class Policy(ABC):
@@ -25,9 +27,16 @@ class Policy(ABC):
         pair observation-action
     - sampleAction: returns the action, probability, and entropy
         from the action's distribution for actor based policies
+    - getDistr: returns a distrubution given an observation.
     - update: Depending the type of policy updates itself.
         Inputs must be always dictionaries containing the update's
         information or material for approximations
+
+    Properties
+    ---------
+    - test: Sets the flags for the policy to behave in a test if any
+        difference.
+    - train: Same as test, but does the oposite
 
     Other methods
     ----------
@@ -35,9 +44,9 @@ class Policy(ABC):
     - loadState: Loads a observation dict
     """
     name = "BasePolicy"
-    config, discrete, test = {}, None, False
-    exploratory, tbw, tbwFreq = None, None, None
-    actor, rndFunc, valueBased, stochastic = None, None, None, False
+    config, discrete, _test = {}, None, False
+    exploratory, tbw, tbwFreq, epoch = None, None, None, 0
+    actor, rndFunc, valueBased, stochastic, _nn = None, None, None, False, False
     gamma, lmbd, gae = 1.0, 1.0, False
 
     def __init__(self, config, actor, **kwargs):
@@ -50,7 +59,7 @@ class Policy(ABC):
         self.config = config
         self.actor = actor
         self.tbw = kwargs.get('tbw')
-        self.tbwFreq = config['policy']['evaluate_freq']
+        self.tbwFreq = config['policy']['evaluate_tb_freq']
 
         self.gamma, self.lmbd = config['agent']['gamma'], config['agent']['lambda']
         self.evalMaxGrad = config['policy']["evaluate_max_grad"]
@@ -73,6 +82,8 @@ class Policy(ABC):
                 self.discrete = self.actor.discrete
             except AttributeError:
                 raise ValueError("Attribute .discrete should be declared to a boolean type")
+        if isinstance(self.actor, nn.Module):
+            self._nn = True
 
     def initPolicy(self, **kwargs):
         """
@@ -134,7 +145,17 @@ class Policy(ABC):
         if self.stochastic:
             with no_grad():
                 params = self.actor(observation)
-            return self.actor.sampleAction(observation)
+            return self.actor.sampleAction(params)
+        raise TypeError("{} does not have an Actor type as .actor".format(self.name))
+
+    def getDist(self, observation):
+        """
+            Returns the corresponding distribution given the observation.
+        """
+        if self.stochastic:
+            with no_grad():
+                params = self.actor.onlyActor(observation)
+            return self.actor.getDist(params)
         raise TypeError("{} does not have an Actor type as .actor".format(self.name))
         
     def update(self, batchDict):
@@ -175,7 +196,7 @@ class Policy(ABC):
 
     @property
     def device(self):
-        if isinstance(self.actor, nn.Module):
+        if self._nn:
             return self.actor.device
         return None
 
@@ -212,5 +233,64 @@ class Policy(ABC):
 
         return actions, batchDict["id"]
 
+    @property
+    def test(self):
+        return self._test
 
+    @test.setter
+    def test(self, flag:bool):
+        if not isinstance(flag, bool):
+            raise ValueError("flag needs to be a boolean type, not {}".format(type(flag)))
+        self._test = flag
+        if self._nn and flag:
+            self.actor.eval()
+        elif self._nn and not flag:
+            self.actor.train()
+
+    @property
+    def train(self):
+        return not self._test
     
+    @train.setter
+    def train(self, flag: bool):
+        self.test = not flag
+
+    def _evalTBWActor_(self):
+        if self.evalMeanGrad:
+            self.tbw.add_scalar("train/mean grad",  meanGrad(self.actor), self.epoch)
+        if self.evalMaxGrad:
+            self.tbw.add_scalar("train/max grad",  maxGrad(self.actor), self.epoch)
+        
+class dummyPolicy(Policy):
+    """
+        Pilot's useless. Activate the dummy plug.
+
+        Meant to be initialized by an agent.
+
+        parameters
+        ----------
+        noOp: from a noOpSample of the target environment
+    """
+    name, discrete, valueBased = "DummyPlug", True, False
+    config = {}
+    def __init__(self, noOp):
+        super().__init__()
+        self.noop = noOp
+
+    def getAction(self, observation):
+        return self.noop
+
+    @property
+    def device(self):
+        return DEVICE_DEFT
+
+    def new(self):
+        newDummy = dummyPolicy(self.noop)
+        newDummy.rndFunc = self.rndFunc
+        return newDummy
+
+    def loadState(self, newState):
+        pass
+
+    def currentState(self):
+        return dict()

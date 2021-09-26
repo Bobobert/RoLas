@@ -87,11 +87,11 @@ class Agent(ABC):
 
         try:
             self.envName = self.env.name
-        except:
+        except AttributeError:
             self.envName = "unknown"
 
         if policy is None:
-            from rofl.policies.dummy import dummyPolicy
+            from rofl.policies.base import dummyPolicy
             self.policy = dummyPolicy(self.noOp)
             print("Warning, agent working with a dummy plug policy!")
         else:
@@ -161,24 +161,24 @@ class Agent(ABC):
 
             parameters
             ----------
-            iters: int
+            - iters: int
                 Number of test to execute. More the better
-            prnt: bool
+            - prnt: bool
                 If it should print the main results or not
-            progBar:
+            - progBar:
                 Default False. To print a tqdm bar progress of the
                 episodes per test.
             
             returns
             -------
-            meanAccReward: float
+            - meanAccReward: float
                 Mean of the accumulated reward
-            stdMean: float
+            - stdMean: float
                 Variance corresponding to the mean from all the
                 tests done by iters
-            meanSteps: float
+            - meanSteps: float
                 Mean number of steps by the policy in the environment
-            stdMeanSteps: float
+            - stdMeanSteps: float
                 Variance corresponding to the mean of steps from all the
                 tests done
         """
@@ -244,6 +244,7 @@ class Agent(ABC):
             self.tbw.add_scalar("test/tests Achieved", testReg, self.testCalls)
         # Returning state
         self.prepareAfterTest()
+        self.policy.train = True
         # Printing
         if prnt:
             print("Test results mean Return: %.2f, mean Steps: %.2f, std Return: %.3f, std Steps: %.3f" % (\
@@ -282,11 +283,11 @@ class Agent(ABC):
 
             parameters
             ----------
-            obs
+            - obs
                 The observations as they come from the environment. 
                 Usually ndarray's.
 
-            reset: bool
+            - reset: bool
                 If needed a flag that this observation is from a new
                 trajectory. As to reset the pipeline or not effect.
             
@@ -353,8 +354,7 @@ class Agent(ABC):
             obsDict
         """
         if self.done:
-            print("Warning: environment is done. Needs to reset agent.") #TODO: debugger level
-            return {}
+            return self.reset()
         if self._reseted:
             self._reseted = False
         
@@ -404,18 +404,26 @@ class Agent(ABC):
             -------
             obsDict
         """
+        stochastic = self.policy.stochastic
+
         if self.done:
-            self.reset()
-        dist, obs = None, self.lastObs
-        if random:
-            action = self.rndAction()
-        elif self.policy.stochastic: # TODO, is it best to pass those here? or better not to worry until needed.
-            action, logProb, entropy = self.policy.sampleAction(obs)
+            action = None
         else:
-            action = self.policy.getAction(obs)
+            obs = self.lastObs
+            if random:
+                action = self.rndAction()
+            #elif stochastic: # TODO, is it best to pass those here? or better not to worry until needed.
+                #action, logProb, entropy = self.policy.sampleAction(obs)
+            else:
+                action = self.policy.getAction(obs)
         obsDict = self.envStep(action)
-        if dist is not None:
-            obsDict['log_prob'], obsDict['entropy'] = logProb, entropy
+
+        #if stochastic:
+        #    if self._reseted:
+        #        dist = self.policy.getDist(obsDict['observation'])
+        #        logProb, entropy = dist.log_prob(obsDict['action']), dist.entropy()
+        #    obsDict['log_prob'], obsDict['entropy'] = logProb, entropy
+
         return obsDict
 
     def reset(self):
@@ -427,13 +435,11 @@ class Agent(ABC):
             --------
             obsDict
         """
-        self._agentStep_, self._acR_ = 0, 0.0
         return self._startEnv(warmup = self.warmup)
 
     def _startEnv(self, warmup = None):
         env = self.env
-        self.done = False
-
+        
         if warmup is not None:
             obs, self._envStep_, action = doWarmup(warmup, env, self.config["env"])
         else:
@@ -441,7 +447,8 @@ class Agent(ABC):
 
         self.lastObs = obs = self.processObs(obs, True)
         self.lastReward, self.lastInfo, self.lastAction = 0.0, {}, action
-        self._reseted = True
+        self._agentStep_, self._acR_ = 0, 0.0
+        self._reseted, self.done = True, False
 
         return obsDict(obs, action, 0.0, 0, False, 
                         accumulate_reward = self._acR_,
@@ -461,19 +468,18 @@ class Agent(ABC):
 
             parameters
             ----------
-            size: int
+            - size: int
                 Size of the batch to return
-            proportion: float
+            - proportion: float
                 The ratio sample size / steps required.
                 proportion = 0.5 means the agent
                 needs to do double the amount of steps respect to
                 the batch size.
-            random: bool
+            - random: bool
                 Default False. If the action are generated as samples
                 of the environments action space.
-            device: torch.device
-
-            progBar: bool
+            - device: torch.device
+            - progBar: bool
                 Default False. To show a progress bar using tdqm
 
             Returns
@@ -484,6 +490,8 @@ class Agent(ABC):
         
         memory = self.memory
         if memory is None:
+            if proportion > 1.0:
+                raise ValueError("Agent doesnt have a memory. One will be created but eventually the sample wont happen.")
             from rofl.utils.memory import simpleMemory
             memory = simpleMemory(self.config).reset()
 
@@ -506,7 +514,7 @@ class Agent(ABC):
         return episodicRollout(self, random = random)
 
     def __repr__(self):
-        s = "Agent {}\nFor environment {}\nPolicy {}".format(self.name, 
+        s = "Agent {}\nFor environment {}\n{}".format(self.name, 
             self.envName, self.policy)
         return s
 

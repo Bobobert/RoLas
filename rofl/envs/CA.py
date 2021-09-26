@@ -1,6 +1,6 @@
-from .forestFire.helicopter import EnvMakerForestFire
+from .forestFire.helicopter import EnvMakerForestFire # TODO; perhaps to be deleted from here. Although it has many modifications from emmanuel's
 from gym.spaces import Discrete
-import numpy as np
+from rofl.functions.functions import np, nprnd
 
 def forestFireEnvMaker(config):
     config = config["env"]

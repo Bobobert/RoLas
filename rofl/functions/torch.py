@@ -62,16 +62,11 @@ def getListParams(net):
         params += [p.clone().detach_()]
     return params
 
-def analysisGrad(net, calculateMean: bool = False, calculateMax: bool = True):
-    """
-        Should return 
-    """
-    max_grad, mean_grad = 0.0, 0.0
-    if calculateMax:
-        max_grad = max(p.grad.detach().abs().max() for p in net.parameters()).item()
-    if calculateMean:
-        mean_grad = Tmean(torch.tensor([Tmean(p.grad.detach()) for p in net.parameters()])).item()
-    return max_grad, mean_grad
+def maxGrad(net):
+    return max(p.grad.detach().abs().max() for p in net.parameters()).item()
+
+def meanGrad(net):
+    return Tmean(torch.tensor([Tmean(p.grad.detach()) for p in net.parameters()])).item()
 
 def zeroGrad(net):
     for p in net.parameters():
@@ -146,7 +141,7 @@ def tryCopy(T: TENSOR):
         from copy import deepcopy
         return deepcopy(T)
 
-def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF):
+def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'policy'):
     """
         Usually all optimizers need at least two main arguments
 
@@ -155,18 +150,23 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF):
 
         parameters
         ----------
-        configDict: dict
-        network: a nn.Module type object
-        deftLR: float
+        - configDict: dict
+
+        - network: nn.Module type object
+        - deftLR: float
             A default learning rate if there's none declared in the config
             dict. A config dict by deault does not have this argument.
-
+        - key: str
+            Default 'policy'. Depends on the key to get the configuration from
+            the dict config. Eg, 'baseline' to generate an optimizer with those
+            configs.
+            
         returns
         --------
         optimizer for network
     """
-    name = config['policy'].get('optimizer')
-    lr = config['policy'].get('learning_rate', deftLR)
+    name = config[key].get('optimizer')
+    lr = config[key].get('learning_rate', deftLR)
 
     if name == 'adam':
         FOpt = optim.Adam
@@ -178,7 +178,7 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF):
         FOpt = optim.Adagrad
     else:
         print("Warning: {} is not a valid optimizer. {} was generated instead".format(name, OPTIMIZER_DEF))
-        from rofl.algorithms.config import createConfig
+        from rofl.functions.config import createConfig
         return getOptimizer(createConfig(), network)
 
-    return FOpt(network.parameters(), lr = lr, **config['policy']["optimizer_args"])
+    return FOpt(network.parameters(), lr = lr, **config[key].get("optimizer_args", {}))

@@ -89,9 +89,12 @@ class Actor(BaseNet):
     def __init__(self):
         super(Actor, self).__init__()
 
+    def onlyActor(self, observation):
+        return self.forward(observation)
+
     def getDist(self, x):
         """
-        From the actorForward, returns the corresponding pytorch distributions objecto to 
+        From the actorForward, returns the corresponding pytorch distributions object to 
         sample the action from and to return .log_prob()
         """
         raise NotImplementedError
@@ -105,17 +108,16 @@ class Actor(BaseNet):
 
     def getAction(self, observation):
         """
-        From a tensor observation returns the sampled actions and 
-        their corresponding log_probs from the distribution.
+        From a tensor observation returns the sampled actions.
 
         returns
         -------
-        action, log_prob, entropy
+        action
         """
         with no_grad():
-            distParams = self.forward(observation)
-            action, logProb, entropy = self.sampleAction(distParams)
-        return self.processAction(action), logProb, entropy
+            dist = self.getDist(self.onlyActor(observation))
+            action = dist.sample()
+        return self.processAction(action)
         
     def sampleAction(self, params):
         """
@@ -163,34 +165,27 @@ class ActorCritic(Actor):
         """
         raise NotImplementedError
 
+    def onlyActor(self, observation):
+        return self.actorForward(self.sharedForward(observation))
+
     def forward(self, x):
         features = self.sharedForward(x)
         values = self.valueForward(features)
         raw_actor = self.actorForward(features.clone())
 
         return values, raw_actor
-
-    def getAction(self, x):
-        """
-        From a tensor observation returns the sampled actions and 
-        their corresponding log_probs from the distribution.
-
-        returns
-        -------
-        action, log_prob, entropy
-        """
-        with no_grad():
-            distParams = self.actorForward(self.sharedForward(x))
-            action, logProb, entropy = self.sampleAction(distParams)
-        return self.processAction(action), logProb, entropy
-
+    
     def getValue(self, x, action = None):
         """
         Form a tensor observation returns the value approximation 
         for it with no_grad operation.
         """
-        with torch.no_grad():
-            value = self.valueForward(self.sharedForward(x))
+        with no_grad():
+            value = self.getValues(x)
         return value.item()
 
-    
+    def getValues(self, observations):
+        """
+            Returns raw values from the critic part of the network.
+        """
+        return self.valueForward(self.sharedForward(observations))

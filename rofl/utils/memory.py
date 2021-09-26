@@ -25,20 +25,20 @@ class simpleMemory():
 
         parameters
         ----------
-        config: dict
+        - config: dict
 
-        aditionalKeys: tuple(str, Any dtype)
+        - aditionalKeys: tuple(str, Any dtype)
             Specify what aditional keys are required to process after
             gathering a sample to a torch.tensor and its data type.
             eg. ('return', torch.float16)
         
     """
-    _mem_ = None
+    _mem_, _i_, _li_ = None, 0, 0
     _keys_ = [("reward", F_TDTYPE_DEFT), ("done", B_TDTYPE_DEFT)]
     _exp_, _slack_ = None, 4
+    memType = 'simple'
 
     def __init__(self, config, *aditionalKeys):
-        self.config = config
         self.size = config["agent"].get("memory_size", DEFT_MEMORY_SIZE)
         self._slack_ *= self.size
         self.gamma = config["agent"]["gamma"]
@@ -48,9 +48,7 @@ class simpleMemory():
             self._keys_.append(key)
 
     def reset(self,):
-        self._mem_, self._i_ = [], 0
-        self._li_ = 0
-
+        self._mem_, self._i_, self._li_ = [], 0, 0
         return self
     
     def add(self, infoDict):
@@ -81,9 +79,10 @@ class simpleMemory():
             --------
             obsDict
         """
-        if size > self.diff:
+        memSize = len(self)
+        if size > memSize:
             raise ValueError("Not enough data to generate sample")
-        if size == len(self) or size < 0:
+        if size == memSize or size < 0:
             return self.createSample(self.gatherMem(), device)
         return self.createSample(self.gatherSample(size), device)
 
@@ -164,12 +163,18 @@ class simpleMemory():
             return dict()
         return self._mem_[i]
 
+    def __repr__(self) -> str:
+        s = 'Memory %s with %d capacity, %d items stored'%(self.memType, self.size, self.diff)
+        return s
+
 class episodicMemory(simpleMemory):
     """
         Meant to store and process one episode at a time
     """
-    def __init__(self, config):
-        super().__init__(config, ("return", F_TDTYPE_DEFT))
+    memType = 'episodic simple'
+
+    def __init__(self, config, *additionalKeys):
+        super().__init__(config, ("return", F_TDTYPE_DEFT), *additionalKeys)
 
     def reset(self):
         super().reset()
@@ -185,6 +190,8 @@ class episodicMemory(simpleMemory):
             self._lastEpisode_ = self._li_
         
         # Collect the episode rewards
+        # this could be done better in here? Anyway an iterator throu all the dicts is needed anyway
+        # using dicts I don-t see a better way.
         lastReturn = 0.0
         for i in range(self._i_ - 1, self._lastEpisode_ - 1, -1):
             lastDict = self._mem_[i]
@@ -194,18 +201,22 @@ class episodicMemory(simpleMemory):
         self._lastEpisode_ = self._i_ - 1
 
     def getEpisode(self, device = DEVICE_DEFT):
+        if self._lastEpisode_ == 0:
+            raise AttributeError("Memory does not have an episode ready!")
         return self.createSample(self.gatherMem(), device)
 
 class dqnMemory(simpleMemory):
+    memType = 'dqn v0'
+
     def __init__(self, config):
         super().__init__(config)
         self.lhist = config["agent"]["lhist"]
         assert self.lhist > 0, "Lhist needs to be at least 1"
-        self.zeroFrame = None
-        #self._keys_.append("rollout_return")
+        from rofl.utils.dqn import genFrameStack
+        self.zeroFrame = genFrameStack(config)
     
     @staticmethod
-    def lHistMem(memory, i, lHist): #Not in use, saving all the frames in this version
+    def lHistMem(memory, i, lHist): #Not in use, saving all the frames in this version :c
         item = memory[i]
         obs = item["observation"]
         newObs = torch.zeros((1, lHist, *obs.shape[1:]), dtype = F_TDTYPE_DEFT)
@@ -219,22 +230,16 @@ class dqnMemory(simpleMemory):
         return item
 
     def gatherSample(self, size):
-        return itemsRnd(self._li_ + self.lhist, self._i_ - 2, size)
-
-    def add(self, infoDict):
-        super().add(infoDict)
-        if self.zeroFrame is None:
-            frame = infoDict['frame']
-            self.zeroFrame = np.zeros(frame.shape, frame.dtype)
+        return itemsRnd(self._li_ + 1, self._i_ - 1, size)
 
     def __getitem__(self, i):
         item = super().__getitem__(i)
-        if item.get('next_frame') is None:
-            nxItem = super().__getitem__(i-1)
-            if item['done'] or nxItem.get('frame') is None:
-                item['next_frame'] = self.zeroFrame# this should keep only references
+        if item.get('frame') is None:
+            prevItem = super().__getitem__(i-1)
+            if prevItem.get('done', True): # if gatherMem is called the first item will have to have frame in zeros!
+                item['frame'] = self.zeroFrame# this should keep only references
             else:
-                item['next_frame'] = nxItem['frame'] 
+                item['frame'] = prevItem['next_frame']
         return item
 
     def createSample(self, genSample, device):

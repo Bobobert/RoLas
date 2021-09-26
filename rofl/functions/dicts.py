@@ -13,14 +13,14 @@
 
 from .const import *
 
-def obsDict(obs, action, reward, step, done, info = {}, n = 1, **kwargs) -> dict:
+def obsDict(obs, action, reward, step, done, info = {}, **kwargs) -> dict:
     
     zeroDevice = obs.device if isinstance(obs, TENSOR) else DEVICE_DEFT
 
     dict_ = {"observation": obs, "device": zeroDevice,
             "action": action, "reward": reward, 
             "step": step, "done": done, 
-            "info": info, "N": n,
+            "info": info, "N": 1,
             }
 
     for k in kwargs.keys():
@@ -36,13 +36,10 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
         templateDict, dtypes, shapes, zeroDevice = {}, {}, {}, zero["device"]
         for k in zero.keys():
             templateDict[k] = None
-            try:
-                shapes[k] = zero[k].shape
-                dtypes[k] = zero[k].dtype
-            except AttributeError:
-                shapes[k] = None
-                dtypes[k] = None
-            
+            item = zero[k]
+            shapes[k] = item.shape if hasattr(item, 'shape') else None
+            dtypes[k] = item.dtype if hasattr(item, 'dtype') else None
+
         # Collecting N, checking ir device dispair
         N, allSameDev = 0, True
         for d in batchDicts:
@@ -99,5 +96,5 @@ def dev2devDict(infoDict: dict, targetDevice):
 def addBootstrapArg(obsDict: dict):
     obsDict['advantage'] = 0.0
     obsDict['bootstrapping'] = 0.0
-    
+    obsDict['return'] = obsDict['reward']
     return obsDict

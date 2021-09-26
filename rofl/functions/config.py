@@ -4,6 +4,7 @@
 from rofl.functions.const import *
 
 agent = {
+    'agent' : None, # TODO, perhaps to validate this keys after createConfig
     'id' : 0,
     'gamma' : GAMMA,
     'lambda' : LAMDA_GAE,
@@ -21,7 +22,7 @@ train = {
 }
 
 policy = {
-    'evaluate_freq' : 10,
+    'evaluate_tb_freq' : 15,
     'evaluate_max_grad' : True,
     'evaluate_mean_grad' : True,
     'clip_grad' : 0,
@@ -31,6 +32,7 @@ policy = {
 }
 
 env = {
+    'envMaker' : 'gymEnvMaker', # TODO
     'name' : None,
     'warmup' : None,
     'warmup_min_steps' : 0,

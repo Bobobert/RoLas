@@ -2,13 +2,15 @@
     Functions to manage actors and policies while developing or treating trajectories.
 """
 from .dicts import addBootstrapArg
+from rofl.functions.const import *
 from rofl.utils.memory import episodicMemory, simpleMemory
 
 def episodicRollout(agent, random = False):
     if agent._agentStep_ > 0:
-        agent.reset()
+        agent.done = True
 
-    memory = episodicMemory(agent.config).reset()
+    memory = episodicMemory(agent.config)
+    memory.reset()
 
     while not agent.done:
         memory.add(agent.fullStep(random = random))
@@ -35,12 +37,12 @@ def prepareBootstrapping(agent, obsDict):
 
     bootstrap = calcBootstrap(agent)
     
-    obsDict['return'] = obsDict['reward'] + agent.gamma * bootstrap # TODO: needs to be processed again?
+    obsDict['return'] += agent.gamma * bootstrap # TODO: needs to be processed again?
     obsDict['bootstrapping'] = bootstrap
     obsDict['acuumulate_reward'] = obsDict['accumulate_reward'] + bootstrap
     return obsDict
 
-def singlePathRollout(agent, maxLength = -1, memoryType = simpleMemory, 
+def singlePathRollout(agent, maxLength = -1, memory = None, 
                         reset = False, random = False, advantages = False):
     """
         Develops from the given state of the agent a rollout
@@ -51,8 +53,8 @@ def singlePathRollout(agent, maxLength = -1, memoryType = simpleMemory,
         ----------
         - agent: Agent type object
         - maxLength: int
-        - memoryType: simpleMemory type
-            Optional. If needed another type other than a simpleMemory
+        - memory: simpleMemory obj
+            Optional. If want to use another memory. By default creates a simpleMemory
         -reset: bool
             Optional. To ensure a fresh state is generated for the environment
         - random: bool
@@ -66,13 +68,18 @@ def singlePathRollout(agent, maxLength = -1, memoryType = simpleMemory,
         Memory
 
     """
+    # TODO; make sure this has the n-step sampling logic it should have!
     if maxLength > agent.maxEpLength:
         maxLength = -1
         print('Warning: maxLength wont be reached, as the agents maxLength is lesser') # TODO: add debug level
 
     if reset and agent._agentStep_ > 0:
         agent.done = True
-    memory = simpleMemory(agent.config)
+
+    if memory is None:
+        keys = [('G_t', F_TDTYPE_DEFT), ('bootstrapping', F_TDTYPE_DEFT)] if advantages else []
+        memory = simpleMemory(agent.config, ('return', F_TDTYPE_DEFT), *keys)
+        memory.reset() 
 
     stepsInit, endBySteps, done, lastGt = agent._agentStep_, False, False, 0.0
 
