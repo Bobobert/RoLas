@@ -1,6 +1,6 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
-from rofl.functions.configDeft import network
+from rofl.config.defaults import network
 from rofl.functions.stop import testEvaluation, initResultDict
 from rofl.functions.vars import updateVar
 from rofl.utils import Saver

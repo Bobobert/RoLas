@@ -28,7 +28,7 @@ algConfig = {
         'epsilon_life' : 25 * 10**4,
         'epsilon_test' : 0.05,
         'minibatch_size' : 32,
-        'freq_update_target' : 2500,
+        'freq_update_target' : 10**4, # was 2500 before
         'n_actions' : 18,
         'double' : True,
     }

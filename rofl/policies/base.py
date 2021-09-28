@@ -2,7 +2,6 @@ from rofl.functions.torch import maxGrad, meanGrad
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
 from rofl.functions.functions import nn, no_grad
 from rofl.functions.const import DEVICE_DEFT
-from rofl.functions.config import createActor
 from abc import ABC
 
 class Policy(ABC):
@@ -14,6 +13,8 @@ class Policy(ABC):
 
     Methods
     -------
+    - initPolicy: the additional initialization for custom policies.
+        in this call other networks besides actor('network') should be created.
     - getAction: returns the action corresponding
         to the observation given
     - getActions: batch mode for getAction()
@@ -47,7 +48,7 @@ class Policy(ABC):
     actor, rndFunc, valueBased, stochastic, _nn = None, None, None, False, False
     gamma, lmbd, gae = 1.0, 1.0, False
 
-    def __init__(self, config, **kwargs):
+    def __init__(self, config, actor, **kwargs):
         if self.name == "BasePolicy":
             raise ValueError("New agent should be called different to BasePolicy")
         
@@ -55,9 +56,7 @@ class Policy(ABC):
             raise ValueError("Agent needs config as a dict")
         
         self.config = config
-        self.actor = createActor(config)
-        device = kwargs.get('device', DEVICE_DEFT)
-        self.actor.to(device)
+        self.actor = actor
         self.tbw = kwargs.get('tbw')
         self.tbwFreq = config['policy']['evaluate_tb_freq']
 

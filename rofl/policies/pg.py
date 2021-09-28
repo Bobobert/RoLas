@@ -3,6 +3,7 @@ from rofl.networks.base import ActorCritic
 from rofl.functions.functions import Tmul, Tsum, F, torch
 from rofl.functions.const import DEVICE_DEFT, ENTROPY_LOSS
 from rofl.functions.torch import clipGrads, getOptimizer
+from rofl.config.config import createNetwork
 
 class pgPolicy(Policy):
     """
@@ -22,8 +23,11 @@ class pgPolicy(Policy):
 
         self.optimizer = getOptimizer(config, self.actor)
 
-        if (baseline := kwargs.get('baseline')) is not None:
+        """ if (baseline := kwargs.get('baseline')) is not None:
             self.valueBased = True
+            self.blOptimizer = getOptimizer(config, baseline, key = 'baseline') """
+        if (baseline := config['policy']['baseline']['networkClass']) is not None:
+            baseline = createNetwork(config, key = 'baseline').to(kwargs.get('device', DEVICE_DEFT))
             self.blOptimizer = getOptimizer(config, baseline, key = 'baseline')
         self.baseline = baseline
 

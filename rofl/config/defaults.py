@@ -54,4 +54,7 @@ config = {
     'policy' : policy,
     'train' : train,
     'variables' : [],
+    'algorithm' : 'unknown',
+    'version' : 'v0.2.0',
+    'seed' : 42,
 }

@@ -60,7 +60,7 @@ def getDir(*args):
         dr /= s
     return dr
 
-def getExpDir(expName:str, envName:str):
+def getExpDir(expName:str, envName:str) -> Path:
     expDir = getDir(expName, envName)
     folders = []
     for folder in expDir.iterdir():
@@ -155,6 +155,10 @@ class pathManager():
         dummy: bool
             Default False. Does not create anything, and works by doing the
             best a dummy can do, nothing.
+        load : bool
+            Default False. If true, tries to load the a config file from the algorithm
+            and environment name of the given config. An input from console is expected.
+            Else, does a normal initialization from the given config file.
         
         Methods
         -------
@@ -178,13 +182,25 @@ class pathManager():
     """
     egg = 'Dummy managed to stare blankly back to you'
     dummy, _saver, _tbw = False, None, None
-    def __init__(self, config, dummy: bool = False) -> None:
+    def __init__(self, config, dummy: bool = False, load: bool = False) -> None:
         self.config = config
         if dummy:
             self.dummy = True
             return
         self.expName = expName = config['algorithm']
         self.envName = envName = config['env']['name']
+        if load:
+            self.__initLoad__(expName, envName)
+        else:
+            self.__initNew__(expName, envName)
+
+    def __initLoad__(self, expName, envName):
+        print('Select one from the available options:')
+        path = getExpDir(expName, envName)
+        self.timeID = path.stem
+        self.config = loadConfig(path)
+
+    def __initNew__(self, expName, envName):
         self.timeID = t = timeFormatedS()
         if expName == 'unknown':
             print("Warning!!! algorithm in config has default name. Please consider setting a different name.")
@@ -215,11 +231,6 @@ class pathManager():
     def saveConfig(self):
         if self.dummy: return self.__dumm__()
         saveConfig(self.config, self.path)
-
-    def loadConfig(self):
-        if self.dummy: return self.__dumm__()
-        self.config = loadConfig(self.path)
-        return self.config
     
     def startSaver(self, limitTimes:int = 10, saveFreq:int = 30):
         """
