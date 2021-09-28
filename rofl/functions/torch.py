@@ -3,6 +3,7 @@ from .functions import Tmean, Tcat, nn, optim
 
 def getDevice(cudaTry:bool = True):
     if torch.cuda.is_available() and cudaTry:
+        print("Using CUDA")
         return Tdevice("cuda")
     return DEVICE_DEFT
 

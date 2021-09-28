@@ -13,7 +13,7 @@ def seeder(seed:int, device: Tdevice):
             Positive integer
         device: torch.device
     """
-    assert seed > 0, "seed must to be a positive number"
+    assert seed > 0 and isinstance(seed, int), "seed must to be an int positive number"
     rnd.seed(seed)
     nprnd.seed(seed)
     torch.manual_seed(seed)
