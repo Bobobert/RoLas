@@ -183,11 +183,11 @@ class pathManager():
         if dummy:
             self.dummy = True
             return
-        self.expName = expName = config['experiment']
+        self.expName = expName = config['algorithm']
         self.envName = envName = config['env']['name']
         self.timeID = t = timeFormatedS()
         if expName == 'unknown':
-            print("Warning!!! expName in config has default name. Please consider setting a different name.")
+            print("Warning!!! algorithm in config has default name. Please consider setting a different name.")
         self._path = genDir(expName, envName, t)
 
     def __dumm__(self):

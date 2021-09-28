@@ -5,48 +5,47 @@ from rofl.functions.vars import updateVar
 from rofl.utils import Saver
 from tqdm import tqdm
 
-dqnConfig = {
-    "agent":{
-        "lhist":LHIST,
-        "memory_size":MEMORY_SIZE,
-        "max_steps_test":10**4,
-        "steps_per_epoch": 4,
-        "clip_reward": 1.0,
-        "scale_pos": True,
-        "memory_prioritized": False,
+algConfig = {
+    'agent':{
+        'lhist' : LHIST,
+        'memory_size' : MEMORY_SIZE,
+        'max_steps_test' : 10**4,
+        'steps_per_epoch' : 4,
+        'clip_reward' : 1.0,
+        'scale_pos' : True,
+        'memory_prioritized' : False,
     },
-    "train":{
-        "fill_memory":10**5,
-        "fixed_q_trajectory":128,
-        "mini_batch_size":32,
-        "test_freq":5*10**4,
+    'train':{
+        'fill_memory' : 10**5,
+        'fixed_q_trajectory' : 128,
+        'mini_batch_size' : 32,
+        'test_freq' : 5*10**4,
 
     },
-    "policy":{
-        "learning_rate":OPTIMIZER_LR_DEF,
-        "epsilon": 1.0,
-        "epsilon_test": 0.05,
-        "optimizer": OPTIMIZER_DEF,
-        "minibatch_size": 32,
-        "freq_update_target":2500,
-        "n_actions":18,
-        "net_hidden_1": 328,
-        "double": True,
+    'policy':{
+        'epsilon_start': 1.0,
+        'epsilon_end' : 0.1,
+        'epsilon_life' : 25 * 10**4,
+        'epsilon_test' : 0.05,
+        'minibatch_size' : 32,
+        'freq_update_target' : 2500,
+        'n_actions' : 18,
+        'double' : True,
     }
 }
 
 def fillRandomMemoryReplay(config:dict, agent:Agent):
     # Fill memory replay
-    sizeInitMemory = config["train"]["fill_memory"]
-    I = tqdm(range(sizeInitMemory), desc="Filling memory replay", unit="envStep")
+    sizeInitMemory = config['train']['fill_memory']
+    I = tqdm(range(sizeInitMemory), desc='Filling memory replay', unit='envStep')
     for _ in I:
         agent.memory.add(agent.fullStep(random = True))
 
 def fillFixedTrajectory(config:dict, agent:Agent, device):
     # Generate fixed trajectory
-    sizeTrajectory = config["train"]["fixed_q_trajectory"]
+    sizeTrajectory = config['train']['fixed_q_trajectory']
     trajectory = agent.getBatch(sizeTrajectory, random = True, progBar = True, device = device)
-    agent.fixedTrajectory = trajectory["observation"]
+    agent.fixedTrajectory = trajectory['observation']
     agent.memory.reset()
     agent.reset()
 
@@ -59,18 +58,18 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     # Train the net
     ## Init results and saver
     trainResults = initResultDict()
-    saver.addObj(trainResults, "training_results")
-    saver.addObj(policy.dqnOnline,"online_net",
+    saver.addObj(trainResults, 'training_results')
+    saver.addObj(policy.dqnOnline,'online_net',
                 isTorch = True, device = policy.device,
                 key = 'mean_return')
     saver.start()
 
-    miniBatchSize = config["policy"]["minibatch_size"]
-    stepsPerEpoch = config["agent"]["steps_per_epoch"]
-    freqTest = config["train"]["test_freq"]
+    miniBatchSize = config['policy']['minibatch_size']
+    stepsPerEpoch = config['agent']['steps_per_epoch']
+    freqTest = config['train']['test_freq']
     p = miniBatchSize / stepsPerEpoch
-    epochs, stop = config["train"]["epochs"], False
-    I = tqdm(range(epochs + 1), unit = "update", desc = "Training Policy")
+    epochs, stop = config['train']['epochs'], False
+    I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
     ## Train loop
     for epoch in I:
         # Train step
@@ -79,9 +78,9 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
         updateVar(config)
         # Check for test
         if epoch % freqTest == 0:
-            I.write("Testing ...")
+            I.write('Testing ...')
             results, trainResults, stop = testEvaluation(config, agent, trainResults)
-            I.write("Test results {}".format(results))
+            I.write('Test results {}'.format(results))
             # Check the saver status
             if not stop:
                 saver.check(results)

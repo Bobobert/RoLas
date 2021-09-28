@@ -141,7 +141,7 @@ def tryCopy(T: TENSOR):
         from copy import deepcopy
         return deepcopy(T)
 
-def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'policy'):
+def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'network'):
     """
         Usually all optimizers need at least two main arguments
 
@@ -157,7 +157,7 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'p
             A default learning rate if there's none declared in the config
             dict. A config dict by deault does not have this argument.
         - key: str
-            Default 'policy'. Depends on the key to get the configuration from
+            Default 'network'. Depends on the key to get the configuration from
             the dict config. Eg, 'baseline' to generate an optimizer with those
             configs.
             
@@ -165,8 +165,8 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'p
         --------
         optimizer for network
     """
-    name = config[key].get('optimizer')
-    lr = config[key].get('learning_rate', deftLR)
+    name = config['policy'][key].get('optimizer')
+    lr = config['policy'][key].get('learning_rate', deftLR)
 
     if name == 'adam':
         FOpt = optim.Adam
@@ -178,7 +178,9 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'p
         FOpt = optim.Adagrad
     else:
         print("Warning: {} is not a valid optimizer. {} was generated instead".format(name, OPTIMIZER_DEF))
-        from rofl.functions.config import createConfig
-        return getOptimizer(createConfig(), network)
+        config['policy'][key]['optimizer'] = OPTIMIZER_DEF
+        config['policy'][key]['learning_rate'] = OPTIMIZER_LR_DEF
+        config['policy'][key]['optimizer_args'] = {}
+        return getOptimizer(config, network)
 
-    return FOpt(network.parameters(), lr = lr, **config[key].get("optimizer_args", {}))
+    return FOpt(network.parameters(), lr = lr, **config['policy'][key].get("optimizer_args", {}))

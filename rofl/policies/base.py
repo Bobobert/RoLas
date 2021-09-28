@@ -2,6 +2,7 @@ from rofl.functions.torch import maxGrad, meanGrad
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
 from rofl.functions.functions import nn, no_grad
 from rofl.functions.const import DEVICE_DEFT
+from rofl.functions.config import createActor
 from abc import ABC
 
 class Policy(ABC):
@@ -10,9 +11,6 @@ class Policy(ABC):
 
     Must be initiated with:
     - A configuration dictionary
-    Optionals:
-    - Approximation functions
-    - Exploratory strategy
 
     Methods
     -------
@@ -49,15 +47,17 @@ class Policy(ABC):
     actor, rndFunc, valueBased, stochastic, _nn = None, None, None, False, False
     gamma, lmbd, gae = 1.0, 1.0, False
 
-    def __init__(self, config, actor, **kwargs):
+    def __init__(self, config, **kwargs):
         if self.name == "BasePolicy":
             raise ValueError("New agent should be called different to BasePolicy")
         
         if config is None or not isinstance(config, dict):
             raise ValueError("Agent needs config as a dict")
-
+        
         self.config = config
-        self.actor = actor
+        self.actor = createActor(config)
+        device = kwargs.get('device', DEVICE_DEFT)
+        self.actor.to(device)
         self.tbw = kwargs.get('tbw')
         self.tbwFreq = config['policy']['evaluate_tb_freq']
 

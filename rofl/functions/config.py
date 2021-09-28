@@ -1,60 +1,10 @@
 """
     Template for the config dictionary to set an experiment.
 """
-from rofl.functions.const import *
-
-agent = {
-    'agent' : None, # TODO, perhaps to validate this keys after createConfig
-    'id' : 0,
-    'gamma' : GAMMA,
-    'lambda' : LAMDA_GAE,
-    'gae' : False,
-}
-
-train = {
-    'epochs' : 10**2,
-    'test_freq' : 10,
-    'test_iters' : 20,
-    'expected_perfomance' : None,
-    'max_performance' : None,
-    'max_time' : None,
-    'max_steps_per_test' : -1,
-}
-
-policy = {
-    'evaluate_tb_freq' : 15,
-    'evaluate_max_grad' : True,
-    'evaluate_mean_grad' : True,
-    'clip_grad' : 0,
-    'network_config' : {},
-    'optimizer' : OPTIMIZER_DEF,
-    'optimizer_args' : {},
-}
-
-env = {
-    'envMaker' : 'gymEnvMaker', # TODO
-    'name' : None,
-    'warmup' : None,
-    'warmup_min_steps' : 0,
-    'warmup_max_steps' : 30,
-    'obs_shape' : None,
-    'obs_mode' : None,
-    'max_length' : 10**3,
-    'seedTrain' : TRAIN_SEED,
-    'seedTest' : TEST_SEED,
-}
-
-config = {
-    'env' : env,
-    'agent' : agent,
-    'policy' : policy,
-    'train' : train,
-    'variables' : [],
-}
-
 def completeDict(targetDict:dict, otherDict:dict):
     """
-        Completes target with the keys of other, if they are not present.
+        Completes target with the keys of other, if they are not present,
+        stores the values of other. If they are, target keeps their values.
         Does not use copy.
     """
     for key in otherDict.keys():
@@ -68,8 +18,52 @@ def completeDict(targetDict:dict, otherDict:dict):
     return targetDict
 
 def createConfig(*targetDicts:dict, expName: str = 'unknown'):
+    from rofl.functions.configDeft import config
     newConfig = config.copy()
-    newConfig['experiment'] = expName
+    newConfig['algorithm'] = expName
+    newConfig = completeDict(getConfigAlg(expName), newConfig)
     for targetDict in targetDicts:
         newConfig = completeDict(targetDict, newConfig)
     return newConfig
+
+def getConfigAlg(expName):
+    import rofl.algorithms as algs
+    alg = getattr(algs, expName)
+    return alg.algConfig
+
+def getTrainFun(config):
+    import rofl.algorithms as algs
+    alg = alg = getattr(algs, config['algorithm'])
+    return alg.train
+
+def createAgent(config, policy, envMaker, **kwargs):
+    import rofl.agents as agents
+    agentClass = getattr(agents, config['agent']['agentClass'])
+    return agentClass(config, policy, envMaker, **kwargs)
+
+def createPolicy(config, **kwargs):
+    import rofl.policies as policies
+    c = config['policy']
+    policyClass = getattr(policies, config['policy']['policyClass'])
+    policy = policyClass(config, **kwargs)
+    return policy
+
+def getEnvMaker(config):
+    import rofl.envs as envs
+    envMaker = getattr(envs, config['env']['envMaker'])
+    return envMaker(config)
+
+def createActor(config:dict, key:str = 'network'):
+    """
+    Returns the desired network
+
+    parameters
+    ----------
+    - config: dict
+    - key: str
+        'network', 'baseline' are options.
+    """
+    import rofl.networks
+    nets = getattr(rofl.networks, config['algorithm'])
+    netClass = getattr(nets, config['policy'][key]['networkClass'])
+    return netClass(config)

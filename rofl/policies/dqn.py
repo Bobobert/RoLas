@@ -1,7 +1,7 @@
 from rofl.functions.const import *
 from rofl.functions.torch import *
 from rofl.functions.functions import no_grad, Tmul, nprnd, F
-from rofl.functions import EpsilonGreedy
+from rofl.functions.exploratory import EpsilonGreedy
 from .base import Policy
 
 def dqnTarget(onlineNet, targetNet, s2, r, t, gamma, double:bool = True):

@@ -1,35 +1,33 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
+from rofl.functions.configDeft import network
 from rofl.functions.stop import testEvaluation, initResultDict
 from rofl.functions.vars import updateVar
-from rofl.utils import Saver, memory
+from rofl.utils import Saver
 from tqdm import tqdm
 
-pgConfig = {
-    "agent":{
-        "clip_reward": 1.0,
+baselineConf = network.copy()
+baselineConf['minibatch_size'] = MINIBATCH_SIZE
+baselineConf['batch_minibatches'] = 10
+
+algConfig = {
+    "agent" :{
+        "clip_reward" : 1.0,
     },
-    "train":{
-        "batch_size": -1,
+    "train" :{
+        "batch_size" : -1,
         "batch_proportion" : 1.0,
-        "test_freq": 10**2,
+        "test_freq" : 10**2,
     },
-    "policy":{
-        "learning_rate":OPTIMIZER_LR_DEF,
-        "optimizer": OPTIMIZER_DEF,
+    "policy" :{
         "entropy_bonus" : ENTROPY_LOSS,
-        "n_actions": 18,
+        "n_actions" : 18,
         "max_div_kl" : MAX_DKL,
-        "surrogate_epsilon": EPS_SURROGATE,
-        "loss_policy_const": LOSS_POLICY_CONST,
-        "loss_value_const": LOSS_VALUES_CONST,
-    },
-    "baseline":{
-        "learning_rate":OPTIMIZER_LR_DEF,
-        "optimizer":OPTIMIZER_DEF,
-        "minibatch_size" : MINIBATCH_SIZE,
-        "batch_minibatches" : 10,
-    },
+        "surrogate_epsilon" : EPS_SURROGATE,
+        "loss_policy_const" : LOSS_POLICY_CONST,
+        "loss_value_const" : LOSS_VALUES_CONST,
+        "baseline" : baselineConf,
+    }
 }
 
 def train(config:dict, agent:Agent, policy:Policy, saver: Saver):

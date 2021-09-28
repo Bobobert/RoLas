@@ -25,7 +25,7 @@ class dqnAtari(QValue):
         self.name = 'DQN-policy'
         # Operational
         # Net
-        h1 = config["policy"].get("net_hidden_1", self.h0)
+        h1 = config["policy"]['network'].get("size_hidden_1", self.h0)
         self.rectifier = F.relu
         self.cv1 = nn.Conv2d(lHist, 32, 8, 4)
         self.cv2 = nn.Conv2d(32, 64, 4, 2)
@@ -51,9 +51,9 @@ class dqnAtari(QValue):
 class atariDuelingDQN(dqnAtari):
     def __init__(self, config):
         super(atariDuelingDQN, self).__init__(config)
-        h0 = config["policy"].get("net_hidden_1", self.h0)
-        self.fc3 = nn.Linear(3136, h0)
-        self.fc4 = nn.Linear(h0, 1)
+        h1 = config["policy"]['network'].get("size_hidden_1", self.h0)
+        self.fc3 = nn.Linear(3136, h1)
+        self.fc4 = nn.Linear(h1, 1)
     
     def forward(self, X):
         r = self.rectifier
@@ -93,7 +93,7 @@ class forestFireDQNVanilla(QValue):
         super(forestFireDQNVanilla, self).__init__()
         # Variables
         obsShape = config["env"]["obs_shape"]
-        h0 = config.get("net_hidden_1", 512)
+        h0 = config["policy"]['network'].get("size_hidden_1", 512)
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         self.config= config
@@ -135,7 +135,7 @@ class forestFireDQN(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config.get("net_hidden_1", 328)
+        h0 = config["policy"]['network'].get("size_hidden_1", 328)
         self.config= config
 
         self.lHist = lHist
@@ -165,7 +165,7 @@ class forestFireDQNv2(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config.get("net_hidden_1", 328)
+        h0 = config["policy"]['network'].get("size_hidden_1", 328)
         self.config= config
 
         self.lHist = lHist
@@ -198,7 +198,7 @@ class forestFireDQNv3(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config.get("net_hidden_1", 328)
+        h0 = config["policy"]['network'].get("size_hidden_1", 328)
         self.config= config
 
         self.lHist = lHist
@@ -279,7 +279,7 @@ class forestFireDuelingDQN(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config.get("net_hidden_1", 328)
+        h0 = config["policy"]['network'].get("size_hidden_1", 328)
         self.config= config
 
         self.lHist = lHist
@@ -322,13 +322,12 @@ class forestFireDQNth0(QValue):
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
         self.config= config
-        config = config["policy"]
+        config = config["policy"]['network']
         h0 = config.get("net_hidden_1", 256)
         h1 =config.get("net_hidden_2", 512)
         h2 = config.get("net_hidden_3", 256)
         h3 = config.get("net_hidden_4", 64)
         
-
         self.lHist = lHist
         self.outputs = actions
         self.obsShape = obsShape
