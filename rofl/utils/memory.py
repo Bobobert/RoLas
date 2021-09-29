@@ -33,10 +33,9 @@ class simpleMemory():
             eg. ('return', torch.float16)
         
     """
-    _mem_, _i_, _li_ = None, 0, 0
-    _keys_ = [("reward", F_TDTYPE_DEFT), ("done", B_TDTYPE_DEFT)]
     _exp_, _slack_ = None, 4
     memType = 'simple'
+    __keysDeft__ = [("reward", F_TDTYPE_DEFT), ("done", B_TDTYPE_DEFT)]
 
     def __init__(self, config, *aditionalKeys):
         self.size = config["agent"].get("memory_size", DEFT_MEMORY_SIZE)
@@ -44,6 +43,8 @@ class simpleMemory():
         self.gamma = config["agent"]["gamma"]
         self.gae = config["agent"]["gae"]
         self.lmbda = config["agent"]["lambda"]
+        self._mem_, self._i_, self._li_ = None, 0, 0
+        self._keys_ = self.__keysDeft__.copy()
         for key in aditionalKeys:
             self._keys_.append(key)
 

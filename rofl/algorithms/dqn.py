@@ -70,24 +70,28 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     p = miniBatchSize / stepsPerEpoch
     epochs, stop = config['train']['epochs'], False
     I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
+    try:
     ## Train loop
-    for epoch in I:
-        # Train step
-        miniBatch = agent.getBatch(miniBatchSize, p, device = policy.device)
-        policy.update(miniBatch)
-        updateVar(config)
-        # Check for test
-        if epoch % freqTest == 0:
-            I.write('Testing ...')
-            results, trainResults, stop = testEvaluation(config, agent, trainResults)
-            I.write('Test results {}'.format(results))
-            # Check the saver status
-            if not stop:
-                saver.check(results)
-            else:
-                saver.saveAll(results)
-                return trainResults
+        for epoch in I:
+            # Train step
+            miniBatch = agent.getBatch(miniBatchSize, p, device = policy.device)
+            policy.update(miniBatch)
+            updateVar(config)
+            # Check for test
+            if epoch % freqTest == 0:
+                I.write('Testing ...')
+                results, trainResults, stop = testEvaluation(config, agent, trainResults)
+                I.write('Test results {}'.format(results))
+                # Check the saver status
+                if not stop:
+                    saver.check(results)
+                else:
+                    saver.saveAll(results)
+                    return trainResults
+            
+        saver.saveAll(results)
+        return trainResults
+    except KeyboardInterrupt:
+        print("Keyboard termination. Saving all objects in Saver")
+        saver.saveAll(results)
         
-    saver.saveAll(results)
-    return trainResults
-    

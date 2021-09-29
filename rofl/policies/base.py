@@ -43,12 +43,14 @@ class Policy(ABC):
     - loadState: Loads a observation dict
     """
     name = "BasePolicy"
-    config, discrete, _test = {}, None, False
-    exploratory, tbw, tbwFreq, epoch = None, None, None, 0
-    actor, rndFunc, valueBased, stochastic, _nn = None, None, None, False, False
-    gamma, lmbd, gae = 1.0, 1.0, False
 
     def __init__(self, config, actor, **kwargs):
+
+        self.discrete, self._test = None, False
+        self.exploratory, self.epoch = None, 0
+        self.rndFunc, self.valueBased = None, None
+        self.stochastic, self._nn =  False, False
+
         if self.name == "BasePolicy":
             raise ValueError("New agent should be called different to BasePolicy")
         
@@ -61,6 +63,7 @@ class Policy(ABC):
         self.tbwFreq = config['policy']['evaluate_tb_freq']
 
         self.gamma, self.lmbd = config['agent']['gamma'], config['agent']['lambda']
+        self.gae = config['agent']['gae']
         self.evalMaxGrad = config['policy']["evaluate_max_grad"]
         self.evalMeanGrad = config['policy']["evaluate_mean_grad"]
         self.clipGrad = config['policy']['clip_grad']

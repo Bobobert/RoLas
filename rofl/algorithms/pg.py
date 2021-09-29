@@ -26,6 +26,7 @@ algConfig = {
         "surrogate_epsilon" : EPS_SURROGATE,
         "loss_policy_const" : LOSS_POLICY_CONST,
         "loss_value_const" : LOSS_VALUES_CONST,
+        'evaluate_tb_freq' : 10**3,
         "baseline" : baselineConf,
     }
 }
@@ -48,23 +49,26 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     freqTest = config["train"]["test_freq"]
     epochs, stop = config["train"]["epochs"], False
     I = tqdm(range(epochs + 1), unit = "update", desc = "Training Policy")
-    ## Train loop
-    for epoch in I:
-        # Train step
-        memory = agent.getEpisode()
-        policy.update(memory.getEpisode(policy.device))
-        updateVar(config)
-        # Check for test
-        if epoch % freqTest == 0:
-            I.write("Testing ...")
-            results, trainResults, stop = testEvaluation(config, agent, trainResults)
-            I.write("Test results {}".format(results))
-        # Stop condition
-        if not stop:
-            saver.check(results)
-        else:
-            saver.saveAll(results)
-            return trainResults
-        
-    saver.saveAll(results)
-    return trainResults
+    try:
+        ## Train loop
+        for epoch in I:
+            # Train step
+            episode = agent.getEpisode()
+            policy.update(episode)
+            updateVar(config)
+            # Check for test
+            if epoch % freqTest == 0:
+                I.write("Testing ...")
+                results, trainResults, stop = testEvaluation(config, agent, trainResults)
+                I.write("Test results {}".format(results))
+                # Stop condition
+                if not stop:
+                    saver.check(results)
+                else:
+                    saver.saveAll(results)
+                    return trainResults
+        saver.saveAll(results)
+        return trainResults
+    except KeyboardInterrupt:
+        print("Keyboard termination. Saving all objects in Saver")
+        saver.saveAll(results)

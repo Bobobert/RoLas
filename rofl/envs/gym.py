@@ -27,6 +27,7 @@ def gymEnvMaker(config):
      # Register action_space on config
     env, _ = ENV()
     config["env"]["action_space"] = env.action_space
+    config['env']['observation_space'] = env.observation_space
     del env
 
     return ENV

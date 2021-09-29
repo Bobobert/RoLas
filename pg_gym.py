@@ -1,47 +1,49 @@
-from rofl.algorithms.pg import train, config
-from rofl.agents.pg import pgAgent 
-from rofl.policies.pg import pgPolicy
-from rofl.networks.pg import dcontrolActorPG, ccBaseline
-from rofl.envs.gym import gymEnvMaker
-from rofl.functions import getDevice, SummaryWriter
-from rofl.utils import seeder, Saver, expDir, saveConfig
-from gym.spaces import Discrete
+from rofl import setUpExperiment
 
-EXP_NAME = "pg"
-ENV_NAME = "CartPole-v0"
-N_ACTIONS = 2
+envConfig = {
+    'envMaker' : 'gymEnvMaker',
+    'name': 'CartPole-v0',
+    'atari': False,
+    'gamma': 0.997,
+    'max_length': 500,
+    'warmup' : None,
+    }
 
-config["env"]["name"] = ENV_NAME
-config["env"]["action_space"] = Discrete(N_ACTIONS)
-config["env"]["max_length"] = 500
-config["agent"]["lhist"] = 4
-config["agent"]["clip_reward"] = 0.0
-config["agent"]["no_op_start"] = 0
-config["policy"]["n_inputs"] = 4
-config["policy"]["n_actions"] = N_ACTIONS
-config["policy"]["clip_grad"] = 0.0
-config["policy"]["entropy_bonus"] = 0.0
-config["train"]["epochs"] = 10**4
-config["train"]["test_freq"] = 500
-config["train"]["batch_size"] = 500
-config["train"]["batch_proportion"] = 1
-config["train"]["test_iters"] = 20
-config["train"]["max_performance"] = 200
+agentConfig = {
+    'agentClass' : 'pgAgent',
+    'memory_size' : 10**4,
+    }
 
-device = getDevice()
-seeder(8088, device)
-#expdir, tbdir = expDir(EXP_NAME, ENV_NAME)
-#saveConfig(config, expdir)
+policyConfig = {
+    'policyClass' : 'pgPolicy',
+    'n_actions' : 2,
+    'network' : {
+        'networkClass' : 'gymActor',
+        'net_hidden_1' : 56,
+        'learning_rate' : 5e-5,
+    },
+    'baseline' :{
+        'networkClass' : 'gymBaseline',
+        'net_hidden_1' : 56,
+        'learning_rate': 1e-4,
+    }
+}
 
-writer = None#SummaryWriter(tbdir)
-saver = None#Saver(expdir)
-actor = dcontrolActorPG(config).to(device)
-critic = ccBaseline(config).to(device)
-policy = pgPolicy(config, actor, critic, tbw = writer)
+trainConfig = {
+    'epochs' : 10**5,
+    'test_freq' : 10**3,
+    'expected_perfomance': 150,
+}
 
-envMaker = gymEnvMaker(config)
-agent = pgAgent(config, policy, envMaker, tbw = writer)
+expConfig = {
+    'agent' : agentConfig,
+    'policy' : policyConfig,
+    'train' : trainConfig,
+    'env' : envConfig,
+}
 
-if __name__ == "__main__":
-    train(config, agent, policy, saver = saver)
-    writer.close()
+if __name__ == '__main__':
+    config, agent, policy, train, manager = setUpExperiment('pg', expConfig, dummyManager = True)
+    train(config, agent, policy, saver = manager.startSaver())
+    agent.close()
+    manager.close()

@@ -1,8 +1,8 @@
 from .base import Agent
-from rofl.functions.const import DEVICE_DEFT
+from rofl.functions.const import DEVICE_DEFT, I_TDTYPE_DEFT
 from rofl.functions.functions import clipReward, np, torch, rnd, no_grad, ceil
 from rofl.functions.torch import array2Tensor
-from rofl.functions.coach import singlePathRollout
+from rofl.functions.coach import singlePathRollout, episodicRollout
 from rofl.utils.openCV import imgResize
 
 class pgAgent(Agent):
@@ -14,12 +14,20 @@ class pgAgent(Agent):
     def processReward(self, reward):
         return clipReward(self, reward)
 
-    def processObs(self, obs):
+    def processObs(self, obs, reset = False):
         return array2Tensor(obs, device = self.device)
 
     def getBatch(self, size: int, proportion: float = 1, random=False, 
                     device=DEVICE_DEFT, progBar: bool = False):
         return super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
+
+    def getEpisode(self, random=False):
+        keys = []
+        keys.append(('action', I_TDTYPE_DEFT)) if self.policy.discrete else None
+        episode = episodicRollout(self, *keys, random = random, device = self.device)
+        episode['observation'] = episode['observation'].squeeze().requires_grad_(True)
+        return episode
+
     # the idea of having in coach the singlePathRollout is to use it as to do n-step updates!
     # no new memory should be required
     # TODO, generate a batch of those type of rollouts

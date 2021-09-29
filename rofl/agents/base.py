@@ -67,12 +67,14 @@ class Agent(ABC):
     """
     name = "BaseAgent"
 
-    twb, testCalls = None, 0
-    _acR_, _agentStep_, _envStep_, done, _reseted = 0.0, 0, 0, True, False
-    lastObs, lastReward, lastAction, lastInfo =  None, 0.0, None, {}
-    _totSteps, _totEpisodes, memory = 0, 0, None
-
     def __init__(self, config, policy, envMaker, **kwargs):
+
+        self.testCalls = 0
+        self._acR_, self._agentStep_, self._envStep_ = 0.0, 0, 0
+        self.done, self._reseted = True, False
+        self.lastObs, self.lastReward, self.lastAction, self.lastInfo =  None, 0.0, None, {}
+        self._totSteps, self._totEpisodes, self.memory = 0, 0, None
+
         if self.name == "BaseAgent":
             raise NameError("New agent should be called different to BaseAgent")
 
@@ -88,7 +90,7 @@ class Agent(ABC):
         try:
             self.envName = self.env.name
         except AttributeError:
-            self.envName = "unknown"
+            self.envName = config['env']['name']
 
         if policy is None:
             from rofl.policies.base import dummyPolicy
@@ -511,7 +513,7 @@ class Agent(ABC):
             -------
             obsDict
         """
-        return episodicRollout(self, random = random)
+        return episodicRollout(self, random = random, device = self.device)
 
     def __repr__(self):
         s = "Agent {}\nFor environment {}\n{}".format(self.name, 

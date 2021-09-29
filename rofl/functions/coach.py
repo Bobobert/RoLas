@@ -1,21 +1,24 @@
 """
     Functions to manage actors and policies while developing or treating trajectories.
 """
-from .dicts import addBootstrapArg
+from .dicts import addBootstrapArg, obsDict
 from rofl.functions.const import *
 from rofl.utils.memory import episodicMemory, simpleMemory
 
-def episodicRollout(agent, random = False):
+def episodicRollout(agent, *additionalKeys, random = False, device = DEVICE_DEFT):
     if agent._agentStep_ > 0:
         agent.done = True
+    
 
-    memory = episodicMemory(agent.config)
+    memory = episodicMemory(agent.config, *additionalKeys)
     memory.reset()
 
-    while not agent.done:
-        memory.add(agent.fullStep(random = random))
+    while True:
+        obsDict_ = agent.fullStep(random = random)
+        memory.add(obsDict_)
+        if obsDict_['done']: break
 
-    return memory.getEpisode()
+    return memory.getEpisode(device = device)
 
 def calcBootstrap(agent):
     """

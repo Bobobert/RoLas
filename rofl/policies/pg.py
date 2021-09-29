@@ -13,10 +13,11 @@ class pgPolicy(Policy):
         task, therefore gae is not used.
     """
     name = "policy gradient v0"
-    actorHasCritic = False
 
     def initPolicy(self, **kwargs):
         config = self.config
+        self.actorHasCritic, self.valueBased = False, False
+
         self.entropyBonus = abs(config['policy'].get('entropy_bonus', ENTROPY_LOSS))
         self.lossPolicyC = abs(config['policy']['loss_policy_const'])
         self.lossValueC = abs(config['policy']['loss_value_const'])
@@ -29,24 +30,25 @@ class pgPolicy(Policy):
         if (baseline := config['policy']['baseline']['networkClass']) is not None:
             baseline = createNetwork(config, key = 'baseline').to(kwargs.get('device', DEVICE_DEFT))
             self.blOptimizer = getOptimizer(config, baseline, key = 'baseline')
+            self.valueBased = True
         self.baseline = baseline
 
         if isinstance(self.actor, ActorCritic):
             self.actorHasCritic = True
             self.baseline = self.actor
+            self.valueBased = True
 
     def getAction(self, state):
         return self.actor.getAction(state)
 
     def update(self, batchDict):
         observations, actions, returns = batchDict['observation'], batchDict['action'], batchDict['return']
-        
         self.batchUpdate(observations, actions, returns) # TODO, a minibatch generator to slip large batches
         
 
     def batchUpdate(self, observations, actions, returns):
         if self.baseline is None:
-            baselines = returns.zeros(returns.shape)
+            baselines = returns.new_zeros(returns.shape)
         elif not self.actorHasCritic:
             baselines = self.baseline(observations)
         else:
@@ -57,10 +59,11 @@ class pgPolicy(Policy):
         log_probs = dist.log_prob(actions)
         entropy = dist.entropy()
 
+        _F = Tsum
         advantages = returns - baselines.detach()
-        lossPolicy = -1.0 * Tsum(Tmul(log_probs, advantages))
-        lossEntropy = self.entropyBonus * entropy
-        lossBaseline = F.mse_loss(baselines, returns) if self.actorHasCritic else torch.zeros((1,), device=self.device)
+        lossPolicy = -1.0 * _F(Tmul(log_probs, advantages))
+        lossEntropy = self.entropyBonus * _F(entropy)
+        lossBaseline = F.mse_loss(baselines, returns) if self.actorHasCritic else torch.zeros((), device=self.device)
 
         loss = self.lossPolicyC * lossPolicy + lossEntropy + self.lossValueC * lossBaseline
         self.optimizer.zero_grad()

@@ -1,18 +1,22 @@
 from .base import Actor, Value
 from rofl.functions.const import *
-from rofl.functions.functions import torch, nn, F
+from rofl.functions.functions import torch, nn, F, sqrConvDim, Tcat, multiplyIter
 from rofl.functions.distributions import Categorical
 
-class dcontrolActorPG(Actor):
-    name = "classic_control_pg_net"
-    h0 = 30
+def inputFromGymSpace(config: dict):
+    return multiplyIter(config['env']['observation_space'].shape)
+
+class gymActor(Actor):
+    name = "simple gym actor"
+
     def __init__(self, config):
-        super(dcontrolActorPG, self).__init__()
+        super().__init__()
         self.config = config
 
-        inputs = config["policy"]["n_inputs"]
+        inputs = inputFromGymSpace(config)
         outs = config["policy"]["n_actions"]
-        h0 = self.h0
+        h0 = config['policy']['network'].get('net_hidden_1', 30)
+
         self.rectifier = F.relu
         self.fc1 = nn.Linear(inputs, h0)
         self.fc2 = nn.Linear(h0, outs)
@@ -26,17 +30,18 @@ class dcontrolActorPG(Actor):
         return Categorical(logits = params)
 
     def new(self):
-        return dcontrolActorPG(self.config)
+        return gymActor(self.config)
 
-class ccBaseline(Value):
-    name = "value_pg_net"
-    h0 = 30
+class gymBaseline(Value):
+    name = "simple baseline"
+
     def __init__(self, config):
-        super(ccBaseline, self).__init__()
+        super().__init__()
         self.config = config
 
-        inputs = config["policy"]["n_inputs"]
-        h0 = self.h0
+        inputs = inputFromGymSpace(config)
+        h0 = config['policy']['network'].get('net_hidden_1', 30)
+
         self.rectifier = F.relu
         self.fc1 = nn.Linear(inputs, h0)
         self.fc2 = nn.Linear(h0, 1)
@@ -47,7 +52,7 @@ class ccBaseline(Value):
         return self.fc2(x)
 
     def new(self):
-        return ccBaseline(self.config)
+        return gymBaseline(self.config)
 
 class forestFireActorPG(Actor):
     name = "forestFire_pg_actor"

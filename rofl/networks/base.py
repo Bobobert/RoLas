@@ -22,8 +22,9 @@ class BaseNet(nn.Module):
     - device
     """
     name = "BaseNet"
-    discrete, __dvc__ = True, None
+    
     def __init__(self):
+        self.discrete, self.__dvc__ = True, None
         super(BaseNet, self).__init__()
 
     def new(self):
@@ -44,8 +45,8 @@ class Value(BaseNet):
     Class design to manage a observation value function only
     """
     name = "Value Base"
-    discrete = False
     def __init__(self):
+        self.discrete = False
         super(Value,self).__init__()
 
     def getValue(self, x, action = None):
@@ -59,6 +60,7 @@ class QValue(BaseNet):
     """
     name = "QValue Base"
     def __init__(self):
+        self.discrete = True
         super(QValue, self).__init__()
         
     def processAction(self, action):

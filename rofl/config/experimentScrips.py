@@ -46,9 +46,9 @@ def setUpExperiment(algorithm: str, *configs : dict, dummyManager : bool = False
 
 def startExperiment(config, manager, device):
     writer = manager.startTBW()
-    actor = createNetwork(config, key = 'actor') # TODO: perhaps, another options besides a network!
-    policy = createPolicy(config, actor, device = device, tbw = writer)
     envMaker = getEnvMaker(config)
+    actor = createNetwork(config, key = 'actor').to(device) # TODO: perhaps, another options besides a network!
+    policy = createPolicy(config, actor, device = device, tbw = writer)
     agent = createAgent(config, policy, envMaker, device = device, tbw = writer)
     train = getTrainFun(config)
     return config, agent, policy, train, manager
