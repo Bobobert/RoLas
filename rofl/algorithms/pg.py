@@ -40,9 +40,10 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
                 isTorch = True, device = policy.device,
                 key = 'mean_return')
     if getattr(policy, 'baseline', False):
-        saver.addObj(policy.baseline, "baseline_net",
-                isTorch = True, device = policy.device,
-                key = 'mean_return')
+        if policy.baseline != None:
+            saver.addObj(policy.baseline, "baseline_net",
+                    isTorch = True, device = policy.device,
+                    key = 'mean_return')
     saver.start()
 
     batchSize, p = config["train"]["batch_size"], config["train"]["batch_proportion"]

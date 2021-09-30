@@ -1,12 +1,34 @@
-from .base import Actor, Value
+from .base import Actor, Value, ActorCritic, construcConv, construcLinear,\
+    forwardConv, forwardLinear, layersFromConfig
 from rofl.functions.const import *
-from rofl.functions.functions import torch, nn, F, sqrConvDim, Tcat, multiplyIter
+from rofl.functions.functions import nn, F, sqrConvDim, Tcat, inputFromGymSpace
 from rofl.functions.distributions import Categorical
 
-def inputFromGymSpace(config: dict):
-    return multiplyIter(config['env']['observation_space'].shape)
-
 class gymActor(Actor):
+    name = "simple gym actor"
+
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.discrete = True
+        self.noLinear = F.relu
+
+        inputs = inputFromGymSpace(config)
+        outs = config["policy"]["n_actions"]
+        hidden = layersFromConfig(config)
+        construcLinear(self, inputs, outs, *hidden['linear'])
+
+    def forward(self, obs):
+        return forwardLinear(self, obs)
+
+    def getDist(self, params):
+        return Categorical(logits = params)
+
+    def new(self):
+        return gymActor(self.config)
+
+class gymActorOld(Actor):
+    # in favor in not hardcodding everything... this is now old
     name = "simple gym actor"
 
     def __init__(self, config):
@@ -15,22 +37,31 @@ class gymActor(Actor):
 
         inputs = inputFromGymSpace(config)
         outs = config["policy"]["n_actions"]
-        h0 = config['policy']['network'].get('net_hidden_1', 30)
+        h0 = config['policy']['network'].get('size_hidden_1', 30)
+        '''h1 = config['policy']['network']['net_hidden_2']
+        h2 = config['policy']['network']['net_hidden_3']
+        h3 = config['policy']['network']['net_hidden_4']'''
 
         self.rectifier = F.relu
         self.fc1 = nn.Linear(inputs, h0)
-        self.fc2 = nn.Linear(h0, outs)
+        '''self.fc2 = nn.Linear(h0, h1)
+        self.fc3 = nn.Linear(h1, h2)
+        self.fc4 = nn.Linear(h2, h3)'''
+        self.fc5 = nn.Linear(h0, outs)
 
     def forward(self, obs):
         noLinear = self.rectifier
         x = noLinear(self.fc1(obs))
-        return self.fc2(x)
+        '''x = noLinear(self.fc2(x))
+        x = noLinear(self.fc3(x))
+        x = noLinear(self.fc4(x))'''
+        return self.fc5(x)
 
     def getDist(self, params):
         return Categorical(logits = params)
 
     def new(self):
-        return gymActor(self.config)
+        return gymActorOld(self.config)
 
 class gymBaseline(Value):
     name = "simple baseline"
@@ -38,21 +69,25 @@ class gymBaseline(Value):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.noLinear = F.relu
 
         inputs = inputFromGymSpace(config)
-        h0 = config['policy']['network'].get('net_hidden_1', 30)
-
-        self.rectifier = F.relu
-        self.fc1 = nn.Linear(inputs, h0)
-        self.fc2 = nn.Linear(h0, 1)
+        hiddens = layersFromConfig(config, 'baseline')
+        construcLinear(self, inputs, 1, *hiddens['linear'])
 
     def forward(self, obs):
-        noLinear = self.rectifier
-        x = noLinear(self.fc1(obs))
-        return self.fc2(x)
+        return forwardLinear(self, obs)
 
     def new(self):
         return gymBaseline(self.config)
+
+class gymAC(ActorCritic, gymActor):
+    name = 'simple gym actor critic'
+    def __init__(self, config):
+        super().__init__(config)
+        
+
+
 
 class forestFireActorPG(Actor):
     name = "forestFire_pg_actor"
@@ -90,6 +125,38 @@ class forestFireActorPG(Actor):
         return Categorical(logits = params)
 
 class ffActor(Actor):
+
+    name = "ff actor"
+
+    def __init__(self, config):
+        super(ffActor, self).__init__()
+        self.config = config
+        self.discrete = True
+        lHist = config["agent"]["lhist"]
+        actions = config["policy"]["n_actions"]
+        obsShape = config["env"]["obs_shape"]
+
+        self.frameShape = (lHist, *obsShape)
+        self.outputs = actions
+        self.noLinear = F.relu
+
+        layers = layersFromConfig(config)
+        features = construcConv(self, obsShape, lHist, *layers['conv2d'])
+        construcLinear(self, features, actions, *layers['linear'])
+    
+    def forward(self, obs):
+        frame = obs[:,:-1].reshape(-1, *self.frameShape)
+        x = forwardConv(self, frame)
+        x = Tcat([x, obs[:,-1]], dim = 1)
+        return forwardLinear(self, x)
+        
+    def getDist(self, params):
+        return Categorical(logits = params)
+
+    def new(self):
+        return ffActor(self.config)
+
+class ffActorOld(Actor):
     h0 = 328
     name = "ff_actor_channel"
     def __init__(self, config):

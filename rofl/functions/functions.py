@@ -43,7 +43,7 @@ def assertIntPos(sus):
         raise ValueError("Value must be an integer greater than 0")
     return sus
 
-def sqrConvDim(inpt, kernel, stride, pad = 0, dil = 1):
+def sqrConvDim(inpt, kernel, stride, pad = 1, dil = 1):
     return floor((inpt + 2*pad - dil*(kernel-1) - 1) /stride + 1)
 
 def runningMean(xt, y, t):
@@ -85,3 +85,6 @@ def isTerminalAtari(agent, info):
         agent.lives = lives
         done = True # marked as terminal but no reset required
     return done
+
+def inputFromGymSpace(config: dict):
+    return multiplyIter(config['env']['observation_space'].shape)

@@ -1,6 +1,6 @@
 from rofl.policies.base import Policy
 from rofl.functions.torch import getDevice
-from rofl.config.config import createConfig, getConfigAlg, getEnvMaker, getTrainFun,\
+from rofl.config.config import createConfig, getEnvMaker, getTrainFun,\
     createNetwork, createAgent, createPolicy
 from rofl.utils.random import seeder
 from rofl.utils import pathManager

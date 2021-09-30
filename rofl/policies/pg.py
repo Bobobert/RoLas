@@ -19,7 +19,7 @@ class pgPolicy(Policy):
         self.actorHasCritic, self.valueBased = False, False
 
         self.entropyBonus = abs(config['policy'].get('entropy_bonus', ENTROPY_LOSS))
-        self.lossPolicyC = abs(config['policy']['loss_policy_const'])
+        self.lossPolicyC = -1.0 * abs(config['policy']['loss_policy_const'])
         self.lossValueC = abs(config['policy']['loss_value_const'])
 
         self.optimizer = getOptimizer(config, self.actor)
@@ -56,16 +56,17 @@ class pgPolicy(Policy):
         
         params = params if self.actorHasCritic else self.actor.onlyActor(observations)
         dist = self.actor.getDist(params)
-        log_probs = dist.log_prob(actions)
+        log_probs = dist.log_prob(actions.squeeze())
         entropy = dist.entropy()
 
         _F = Tsum
         advantages = returns - baselines.detach()
-        lossPolicy = -1.0 * _F(Tmul(log_probs, advantages))
-        lossEntropy = self.entropyBonus * _F(entropy)
+        lossPolicy = Tmul(log_probs, advantages.squeeze())
+        lossPolicy = _F(lossPolicy)
+        lossEntropy = _F(entropy)
         lossBaseline = F.mse_loss(baselines, returns) if self.actorHasCritic else torch.zeros((), device=self.device)
 
-        loss = self.lossPolicyC * lossPolicy + lossEntropy + self.lossValueC * lossBaseline
+        loss = self.lossPolicyC * lossPolicy + self.entropyBonus * lossEntropy + self.lossValueC * lossBaseline
         self.optimizer.zero_grad()
         loss.backward()
         if self.clipGrad > 0:

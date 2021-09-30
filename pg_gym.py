@@ -2,29 +2,30 @@ from rofl import setUpExperiment
 
 envConfig = {
     'envMaker' : 'gymEnvMaker',
-    'name': 'CartPole-v0',
+    'name': 'CartPole-v1',
     'atari': False,
-    'gamma': 0.997,
     'max_length': 500,
     'warmup' : None,
     }
 
 agentConfig = {
     'agentClass' : 'pgAgent',
-    'memory_size' : 10**4,
+    'memory_size' : 10**3,
+    'gamma' : 0.99,
     }
 
 policyConfig = {
     'policyClass' : 'pgPolicy',
     'n_actions' : 2,
+    'entropy_bonus' : 5e-3,
     'network' : {
         'networkClass' : 'gymActor',
-        'net_hidden_1' : 56,
+        'linear_hidden_1' : 32,
         'learning_rate' : 5e-5,
     },
     'baseline' :{
         'networkClass' : 'gymBaseline',
-        'net_hidden_1' : 56,
+        'linear_hidden_1' : 32,
         'learning_rate': 1e-4,
     }
 }
@@ -32,7 +33,7 @@ policyConfig = {
 trainConfig = {
     'epochs' : 10**5,
     'test_freq' : 10**3,
-    'expected_perfomance': 150,
+    'expected_performance': 150,
 }
 
 expConfig = {
@@ -43,7 +44,7 @@ expConfig = {
 }
 
 if __name__ == '__main__':
-    config, agent, policy, train, manager = setUpExperiment('pg', expConfig, dummyManager = True)
+    config, agent, policy, train, manager = setUpExperiment('pg', expConfig, dummyManager = True, cuda = False)
     train(config, agent, policy, saver = manager.startSaver())
     agent.close()
     manager.close()

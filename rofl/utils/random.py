@@ -5,7 +5,9 @@ def seeder(seed:int, device: Tdevice):
     """
         Function to seed all the experiments.
         Some random generation such as the environment
-        may work with their unique seeds.
+        may work with their unique seeds. Using cuda, 
+        the results from the same seed may differ from 
+        ones using a CPU device.
 
         parameters
         ----------

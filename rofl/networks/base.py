@@ -1,5 +1,6 @@
+from typing import Tuple
 from rofl.functions.const import *
-from rofl.functions.functions import nn, no_grad
+from rofl.functions.functions import multiplyIter, nn, no_grad, sqrConvDim
 
 def isItem(T):
     if T.squeeze().shape == ():
@@ -46,8 +47,8 @@ class Value(BaseNet):
     """
     name = "Value Base"
     def __init__(self):
-        self.discrete = False
         super(Value,self).__init__()
+        self.discrete = False
 
     def getValue(self, x, action = None):
         with no_grad():
@@ -60,8 +61,8 @@ class QValue(BaseNet):
     """
     name = "QValue Base"
     def __init__(self):
-        self.discrete = True
         super(QValue, self).__init__()
+        self.discrete = True
         
     def processAction(self, action):
         return simpleActionProc(action, self.discrete)
@@ -191,3 +192,114 @@ class ActorCritic(Actor):
             Returns raw values from the critic part of the network.
         """
         return self.valueForward(self.sharedForward(observations))
+
+### Functions to create easier networks
+
+def assertAttr(net: BaseNet, target: str, new: list):
+    if targetIn:= getattr(net, target, False):
+        targetIn += new
+    else:
+        setattr(net, target, new)
+
+def assertNotAttr(net: BaseNet, target: str):
+    assert not hasattr(net, target), 'BaseNet has already a %s layer declared!'%target
+
+def putLinear(net:BaseNet, inputs:int, outputs:int, i:int):
+    target  = 'fc%d' % i
+    assertNotAttr(net, target)
+    setattr(net, target, nn.Linear(inputs, outputs))
+    return getattr(net, target)
+
+def construcLinear(net:BaseNet, inputs:int, outputs:int, *hiddenLayers, offset: int = 0):
+    first, i, created = inputs, 1 + offset, []
+    for layer in hiddenLayers:
+        created.append(putLinear(net, first, layer, i))
+        i += 1
+        first = layer
+    created.append(putLinear(net, first, outputs, i))
+    assertAttr(net, '_layers_', created)
+
+def putConv(net:BaseNet, channelIn: int, channelOut: int, i: int, kernel,
+                stride: int, padding: int, dilation: int):
+    target  = 'cv%d' % i
+    assertNotAttr(net, target)
+    setattr(net, target, nn.Conv2d(channelIn, channelOut, kernel, stride, padding, dilation))
+    return getattr(net, target)
+
+def construcConv(net:BaseNet, shapeInput:Tuple[int, int], 
+                    channelIn:int, *convDims, offset: int = 0) -> int:
+    first, i, created = channelIn, 1 + offset, []
+    shapeOut = shapeInput
+    for layerTup in convDims:
+        outs, kernel, stride, padding, dilation = layerTup
+        created.append(putConv(net, first, outs, i, kernel, stride, padding, dilation))
+        i += 1
+        kernelTuple = isinstance(kernel, tuple)
+        kH = kernel if not kernelTuple else kernel[0]
+        kW = kernel if not kernelTuple else kernel[1]
+        shapeOut = (sqrConvDim(shapeOut[0], kH, stride, padding, dilation),\
+            sqrConvDim(shapeOut[0], kW, stride, padding, dilation))
+        first = outs
+    assertAttr(net, '_convLayers_', created)
+    return multiplyIter(shapeOut) * channelIn * outs
+
+def forwardLinear(net: BaseNet, x, offsetBeg: int = 0, offsetEnd: int = 0) -> TENSOR:
+    '''
+        net should be constructed by construcLinear and
+        any non linearity should be declared as noLinear
+        This in cpu time difference is little, on gpu 
+        this call is more expensive than hardcoding.
+    '''
+    layers, noLinear = net._layers_, net.noLinear
+    for n in range(offsetBeg, len(layers) - 1 - offsetEnd):
+        x = noLinear(layers[n](x))
+    x = layers[-1 - offsetEnd](x)
+    return x
+
+def forwardConv(net: BaseNet, x, offsetBeg: int = 0, offsetEnd: int = 0) -> TENSOR:
+    layers, noLinear = net._convLayers_, net.noLinear
+    for n in range(offsetBeg, len(layers) - 1 - offsetEnd):
+        x = noLinear(layers[n](x))
+    x = layers[-1 - offsetEnd](x)
+    return x
+
+def layersFromConfig(config: dict, key: str = 'network'):
+    """
+        Using x for any positive integer.
+
+        Expecting configurations as following:
+        - linear layers: 'linear_hidden_x' -> int,
+            size of the nodes for that hidden fully connected layer. 
+        - convolutional 2d layers: 'conv2d_layer_x' -> (channels_out, kernel, stride, padding, dilation)
+        -
+    """
+    import re
+    netConfig = config['policy'][key]
+    hiddenFC, convLayers = [], []
+    # just for linear and convs
+    for k in netConfig.keys():
+        if re.fullmatch('linear_hidden_\d+', k):
+            hiddenFC.append((int(k[14:]), netConfig[k], k))
+        elif re.fullmatch('conv2d_layer_\d+', k):
+            convLayers.append((int(k[13:]), netConfig[k], k))
+        # other cases in here
+    assertLayers(hiddenFC)
+    assertLayers(convLayers)
+    layers = {'linear' : hiddenFC,
+                'conv2d': convLayers,
+                '': []}
+    return layers
+
+def assertLayers(layers:list):
+    # inplace operation
+    if layers == []:
+        return
+    layers.sort(key = lambda t : t[0])
+    prev = 'none'
+    for n, tup in enumerate(layers):
+        if n + 1 != tup[0]:
+            raise ValueError('The layer %s is probably skipping a value.\
+                \nPrevious layer is %s. Check the sequence of layers.'%(tup[2], prev))
+        prev = tup[2]
+        layers[n] = tup[1]
+        
