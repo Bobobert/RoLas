@@ -1,8 +1,9 @@
 from .base import Actor, Value, ActorCritic, construcConv, construcLinear,\
     forwardConv, forwardLinear, layersFromConfig
 from rofl.functions.const import *
-from rofl.functions.functions import nn, F, sqrConvDim, Tcat, inputFromGymSpace
-from rofl.functions.distributions import Categorical
+from rofl.functions.functions import Texp, Tcat, Tsum, nn, F,\
+    outputFromGymSpace, reduceBatch, sqrConvDim, inputFromGymSpace
+from rofl.functions.distributions import Categorical, Normal
 
 class gymActor(Actor):
     name = "simple gym actor"
@@ -10,11 +11,14 @@ class gymActor(Actor):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.discrete = True
+        continuos = config['policy']['continuos']
+        self.discrete = not continuos
         self.noLinear = F.relu
 
         inputs = inputFromGymSpace(config)
         outs = config["policy"]["n_actions"]
+        outs = outputFromGymSpace(config) if outs is None else outs
+        outs *= 2 if continuos else 1
         hidden = layersFromConfig(config)
         construcLinear(self, inputs, outs, *hidden['linear'])
 
@@ -22,46 +26,24 @@ class gymActor(Actor):
         return forwardLinear(self, obs)
 
     def getDist(self, params):
-        return Categorical(logits = params)
+        if self.discrete:
+            return Categorical(logits = params)
+        else:
+            n = params.shape[-1] // 2 # TODO; expect always a flat paramas tensor!
+            return Normal(params[:,:n], Texp(params[:,n:]))
+
+    def processDist(self, params, actions):
+        if self.discrete:
+            actions = actions.squeeze() 
+            # Categorical applies a unsqueeze in the loop
+            # yee, that's what all of this is about...
+        dist = self.getDist(params)
+        log_probs = dist.log_prob(actions)
+        entropies = dist.entropy()
+        return log_probs, entropies
 
     def new(self):
         return gymActor(self.config)
-
-class gymActorOld(Actor):
-    # in favor in not hardcodding everything... this is now old
-    name = "simple gym actor"
-
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
-
-        inputs = inputFromGymSpace(config)
-        outs = config["policy"]["n_actions"]
-        h0 = config['policy']['network'].get('size_hidden_1', 30)
-        '''h1 = config['policy']['network']['net_hidden_2']
-        h2 = config['policy']['network']['net_hidden_3']
-        h3 = config['policy']['network']['net_hidden_4']'''
-
-        self.rectifier = F.relu
-        self.fc1 = nn.Linear(inputs, h0)
-        '''self.fc2 = nn.Linear(h0, h1)
-        self.fc3 = nn.Linear(h1, h2)
-        self.fc4 = nn.Linear(h2, h3)'''
-        self.fc5 = nn.Linear(h0, outs)
-
-    def forward(self, obs):
-        noLinear = self.rectifier
-        x = noLinear(self.fc1(obs))
-        '''x = noLinear(self.fc2(x))
-        x = noLinear(self.fc3(x))
-        x = noLinear(self.fc4(x))'''
-        return self.fc5(x)
-
-    def getDist(self, params):
-        return Categorical(logits = params)
-
-    def new(self):
-        return gymActorOld(self.config)
 
 class gymBaseline(Value):
     name = "simple baseline"
@@ -86,8 +68,6 @@ class gymAC(ActorCritic, gymActor):
     def __init__(self, config):
         super().__init__(config)
         
-
-
 
 class forestFireActorPG(Actor):
     name = "forestFire_pg_actor"
@@ -147,7 +127,7 @@ class ffActor(Actor):
     def forward(self, obs):
         frame = obs[:,:-1].reshape(-1, *self.frameShape)
         x = forwardConv(self, frame)
-        x = Tcat([x, obs[:,-1]], dim = 1)
+        x = Tcat([x.flatten(1), obs[:,-1]], dim = 1)
         return forwardLinear(self, x)
         
     def getDist(self, params):

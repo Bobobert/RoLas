@@ -3,7 +3,7 @@ from rofl.functions.functions import np, torch, math, ceil
 from rofl.functions.torch import tryCopy
 from rofl.functions.dicts import obsDict
 from rofl.functions.gym import doWarmup, noOpSample
-from rofl.functions.coach import episodicRollout
+from rofl.functions.coach import singlePathRollout
 from gym import Env
 from abc import ABC
 from copy import deepcopy
@@ -363,11 +363,6 @@ class Agent(ABC):
         env = self.env
         processObs, processReward, processTerminal = self.processObs, self.processReward, self.isTerminal
 
-        # Incrementals
-        self._totSteps += 1
-        self._agentStep_ += 1
-        self._envStep_ += 1
-
         # TODO create a function that process actions for the policy
         # Process action from a batch
         for i, d in enumerate(kwargs.get("ids", [])):
@@ -377,12 +372,17 @@ class Agent(ABC):
 
         obs, reward, done, info = env.step(action)
 
+        # Process the outputs
         pastObs = self.lastObs
         self.lastObs = obs = processObs(obs)
         self.lastReward = reward = processReward(reward, **kwargs)
         self.lastInfo, self.lastAction = info, action
         done = processTerminal(obs, done, info, **kwargs)
 
+        # Incrementals
+        self._totSteps += 1
+        self._agentStep_ += 1
+        self._envStep_ += 1
         self._acR_ += reward
         self._totEpisodes += 1 if done else 0
 
@@ -513,7 +513,8 @@ class Agent(ABC):
             -------
             obsDict
         """
-        return episodicRollout(self, random = random, device = self.device)
+        memory = singlePathRollout(self, random = random)
+        return memory.getEpisode(self.device)
 
     def __repr__(self):
         s = "Agent {}\nFor environment {}\n{}".format(self.name, 

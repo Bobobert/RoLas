@@ -1,8 +1,9 @@
 from .base import Agent
-from rofl.functions.const import DEVICE_DEFT, I_TDTYPE_DEFT
+from rofl.functions.const import DEVICE_DEFT, F_TDTYPE_DEFT, I_TDTYPE_DEFT
 from rofl.functions.functions import clipReward, np, torch, rnd, no_grad, ceil
 from rofl.functions.torch import array2Tensor
-from rofl.functions.coach import singlePathRollout, episodicRollout
+from rofl.functions.coach import singlePathRollout
+from rofl.utils.memory import episodicMemory
 from rofl.utils.openCV import imgResize
 
 class pgAgent(Agent):
@@ -10,6 +11,11 @@ class pgAgent(Agent):
     def initAgent(self, **kwargs):
         config = self.config
         self.clipReward = config["agent"].get("clip_reward", 0.0)
+        self.nstep = config['agent'].get('nstep', -1)
+        self.forceLen = True if self.nstep > 0 else False
+
+        keys = [('action', I_TDTYPE_DEFT)] if self.policy.discrete else [('action', F_TDTYPE_DEFT)]
+        self.memory = episodicMemory(config, *keys)
 
     def processReward(self, reward):
         return clipReward(self, reward)
@@ -21,20 +27,11 @@ class pgAgent(Agent):
                     device=DEVICE_DEFT, progBar: bool = False):
         return super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
 
-    def getEpisode(self, random=False):
-        keys = []
-        keys.append(('action', I_TDTYPE_DEFT)) if self.policy.discrete else None
-        episode = episodicRollout(self, *keys, random = random, device = self.device)
-        episode['observation'] = episode['observation'].squeeze().requires_grad_(True)
-        return episode
-
-    # the idea of having in coach the singlePathRollout is to use it as to do n-step updates!
-    # no new memory should be required
-    # TODO, generate a batch of those type of rollouts
-
-    #def getEpisode(self, random):
-    #    return singlePathRollout(self, self.maxEpLen, random = random)
-    
+    def getEpisode(self, random = False):
+        memory = self.memory
+        memory.reset()
+        singlePathRollout(self, maxLength = self.nstep, memory = memory, random = random, forceLen = self.forceLen)
+        return memory.getEpisode(self.device)
 
 class pgFFAgent(pgAgent):
     name = "forestFire_pgAgent"

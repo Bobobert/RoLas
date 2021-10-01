@@ -61,6 +61,10 @@ class simpleMemory():
     def diff(self,):
         return self._i_ - self._li_
 
+    @property
+    def last(self,):
+        return self._i_ - 1
+
     def _cleanItem_(self):
         if self.diff >= self.size:
             # For more than one.. but not this time
@@ -124,6 +128,10 @@ class simpleMemory():
             aux = sample.get(key)
             if isinstance(aux, list):
                 sample[key] = list2Tensor(aux, device, dtype)
+            elif isinstance(aux, ARRAY):
+                sample[key] = array2Tensor(aux, device, dtype, batch=True)
+            elif isinstance(aux, (int, float)): # when sample[N] = 1, then some elements could raise expception
+                sample[key] = list2Tensor([aux], device, dtype)
             else:
                 raise NotImplementedError('This wasnt expected yet... oopsy')
 
@@ -193,13 +201,12 @@ class episodicMemory(simpleMemory):
         # Collect the episode rewards
         # this could be done better in here? Anyway an iterator throu all the dicts is needed anyway
         # using dicts I don-t see a better way.
-        lastReturn = 0.0
-        for i in range(self._i_ - 1, self._lastEpisode_ - 1, -1):
-            lastDict = self._mem_[i]
-            lastReturn = lastReturn * self.gamma + lastDict["reward"]
-            lastDict["return"] = lastReturn
+        lastReturn = self[self.last].get('bootstrapping', 0.0)
+        for i in range(self.last, self._lastEpisode_ - 1, - 1):
+            lastDict = self[i]
+            lastReturn = lastDict['return'] = lastDict["reward"] + self.gamma * lastReturn 
 
-        self._lastEpisode_ = self._i_ - 1
+        self._lastEpisode_ = self._i_
 
     def getEpisode(self, device = DEVICE_DEFT):
         if self._lastEpisode_ == 0:
@@ -245,7 +252,7 @@ class dqnMemory(simpleMemory):
 
     def createSample(self, genSample, device):
         sample = super().createSample(genSample, device)
-        sample['observation'] = array2Tensor(sample['frame'], device, grad=True, batch=True).div(255)
+        sample['observation'] = array2Tensor(sample['frame'], device, batch=True).div(255)
         sample['next_observation'] = array2Tensor(sample['next_frame'], device, batch=True).div(255)
         sample['action'] = list2Tensor(sample['action'], device, torch.int64)
         return sample

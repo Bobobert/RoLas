@@ -11,7 +11,7 @@ def simpleActionProc(action, discrete):
     if discrete and isItem(action):
         action = action.item()
     else:
-        action = action.to(DEVICE_DEFT).squeeze().numpy()
+        action = action.to(DEVICE_DEFT).squeeze(0).numpy()
     return action
 
 class BaseNet(nn.Module):
@@ -50,7 +50,7 @@ class Value(BaseNet):
         super(Value,self).__init__()
         self.discrete = False
 
-    def getValue(self, x, action = None):
+    def getValue(self, x, action):
         with no_grad():
             value = self.forward(x)
         return value.item()
@@ -97,10 +97,45 @@ class Actor(BaseNet):
 
     def getDist(self, x):
         """
-        From the actorForward, returns the corresponding pytorch distributions object to 
-        sample the action from and to return .log_prob()
+        From the actorForward, returns the corresponding pytorch distributions object
+        which can be used to sample actions and their probabilities.
+
+        parameters
+        ----------
+        - x: Tensor
+
+        returns
+        --------
+        torch Distribution
         """
         raise NotImplementedError
+
+    def processDist(self, params, actions):
+        """
+        More methods.. why not?!
+        As some distributions treat diffently the tensor of actions, the results
+        from log_probs() can be not as expected, resulting in a greater loss (when using policy grad).
+
+        This is a method to treat the action batch for that the distribution output
+        is a expected, i.e. [N, actions_sampled]. Eg. a batch of 10 actions from a 
+        two normal dist should ouput a log_prob().shape = entropy().shape = [10, 2]. 
+
+        Do not use no_grad() inside.
+
+        parameters
+        ----------
+        - params: tensor
+            The output of the actor network
+        - actions: tensor
+            Batch of actions, first dimension must match the params one.
+            To be treated in the method.
+
+        returns
+        -------
+        - log_probs: Tensor
+        - entropies: Tensor
+        """
+        raise NotImplemented
 
     def processAction(self, action):
         """
@@ -178,7 +213,7 @@ class ActorCritic(Actor):
 
         return values, raw_actor
     
-    def getValue(self, x, action = None):
+    def getValue(self, x, action):
         """
         Form a tensor observation returns the value approximation 
         for it with no_grad operation.
@@ -193,7 +228,7 @@ class ActorCritic(Actor):
         """
         return self.valueForward(self.sharedForward(observations))
 
-### Functions to create easier networks
+### Functions to create easier networks ###
 
 def assertAttr(net: BaseNet, target: str, new: list):
     if targetIn:= getattr(net, target, False):

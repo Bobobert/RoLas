@@ -100,11 +100,10 @@ def loadConfig(expDir: Path) -> dict:
     return config
 
 def timeToStop(results, expected = None):
-    tock = time.time()
+    tock, stop = time.time(), False
     diff = tock - results["time_start"]
     results["time_elapsed"] = diff
     results["time_execution"] += [timeFormatedS()]
-    stop = False
     if expected is not None:
         stop = True if (diff // 60) >= expected else False
     return results, stop

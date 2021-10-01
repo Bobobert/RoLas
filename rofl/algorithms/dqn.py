@@ -83,9 +83,10 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
                 results, trainResults, stop = testEvaluation(config, agent, trainResults)
                 I.write('Test results {}'.format(results))
                 # Check the saver status
-                if not stop:
+                if stop == '':
                     saver.check(results)
                 else:
+                    I.write(stop)
                     saver.saveAll(results)
                     return trainResults
             

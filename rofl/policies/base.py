@@ -126,7 +126,7 @@ class Policy(ABC):
         """
         pass
 
-    def getValue(self, observation, action = None):
+    def getValue(self, observation, action):
         """
             Calculates from the actor object a value for a given observation repsentation, if possible.
             

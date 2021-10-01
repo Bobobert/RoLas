@@ -86,5 +86,21 @@ def isTerminalAtari(agent, info):
         done = True # marked as terminal but no reset required
     return done
 
-def inputFromGymSpace(config: dict):
+def inputFromGymSpace(config: dict) -> int:
     return multiplyIter(config['env']['observation_space'].shape)
+
+def outputFromGymSpace(config: dict) -> int:
+    aS = config['env']['action_space']
+    if hasattr(aS, 'n'): # probing Discrete
+        return getattr(aS, 'n')
+    return multiplyIter(aS.shape) # Assuming Box
+
+def reduceBatch(batch, op = Tsum):
+    shape = batch.shape
+    l = len(shape)
+    if l < 2:
+        return batch
+    if l == 2 and shape[1] == 1:
+        return batch.squeeze()
+    dims = [n for n, _ in enumerate(shape[1:], 1)]
+    return op(batch, dim = dims)

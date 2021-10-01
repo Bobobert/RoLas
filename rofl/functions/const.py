@@ -15,6 +15,7 @@ I_NDTYPE_DEFT = np.int32
 B_TDTYPE_DEFT = torch.bool
 B_NDTYPE_DEFT = np.bool_
 TENSOR = torch.Tensor
+TDIST = torch.distributions.distribution.Distribution
 ARRAY = np.ndarray
 Tdevice = torch.device
 

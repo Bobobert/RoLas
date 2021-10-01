@@ -2,7 +2,7 @@ from rofl import setUpExperiment
 
 envConfig = {
     'envMaker' : 'gymEnvMaker',
-    'name': 'CartPole-v1',
+    'name': 'LunarLanderContinuous-v2',
     'atari': False,
     'max_length': 500,
     'warmup' : None,
@@ -12,28 +12,30 @@ agentConfig = {
     'agentClass' : 'pgAgent',
     'memory_size' : 10**3,
     'gamma' : 0.99,
+    'nstep' : 20,
     }
 
 policyConfig = {
     'policyClass' : 'pgPolicy',
-    'n_actions' : 2,
-    'entropy_bonus' : 5e-3,
+    'continuos' : True,
+    'entropy_bonus' : 5e-2,
     'network' : {
         'networkClass' : 'gymActor',
-        'linear_hidden_1' : 32,
+        'linear_hidden_1' : 56,
         'learning_rate' : 5e-5,
     },
     'baseline' :{
         'networkClass' : 'gymBaseline',
-        'linear_hidden_1' : 32,
+        'linear_hidden_1' : 56,
         'learning_rate': 1e-4,
     }
 }
 
 trainConfig = {
-    'epochs' : 10**5,
-    'test_freq' : 10**3,
-    'expected_performance': 150,
+    'epochs' : 10**6,
+    'test_freq' : 5 * 10**3,
+    'expected_performance': 100,
+    'max_time' : 10,
 }
 
 expConfig = {

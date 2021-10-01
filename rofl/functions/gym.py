@@ -14,7 +14,8 @@ def noOpSample(env):
     elif isinstance(sample, float):
         return 0.0
     elif isinstance(sample, ARRAY):
-        return sample.fill(0.0)
+        sample.fill(0.0)
+        return sample
 
 def assertActionSpace(config):
     sus = config["env"].get("action_space")

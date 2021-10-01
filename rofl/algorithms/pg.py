@@ -13,6 +13,7 @@ baselineConf['batch_minibatches'] = 10
 algConfig = {
     "agent" :{
         "clip_reward" : 1.0,
+        'nstep' : -1,
     },
     "train" :{
         "batch_size" : -1,
@@ -21,7 +22,8 @@ algConfig = {
     },
     "policy" :{
         "entropy_bonus" : ENTROPY_LOSS,
-        "n_actions" : 18,
+        "n_actions" : None,
+        "continuos" : False,
         "max_div_kl" : MAX_DKL,
         "surrogate_epsilon" : EPS_SURROGATE,
         "loss_policy_const" : LOSS_POLICY_CONST,
@@ -63,9 +65,10 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
                 results, trainResults, stop = testEvaluation(config, agent, trainResults)
                 I.write("Test results {}".format(results))
                 # Stop condition
-                if not stop:
+                if stop == '':
                     saver.check(results)
                 else:
+                    I.write(stop)
                     saver.saveAll(results)
                     return trainResults
         saver.saveAll(results)

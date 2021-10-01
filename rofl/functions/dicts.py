@@ -35,16 +35,19 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
         zero = batchDicts[1] 
         templateDict, dtypes, shapes, zeroDevice = {}, {}, {}, zero["device"]
         for k in zero.keys():
+            if k == 'N' or k == 'device':
+                continue
             templateDict[k] = None
             item = zero[k]
             shapes[k] = item.shape if hasattr(item, 'shape') else None
             dtypes[k] = item.dtype if hasattr(item, 'dtype') else None
 
-        # Collecting N, checking ir device dispair
+        # Collecting N, checking any device dispair
         N, allSameDev = 0, True
         for d in batchDicts:
             N += d["N"]
             allSameDev *= d["device"] == zeroDevice
+        zeroDevice = zeroDevice if allSameDev else DEVICE_DEFT
 
         # Complete manager dict
         for k in templateDict.keys():
@@ -53,8 +56,9 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
             if type_ == ARRAY:
                 new = np.zeros((N, *shape), dtype = dtype)
             elif type_ == TENSOR:
-                new = torch.zeros((N, *shape), dtype = dtype,
-                                      device = zeroDevice if allSameDev else DEVICE_DEFT)
+                # TODO: check this behavior, is expecting any tensor come in batch form
+                # while array is not
+                new = torch.zeros((N, *shape[1:]), dtype = dtype, device = zeroDevice)
             elif type_ == List:
                 new = List()
             else:
@@ -65,10 +69,13 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
         m = 0
         for d in batchDicts:
             n = d["N"]
-            for k in d.keys():
-                ref, target= templateDict[k], d[k]
-                if isinstance(target, (TENSOR, ARRAY)):
-                    ref[m:m+n] = target # TODO; check how it behaves
+            for k in templateDict.keys():
+                ref, target = templateDict[k], d[k]
+                if isinstance(target, ARRAY):
+                    ref[m:m+n] = target
+                elif isinstance(target, TENSOR):
+                    target.to(zeroDevice) if not allSameDev else None
+                    ref[m:m+n] = target
                 elif isinstance(target, List):
                     for i in target:
                         ref.append(i)
@@ -77,7 +84,8 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
                 else:
                     ref.append(target)
             m += n
-        templateDict["device"] = zeroDevice if allSameDev else DEVICE_DEFT
+        assert N == m, 'Houston, something went wrong with this batch! expected %d samples but got %d' % (N, m)
+        templateDict["device"] = zeroDevice
         templateDict["N"] = N
         return dev2devDict(templateDict, targetDevice)
     else:
@@ -96,5 +104,4 @@ def dev2devDict(infoDict: dict, targetDevice):
 def addBootstrapArg(obsDict: dict):
     obsDict['advantage'] = 0.0
     obsDict['bootstrapping'] = 0.0
-    obsDict['return'] = obsDict['reward']
     return obsDict

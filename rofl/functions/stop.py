@@ -51,4 +51,13 @@ def testEvaluation(config, agent, trainResults = None):
     maxPerformance = config["train"].get("max_performance", None)
     if maxPerformance is not None:
         stopPerM = True if results["max_return"] >= maxPerformance else False
-    return results, trainResults, (stopTime or stopPerE or stopPerM)
+
+    stopTxt = ''
+    endTxt = ' reached after test. Ending the loop . . . '
+    if stopTime:
+        stopTxt += 'Max time%s' % endTxt
+    if stopPerE:
+        stopTxt += 'Expected performance%s' % endTxt
+    if stopPerM:
+        stopTxt += 'Maximum performance%s' % endTxt
+    return results, trainResults, stopTxt
