@@ -1,6 +1,6 @@
-from typing import Tuple
 from rofl.functions.const import *
-from rofl.functions.functions import multiplyIter, nn, no_grad, sqrConvDim
+from typing import Tuple
+from rofl.functions.functions import multiplyIter, nn, sqrConvDim
 
 def isItem(T):
     if T.squeeze().shape == ():
@@ -44,49 +44,80 @@ class BaseNet(nn.Module):
 class Value(BaseNet):
     """
     Class design to manage a observation value function only
+
+    methods
+    -------
+    - getValue: float or int
+        From a pair observation and action, this net should output
+        a single value. Action may not be required in the process.
+
     """
     name = "Value Base"
     def __init__(self):
         super(Value,self).__init__()
         self.discrete = False
-
-    def getValue(self, x, action):
-        with no_grad():
-            value = self.forward(x)
+    
+    def getValue(self, observation, action):
+        value = self.forward(observation)
         return value.item()
 
 class QValue(BaseNet):
     """
     Class design to manage an action-value function
+
+    methods
+    -------
+    - getValue:
+        From a pair observation and action, this net should output
+        a single value. Action may not be required in the process.
+    - processAction:
+        The output of the net could represent something different from
+        what the problems needs, as this could be a great order of difference
+        is up to the network to output a proper action, instead of a env wrapper
+        to translate it.
+    - getAction:
+        From a single observation outputs a single action.
     """
     name = "QValue Base"
     def __init__(self):
         super(QValue, self).__init__()
         self.discrete = True
         
-    def processAction(self, action):
-        return simpleActionProc(action, self.discrete)
-
-    def getQValues(self, observation):
-        with no_grad():
-            return self.forward(observation)
-
     def getValue(self, observation, action):
         assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
-        return self.getQValues(observation)[action].item()
+        return self.forward(observation)[action].item()
+        
+    def processAction(self, action):
+        return simpleActionProc(action, self.discrete)
 
     def getAction(self, observation):
         """
         Returns the max action from the Q network. Actions
         must be from 0 to n. That would be the network output
         """
-        max_a = self.getQValues(observation).argmax(1)
-
+        max_a = self.forward(observation).argmax(1)
         return self.processAction(max_a)
 
 class Actor(BaseNet):
     """
     Class design to manage an actor only network
+
+    methods
+    -------
+    - onlyActor: forward for the all the part of the architecture
+        needed only to output an action
+    - getDist: from a series of parameters, creates a distribution
+        corresponding to the type of stochastic actor.
+    - processDist: Needed to make easier policies, each type of actor
+        should be capable of create, sample and process log prob and 
+        entropies from its dristribution type.
+    - processAction:
+        The output of the net could represent something different from
+        what the problems needs, as this could be a great order of difference
+        is up to the network to output a proper action, instead of a env wrapper
+        to translate it.
+    - getAction:
+        From a single observation outputs a single action.
     """
     name = "Actor Base"
     def __init__(self):
@@ -95,14 +126,14 @@ class Actor(BaseNet):
     def onlyActor(self, observation):
         return self.forward(observation)
 
-    def getDist(self, x):
+    def getDist(self, params):
         """
         From the actorForward, returns the corresponding pytorch distributions object
         which can be used to sample actions and their probabilities.
 
         parameters
         ----------
-        - x: Tensor
+        - params: Tensor
 
         returns
         --------
@@ -152,81 +183,109 @@ class Actor(BaseNet):
         -------
         action
         """
-        with no_grad():
-            dist = self.getDist(self.onlyActor(observation))
-            action = dist.sample()
-        return self.processAction(action)
-        
-    def sampleAction(self, params):
-        """
-        Creates, samples and returns the action and log_prob for it
-
-        parameters
-        ----------
-        params:
-            Raw output logits from the network
-
-        returns
-        action, log_prob, entropy
-        """
-        dist = self.getDist(params)
+        dist = self.getDist(self.onlyActor(observation))
         action = dist.sample()
-        log_prob, entropy = dist.log_prob(action), dist.entropy()
-        return action, log_prob, entropy
+        return self.processAction(action)
 
 class ActorCritic(Actor):
     """
-    Class design to host both actor and critic for those architectures when a start 
-    part is shared like a feature extraction from a CNN as for DQN-Atari.
+    Class design to host both actor and critic for those architectures 
+    when a start part is shared, eg. feature extraction from a CNN.
+
+    methods
+    -------
+    - sharedForward: 
+        If there is a shared part of the architecture between the actor and the critic
+        should be declared here how.
+    - valueForward:
+        Exclusive parts for the critic to output values.
+    - actorForward:
+        Exclusive parts for the actor to output parameters to create
+        a distribution.
+    - onlyActor: forward for all the parts of the architecture
+        needed only to output an action
+    - onlyValue : forwad for all the parts of the arch needed only
+        to ouput a value from the critic.
+    - getDist: from a series of parameters, creates a distribution
+        corresponding to the type of stochastic actor.
+    - processDist: Needed to make easier policies, each type of actor
+        should be capable of create, sample and process log prob and 
+        entropies from its dristribution type.
+    - processAction:
+        The output of the net could represent something different from
+        what the problems needs, as this could be a great order of difference
+        is up to the network to output a proper action, instead of a env wrapper
+        to translate it.
+    - getAction:
+        From a single observation outputs a single action.
     """
     name = "Actor critic Base"
     def __init__(self):
         super(ActorCritic, self).__init__()
         
-    def sharedForward(self, x):
+    def sharedForward(self, observation):
         """
         From the observation, extracts the features. Recomended to return the 
         flatten tensor in batch form
+
+        returns
+        -------
+        - Tensor
         """
         raise NotImplementedError
 
-    def valueForward(self, x):
+    def valueForward(self, observation):
         """
         From the feature extraction. Calculates the value from said observation
+        
+        returns
+        --------
+        - values
         """
         raise NotImplementedError
 
-    def actorForward(self, x):
+    def actorForward(self, observation):
         """
         From the feature extraction. Calculates the raw output to represent the parameters
         for the actions distribution.
+
+        returns
+        --------
+        - parameters for dist
         """
         raise NotImplementedError
 
     def onlyActor(self, observation):
         return self.actorForward(self.sharedForward(observation))
 
-    def forward(self, x):
-        features = self.sharedForward(x)
+    def onlyValue(self, observations):
+        """
+            Returns raw values from the critic part of the network.
+        """
+        return self.valueForward(self.sharedForward(observations))
+
+    def forward(self, observation):
+        """
+        returns
+        --------
+        (values, params)
+
+        - values: Tensor of values from the critic
+        - params: Tensor of parameters for a distribution
+        """
+        features = self.sharedForward(observation)
         values = self.valueForward(features)
         raw_actor = self.actorForward(features.clone())
 
         return values, raw_actor
     
-    def getValue(self, x, action):
+    def getValue(self, observation, action):
         """
         Form a tensor observation returns the value approximation 
         for it with no_grad operation.
         """
-        with no_grad():
-            value = self.getValues(x)
+        value = self.onlyValue(observation)
         return value.item()
-
-    def getValues(self, observations):
-        """
-            Returns raw values from the critic part of the network.
-        """
-        return self.valueForward(self.sharedForward(observations))
 
 ### Functions to create easier networks ###
 
@@ -253,6 +312,7 @@ def construcLinear(net:BaseNet, inputs:int, outputs:int, *hiddenLayers, offset: 
         first = layer
     created.append(putLinear(net, first, outputs, i))
     assertAttr(net, '_layers_', created)
+    return created
 
 def putConv(net:BaseNet, channelIn: int, channelOut: int, i: int, kernel,
                 stride: int, padding: int, dilation: int):
@@ -276,7 +336,7 @@ def construcConv(net:BaseNet, shapeInput:Tuple[int, int],
             sqrConvDim(shapeOut[0], kW, stride, padding, dilation))
         first = outs
     assertAttr(net, '_convLayers_', created)
-    return multiplyIter(shapeOut) * channelIn * outs
+    return multiplyIter(shapeOut) * channelIn * outs, created
 
 def forwardLinear(net: BaseNet, x, offsetBeg: int = 0, offsetEnd: int = 0) -> TENSOR:
     '''

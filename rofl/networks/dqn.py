@@ -1,7 +1,7 @@
 from rofl.functions.functions import *
 from .base import QValue
 
-class dqnAtari(QValue):
+class dqnAtari(QValue): # TODO; update these
     """
     Policy network for DQN-Atari
 

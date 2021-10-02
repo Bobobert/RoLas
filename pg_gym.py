@@ -18,11 +18,12 @@ agentConfig = {
 policyConfig = {
     'policyClass' : 'pgPolicy',
     'continuos' : True,
-    'entropy_bonus' : 5e-2,
+    'entropy_bonus' : 5e-3,
     'network' : {
-        'networkClass' : 'gymActor',
+        'networkClass' : 'gymAC',
         'linear_hidden_1' : 56,
-        'learning_rate' : 5e-5,
+        'linear_hidden_2' : 32,
+        'learning_rate' : 1e-5,
     },
     'baseline' :{
         'networkClass' : 'gymBaseline',
@@ -30,12 +31,12 @@ policyConfig = {
         'learning_rate': 1e-4,
     }
 }
-
+policyConfig['baseline'] = None
 trainConfig = {
     'epochs' : 10**6,
     'test_freq' : 5 * 10**3,
     'expected_performance': 100,
-    'max_time' : 10,
+    'max_time' : 25,
 }
 
 expConfig = {

@@ -43,12 +43,12 @@ class dqnPolicy(Policy):
         throw = nprnd.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
 
-        self.lastNetOutput = self.actor.getQValues(state) if self.prioritized else None
+        self.lastNetOutput = self.actor(state) if self.prioritized else None
 
         if throw <= eps:
             return self.getRndAction()
         else:
-            output = self.lastNetOutput if self.prioritized else self.actor.getQValues(state)
+            output = self.lastNetOutput if self.prioritized else self.actor(state)
             return self.actor.processAction(output.argmax(1))
 
     def update(self, infoDict):

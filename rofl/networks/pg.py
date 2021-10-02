@@ -63,46 +63,54 @@ class gymBaseline(Value):
     def new(self):
         return gymBaseline(self.config)
 
-class gymAC(ActorCritic, gymActor):
+class gymAC(ActorCritic):
     name = 'simple gym actor critic'
     def __init__(self, config):
-        super().__init__(config)
-        
-
-class forestFireActorPG(Actor):
-    name = "forestFire_pg_actor"
-    discrete = True
-    def __init__(self, config):
-        # Same as forestFireDQNv2, but son of Actor, not qValue
-        super(forestFireActorPG, self).__init__()
+        super().__init__()
         self.config = config
+        continuos = config['policy']['continuos']
+        self.discrete = not continuos
+        self.noLinear = F.relu
 
-        lHist = config["agent"]["lhist"]
-        actions = config["policy"]["n_actions"]
-        obsShape = config["env"]["obs_shape"]
+        inputs = inputFromGymSpace(config)
+        outs = config["policy"]["n_actions"]
+        outs = outputFromGymSpace(config) if outs is None else outs
+        outs *= 2 if continuos else 1
+        hidden = layersFromConfig(config)['linear']
+        lastHidden, self._lLayers = hidden[-1], len(hidden)
+        construcLinear(self, inputs, lastHidden, *hidden[:-1])
+        [self.actLayer] = construcLinear(self, lastHidden, outs, offset = len(hidden))
+        [self.valLayer] = construcLinear(self, lastHidden, 1, offset = len(hidden) + 1)
 
-        self.rectifier = F.relu
+    def sharedForward(self, x):
+        return self.noLinear(forwardLinear(self, x, offsetEnd = 2))
 
-        self.cv1 = nn.Conv2d(lHist, lHist * 6, 5, 2)
-        dim = sqrConvDim(obsShape[0], 5, 2)
-        self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
-        dim = sqrConvDim(dim, 3, 1)
-        self.fc1 = nn.Linear(lHist * 12 * dim**2 + 2, 328)
-        self.fc2 = nn.Linear(328, actions) # from V1
-    
-    def forward(self, obs):
-        frame, pos = obs["frame"], obs["position"]
-        x = self.rectifier(self.cv1(frame))
-        x = self.rectifier(self.cv2(x))
-        x = Tcat([x.flatten(1), pos], dim=1)
-        x = self.rectifier(self.fc1(x))
-        return self.fc2(x)
+    def valueForward(self, x):
+        return self.valLayer(x)
 
-    def new(self):
-        return forestFireActorPG(self.config)
+    def actorForward(self, x):
+        return self.actLayer(x)
 
     def getDist(self, params):
-        return Categorical(logits = params)
+        if self.discrete:
+            return Categorical(logits = params)
+        else:
+            n = params.shape[-1] // 2 # TODO; expect always a flat paramas tensor!
+            return Normal(params[:,:n], Texp(params[:,n:]))
+
+    def processDist(self, params, actions):
+        if self.discrete:
+            actions = actions.squeeze() 
+            # Categorical applies a unsqueeze in the loop
+            # yee, that's what all of this is about...
+        dist = self.getDist(params)
+        log_probs = dist.log_prob(actions)
+        entropies = dist.entropy()
+        return log_probs, entropies
+
+    def new(self):
+        return gymAC(self.config)
+
 
 class ffActor(Actor):
 
@@ -121,7 +129,7 @@ class ffActor(Actor):
         self.noLinear = F.relu
 
         layers = layersFromConfig(config)
-        features = construcConv(self, obsShape, lHist, *layers['conv2d'])
+        features, _ = construcConv(self, obsShape, lHist, *layers['conv2d'])
         construcLinear(self, features, actions, *layers['linear'])
     
     def forward(self, obs):

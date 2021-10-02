@@ -51,13 +51,20 @@ def getTrainFun(config) -> _trainFun_:
 
 def createAgent(config, policy, envMaker, **kwargs) -> AgentType:
     import rofl.agents as agents
-    agentClass = getattr(agents, config['agent']['agentClass'])
+    targetClass = config['agent']['agentClass']
+    if hasattr(agents, targetClass):
+        agentClass = getattr(agents, targetClass)
+    else: # to avoid a recurrent call
+        import rofl.agents.multi as agents
+        agentClass = getattr(agents, targetClass)
     return agentClass(config, policy, envMaker, **kwargs)
 
 def createPolicy(config, actor, **kwargs) -> PolicyType:
     import rofl.policies as policies
-    c = config['policy']
-    policyClass = getattr(policies, config['policy']['policyClass'])
+    targetClass = config['policy']['policyClass']
+    if targetClass is None:
+        return None # None is also a policy :)
+    policyClass = getattr(policies, targetClass)
     policy = policyClass(config, actor, **kwargs)
     return policy
 
@@ -68,7 +75,7 @@ def getEnvMaker(config) -> _evnMaker_:
 
 def createNetwork(config:dict, key:str = 'network') -> Union[BaseNet, Value, QValue, Actor, ActorCritic]:
     """
-    Returns the desired network
+    Returns the desired network from the policy config
 
     parameters
     ----------
@@ -76,8 +83,8 @@ def createNetwork(config:dict, key:str = 'network') -> Union[BaseNet, Value, QVa
     - key: str
         'network', 'baseline' are options.
     """
-    import rofl.networks
-    nets = getattr(rofl.networks, config['algorithm'])
+    import rofl.networks as nets
+    #nets = getattr(rofl.networks, config['algorithm'])
     if key == 'actor': key = 'network'
     netClass = getattr(nets, config['policy'][key]['networkClass'])
     return netClass(config)

@@ -24,8 +24,6 @@ algConfig = {
         "entropy_bonus" : ENTROPY_LOSS,
         "n_actions" : None,
         "continuos" : False,
-        "max_div_kl" : MAX_DKL,
-        "surrogate_epsilon" : EPS_SURROGATE,
         "loss_policy_const" : LOSS_POLICY_CONST,
         "loss_value_const" : LOSS_VALUES_CONST,
         'evaluate_tb_freq' : 10**3,
@@ -52,6 +50,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     freqTest = config["train"]["test_freq"]
     epochs, stop = config["train"]["epochs"], False
     I = tqdm(range(epochs + 1), unit = "update", desc = "Training Policy")
+    
     try:
         ## Train loop
         for epoch in I:
@@ -69,10 +68,9 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
                     saver.check(results)
                 else:
                     I.write(stop)
-                    saver.saveAll(results)
-                    return trainResults
-        saver.saveAll(results)
-        return trainResults
+                    break
     except KeyboardInterrupt:
-        print("Keyboard termination. Saving all objects in Saver")
-        saver.saveAll(results)
+        print("Keyboard termination. . .")
+
+    saver.saveAll(results)
+    return trainResults

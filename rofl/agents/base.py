@@ -1,5 +1,5 @@
 from rofl.functions.const import *
-from rofl.functions.functions import np, torch, math, ceil
+from rofl.functions.functions import np, torch, no_grad, math, ceil
 from rofl.functions.torch import tryCopy
 from rofl.functions.dicts import obsDict
 from rofl.functions.gym import doWarmup, noOpSample
@@ -406,27 +406,15 @@ class Agent(ABC):
             -------
             obsDict
         """
-        stochastic = self.policy.stochastic
-
         if self.done:
             action = None
+        elif random:
+            action = self.rndAction()
         else:
             obs = self.lastObs
-            if random:
-                action = self.rndAction()
-            #elif stochastic: # TODO, is it best to pass those here? or better not to worry until needed.
-                #action, logProb, entropy = self.policy.sampleAction(obs)
-            else:
-                action = self.policy.getAction(obs)
-        obsDict = self.envStep(action)
-
-        #if stochastic:
-        #    if self._reseted:
-        #        dist = self.policy.getDist(obsDict['observation'])
-        #        logProb, entropy = dist.log_prob(obsDict['action']), dist.entropy()
-        #    obsDict['log_prob'], obsDict['entropy'] = logProb, entropy
-
-        return obsDict
+            #with no_grad():
+            action = self.policy.getAction(obs)
+        return self.envStep(action)
 
     def reset(self):
         """
@@ -493,7 +481,7 @@ class Agent(ABC):
         memory = self.memory
         if memory is None:
             if proportion > 1.0:
-                raise ValueError("Agent doesnt have a memory. One will be created but eventually the sample wont happen.")
+                raise ValueError("Agent doesnt have a previous memory, the sample wont happen.")
             from rofl.utils.memory import simpleMemory
             memory = simpleMemory(self.config).reset()
 
@@ -513,7 +501,7 @@ class Agent(ABC):
             -------
             obsDict
         """
-        memory = singlePathRollout(self, random = random)
+        memory = singlePathRollout(self, random = random, reset = True)
         return memory.getEpisode(self.device)
 
     def __repr__(self):

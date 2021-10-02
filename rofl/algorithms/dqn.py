@@ -70,6 +70,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     p = miniBatchSize / stepsPerEpoch
     epochs, stop = config['train']['epochs'], False
     I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
+
     try:
     ## Train loop
         for epoch in I:
@@ -87,12 +88,10 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
                     saver.check(results)
                 else:
                     I.write(stop)
-                    saver.saveAll(results)
-                    return trainResults
-            
-        saver.saveAll(results)
-        return trainResults
+                    break
     except KeyboardInterrupt:
-        print("Keyboard termination. Saving all objects in Saver")
-        saver.saveAll(results)
+        print("Keyboard termination . . .")
+        
+    saver.saveAll(results)
+    return trainResults
         

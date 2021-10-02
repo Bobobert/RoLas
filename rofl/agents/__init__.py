@@ -1,5 +1,4 @@
 from rofl.agents.base import Agent
-from rofl.agents.multi import agentMaster
 from rofl.agents.dqn import dqnAtariAgent
 from rofl.agents.pg import pgAgent
 

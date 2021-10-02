@@ -53,6 +53,7 @@ class pgPolicy(Policy):
     def update(self, batchDict):
         observations, actions, returns = batchDict['observation'], batchDict['action'], batchDict['return']
         self.batchUpdate(observations, actions, returns) # TODO, a minibatch generator to slip large batches
+        del batchDict
 
     def batchUpdate(self, observations, actions, returns):
         if self.baseline is None:
@@ -66,12 +67,12 @@ class pgPolicy(Policy):
         log_probs, entropy = self.actor.processDist(params, actions)
         log_probs = reduceBatch(log_probs)
 
-        _F = Tmean
+        _F, _FBl = Tmean, F.mse_loss
         advantages = returns - baselines.detach()
         lossPolicy = Tmul(log_probs, advantages.squeeze())
         lossPolicy = _F(lossPolicy)
         lossEntropy = _F(entropy)
-        lossBaseline = F.mse_loss(baselines, returns) if self.actorHasCritic else torch.zeros((), device=self.device)
+        lossBaseline = _FBl(baselines, returns) if self.actorHasCritic else torch.zeros((), device=self.device)
 
         loss = self.lossPolicyC * lossPolicy + self.entropyBonus * lossEntropy + self.lossValueC * lossBaseline
         self.optimizer.zero_grad()
@@ -81,7 +82,7 @@ class pgPolicy(Policy):
         self.optimizer.step()
 
         if self.baseline is not None and not self.actorHasCritic:
-            lossB = F.mse_loss(baselines, returns)
+            lossB = _FBl(baselines, returns)
             self.optimizerBl.zero_grad()
             lossB.backward()
             self.optimizerBl.step()

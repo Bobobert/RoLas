@@ -18,15 +18,12 @@ class Policy(ABC):
     - getAction: returns the action corresponding
         to the observation given
     - getActions: batch mode for getAction()
-    - exploreAgenda: means to manage the exploration of the policy for the
+    - explorationAgenda: means to manage the exploration of the policy for the
         getAction method 
     - getRndAction: returns a random action. Defaults uses an agent's
         rndAction() as rndFunc
     - getValue: if possible, will return the value for a observation or
         pair observation-action
-    - sampleAction: returns the action, probability, and entropy
-        from the action's distribution for actor based policies
-    - getDistr: returns a distrubution given an observation.
     - update: Depending the type of policy updates itself.
         Inputs must be always dictionaries containing the update's
         information or material for approximations
@@ -49,7 +46,7 @@ class Policy(ABC):
         self.discrete, self._test = None, False
         self.exploratory, self.epoch = None, 0
         self.rndFunc, self.valueBased = None, None
-        self.stochastic, self._nn =  False, False
+        self.stochastic, self._nn, self._sharedNN =  False, False, False
 
         if self.name == "BasePolicy":
             raise ValueError("New agent should be called different to BasePolicy")
@@ -119,7 +116,7 @@ class Policy(ABC):
             raise NotImplementedError
         return self.rndFunc()
 
-    def exploreAgenda(self, observation, **kwargs):
+    def explorationAgenda(self, observation, **kwargs):
         """
             Intended to be invoked in getAction method, to manage the
             exploration agenda
@@ -137,28 +134,6 @@ class Policy(ABC):
         if self.valueBased:
             return self.actor.getValue(observation, action)
         raise TypeError("{} is not value based, thus cannot calculate any value".format(self.name))
-
-    def sampleAction(self, observation):
-        """
-            Return the raw action, log_prob and entropy
-            from the action's distribution of the actor
-            network.
-        """
-        if self.stochastic:
-            with no_grad():
-                params = self.actor(observation)
-            return self.actor.sampleAction(params)
-        raise TypeError("{} does not have an Actor type as .actor".format(self.name))
-
-    def getDist(self, observation):
-        """
-            Returns the corresponding distribution given the observation.
-        """
-        if self.stochastic:
-            with no_grad():
-                params = self.actor.onlyActor(observation)
-            return self.actor.getDist(params)
-        raise TypeError("{} does not have an Actor type as .actor".format(self.name))
         
     def update(self, batchDict):
         """
@@ -257,6 +232,11 @@ class Policy(ABC):
     def train(self, flag: bool):
         self.test = not flag
 
+    def shareMem(self):
+        if self._nn and self.device == DEVICE_DEFT:
+            self._sharedMem = True
+            self.actor.share_memory()
+
     def _evalTBWActor_(self):
         if self.evalMeanGrad:
             self.tbw.add_scalar("train/mean grad",  meanGrad(self.actor), self.epoch)
@@ -273,14 +253,20 @@ class dummyPolicy(Policy):
         ----------
         noOp: from a noOpSample of the target environment
     """
-    name, discrete, valueBased = "DummyPlug", True, False
-    config = {}
+    name= "DummyPlug"
     def __init__(self, noOp):
-        super().__init__()
         self.noop = noOp
+        self.discrete = True
+        self.valueBased = False
+        self.stochastic = False
+        self.config = {}
+        self._test = False
 
     def getAction(self, observation):
         return self.noop
+
+    def getActions(self, batchDict):
+        return super().getActions(batchDict)
 
     @property
     def device(self):
