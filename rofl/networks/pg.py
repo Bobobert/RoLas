@@ -9,8 +9,7 @@ class gymActor(Actor):
     name = "simple gym actor"
 
     def __init__(self, config):
-        super().__init__()
-        self.config = config
+        super().__init__(config)
         continuos = config['policy']['continuos']
         self.discrete = not continuos
         self.noLinear = F.relu
@@ -42,15 +41,11 @@ class gymActor(Actor):
         entropies = dist.entropy()
         return log_probs, entropies
 
-    def new(self):
-        return gymActor(self.config)
-
 class gymBaseline(Value):
     name = "simple baseline"
 
     def __init__(self, config):
-        super().__init__()
-        self.config = config
+        super().__init__(config)
         self.noLinear = F.relu
 
         inputs = inputFromGymSpace(config)
@@ -60,14 +55,10 @@ class gymBaseline(Value):
     def forward(self, obs):
         return forwardLinear(self, obs)
 
-    def new(self):
-        return gymBaseline(self.config)
-
 class gymAC(ActorCritic):
     name = 'simple gym actor critic'
     def __init__(self, config):
-        super().__init__()
-        self.config = config
+        super().__init__(config)
         continuos = config['policy']['continuos']
         self.discrete = not continuos
         self.noLinear = F.relu
@@ -108,17 +99,12 @@ class gymAC(ActorCritic):
         entropies = dist.entropy()
         return log_probs, entropies
 
-    def new(self):
-        return gymAC(self.config)
-
-
 class ffActor(Actor):
 
     name = "ff actor"
 
     def __init__(self, config):
-        super(ffActor, self).__init__()
-        self.config = config
+        super(ffActor, self).__init__(config)
         self.discrete = True
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
@@ -141,8 +127,7 @@ class ffActor(Actor):
     def getDist(self, params):
         return Categorical(logits = params)
 
-    def new(self):
-        return ffActor(self.config)
+## TO BE DELETED ### TODO
 
 class ffActorOld(Actor):
     h0 = 328
@@ -182,9 +167,6 @@ class ffActorOld(Actor):
     def getDist(self, params):
         return Categorical(logits = params)
 
-    def new(self):
-        return ffActor(self.config)
-
 class ffBaseline(Value):
     h0 = 328
     name = "ff_baseline_channel"
@@ -220,8 +202,6 @@ class ffBaseline(Value):
         x = self.rectifier(self.fc1(x))
         return self.fc2(x)
 
-    def new(self):
-        return ffBaseline(self.config)
 
 class forestFireBaseline(Value):
     name = "forestFire_baseline"
@@ -249,6 +229,3 @@ class forestFireBaseline(Value):
         x = Tcat([x.flatten(1), pos], dim=1)
         x = self.rectifier(self.fc1(x))
         return self.fc2(x)
-
-    def new(self):
-        return forestFireBaseline(self.config)

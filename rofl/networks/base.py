@@ -1,6 +1,7 @@
 from rofl.functions.const import *
 from typing import Tuple
 from rofl.functions.functions import multiplyIter, nn, sqrConvDim
+from rofl.functions.torch import newNet
 
 def isItem(T):
     if T.squeeze().shape == ():
@@ -20,20 +21,27 @@ class BaseNet(nn.Module):
     It has the following to configure:
     - discrete
     - name
+    - config
     - device
     """
     name = "BaseNet"
-    
-    def __init__(self):
+
+    def __init__(self, config):
         self.discrete, self.__dvc__ = True, None
+        self.config = config
         super(BaseNet, self).__init__()
 
     def new(self):
         """
-        This method must return the same architecture when called from a 
-        already given network.
+        Returns a new instance of the class network with
+        the actual stored config dictionary. If changes need to be
+        made, use function newNet from a different config.
+
+        returns
+        -------
+        new instance of network
         """
-        raise NotImplementedError
+        return newNet(self, self.config)
 
     @property
     def device(self):
@@ -53,8 +61,8 @@ class Value(BaseNet):
 
     """
     name = "Value Base"
-    def __init__(self):
-        super(Value,self).__init__()
+    def __init__(self, config):
+        super().__init__(config)
         self.discrete = False
     
     def getValue(self, observation, action):
@@ -79,8 +87,8 @@ class QValue(BaseNet):
         From a single observation outputs a single action.
     """
     name = "QValue Base"
-    def __init__(self):
-        super(QValue, self).__init__()
+    def __init__(self, config):
+        super().__init__(config)
         self.discrete = True
         
     def getValue(self, observation, action):
@@ -120,8 +128,8 @@ class Actor(BaseNet):
         From a single observation outputs a single action.
     """
     name = "Actor Base"
-    def __init__(self):
-        super(Actor, self).__init__()
+    def __init__(self, config):
+        super().__init__(config)
 
     def onlyActor(self, observation):
         return self.forward(observation)
@@ -220,8 +228,8 @@ class ActorCritic(Actor):
         From a single observation outputs a single action.
     """
     name = "Actor critic Base"
-    def __init__(self):
-        super(ActorCritic, self).__init__()
+    def __init__(self, config):
+        super().__init__(config)
         
     def sharedForward(self, observation):
         """
@@ -326,7 +334,15 @@ def construcConv(net:BaseNet, shapeInput:Tuple[int, int],
     first, i, created = channelIn, 1 + offset, []
     shapeOut = shapeInput
     for layerTup in convDims:
-        outs, kernel, stride, padding, dilation = layerTup
+        lenTup = len(layerTup)
+        stride, padding, dilation = 1, 0, 1
+        outs, kernel = layerTup[0], layerTup[1]
+        if lenTup > 2:
+            stride = layerTup[2]
+        if lenTup > 3:
+            padding = layerTup[3]
+        if lenTup > 4:
+            dilation = layerTup[4]
         created.append(putConv(net, first, outs, i, kernel, stride, padding, dilation))
         i += 1
         kernelTuple = isinstance(kernel, tuple)
@@ -336,7 +352,7 @@ def construcConv(net:BaseNet, shapeInput:Tuple[int, int],
             sqrConvDim(shapeOut[0], kW, stride, padding, dilation))
         first = outs
     assertAttr(net, '_convLayers_', created)
-    return multiplyIter(shapeOut) * channelIn * outs, created
+    return multiplyIter(shapeOut) * outs, created
 
 def forwardLinear(net: BaseNet, x, offsetBeg: int = 0, offsetEnd: int = 0) -> TENSOR:
     '''
@@ -353,9 +369,8 @@ def forwardLinear(net: BaseNet, x, offsetBeg: int = 0, offsetEnd: int = 0) -> TE
 
 def forwardConv(net: BaseNet, x, offsetBeg: int = 0, offsetEnd: int = 0) -> TENSOR:
     layers, noLinear = net._convLayers_, net.noLinear
-    for n in range(offsetBeg, len(layers) - 1 - offsetEnd):
+    for n in range(offsetBeg, len(layers) - offsetEnd):
         x = noLinear(layers[n](x))
-    x = layers[-1 - offsetEnd](x)
     return x
 
 def layersFromConfig(config: dict, key: str = 'network'):
@@ -363,9 +378,10 @@ def layersFromConfig(config: dict, key: str = 'network'):
         Using x for any positive integer.
 
         Expecting configurations as following:
-        - linear layers: 'linear_hidden_x' -> int,
+        - linear layers: 'linear_x' -> int,
             size of the nodes for that hidden fully connected layer. 
-        - convolutional 2d layers: 'conv2d_layer_x' -> (channels_out, kernel, stride, padding, dilation)
+        - convolutional 2d layers: 'conv2d_layer_x' -> 
+        (channels_out, kernel, stride, padding, dilation)
         -
     """
     import re
@@ -373,10 +389,14 @@ def layersFromConfig(config: dict, key: str = 'network'):
     hiddenFC, convLayers = [], []
     # just for linear and convs
     for k in netConfig.keys():
-        if re.fullmatch('linear_hidden_\d+', k):
-            hiddenFC.append((int(k[14:]), netConfig[k], k))
-        elif re.fullmatch('conv2d_layer_\d+', k):
-            convLayers.append((int(k[13:]), netConfig[k], k))
+        if re.fullmatch('linear_\d+', k):
+            hiddenFC.append((int(k[7:]), netConfig[k], k))
+        elif re.fullmatch('conv2d_\d+', k):
+            layerConfig = netConfig[k]
+            lC = len(layerConfig)
+            if len(layerConfig) < 2:
+                raise ValueError('%s needs to have at least channels and kernel'%k)
+            convLayers.append((int(k[7:]), layerConfig, k))
         # other cases in here
     assertLayers(hiddenFC)
     assertLayers(convLayers)

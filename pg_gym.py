@@ -12,7 +12,7 @@ agentConfig = {
     'agentClass' : 'pgAgent',
     'memory_size' : 10**3,
     'gamma' : 0.99,
-    'nstep' : 20,
+    'nstep' : 15,
     }
 
 policyConfig = {
@@ -21,17 +21,17 @@ policyConfig = {
     'entropy_bonus' : 5e-3,
     'network' : {
         'networkClass' : 'gymAC',
-        'linear_hidden_1' : 56,
-        'linear_hidden_2' : 32,
+        'linear_1' : 56,
+        'linear_2' : 32,
         'learning_rate' : 1e-5,
     },
     'baseline' :{
         'networkClass' : 'gymBaseline',
-        'linear_hidden_1' : 56,
+        'linear_1' : 56,
         'learning_rate': 1e-4,
     }
 }
-policyConfig['baseline'] = None
+
 trainConfig = {
     'epochs' : 10**6,
     'test_freq' : 5 * 10**3,

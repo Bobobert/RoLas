@@ -29,8 +29,13 @@ def copyDictState(net, grad:bool = True):
         newSD[i] = t
     return newSD
 
+def newNet(net, config):
+    netClass = net.__class__
+    new = netClass(config)
+    return new
+
 def cloneNet(net):
-    new = net.new()
+    new = newNet(net, net.config)
     new.load_state_dict(copyDictState(net), strict = True)
     return new.to(net.device)
 
