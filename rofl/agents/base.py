@@ -216,8 +216,11 @@ class Agent(ABC):
                 if episodeLen > 0 and testSteps >= episodeLen:
                     testDone = True
                 ## Condition by max steps per test if valid. 
-                ## Can happen only if there is at least one result score
-                if testLen > 0 and totSteps >= testLen and totSteps != testSteps:
+                ## Can happen only if there is at least one result score, changed
+                if testLen > 0 and totSteps >= testLen:
+                    if totSteps == testSteps:
+                        print('Testing: Failed to complete an episode! Budget steps(%d) spent completely' % testLen)
+                        testReg = 1
                     stepsDone = True
                     break
                 obs = proc(nextObs)
@@ -252,15 +255,16 @@ class Agent(ABC):
             print("Test results mean Return: %.2f, mean Steps: %.2f, std Return: %.3f, std Steps: %.3f" % (\
                 meanAccReward, meanSteps, stdMean, stdMeanSteps))
         # Generating results
-        results = {"mean_return": meanAccReward,
-                "std_return": stdMean,
-                "mean_steps": meanSteps, 
-                "std_steps": stdMeanSteps,
-                "custom": self.reportCustomMetric(),
-                "max_return": maxReturn,
-                "min_return": minReturn,
-                }
-                
+        results = {
+            "mean_return": meanAccReward,
+            "std_return": stdMean,
+            "mean_steps": meanSteps, 
+            "std_steps": stdMeanSteps,
+            "custom": self.reportCustomMetric(),
+            "max_return": maxReturn,
+            "min_return": minReturn,
+            'tot_tests': testReg,
+            }
         self.testCalls += 1
         return results
 
@@ -492,7 +496,7 @@ class Agent(ABC):
             memory.add(self.fullStep(random = random))
         return memory.sample(size, device)
 
-    def getEpisode(self, random = False):
+    def getEpisode(self, random = False, device = None):
         """
             Develops or complete an entire episode in the environment.
             Calculates the returns of the steps with a episodicMemory.
@@ -502,7 +506,8 @@ class Agent(ABC):
             obsDict
         """
         memory = singlePathRollout(self, random = random, reset = True)
-        return memory.getEpisode(self.device)
+        device = device if device is not None else self.device
+        return memory.getEpisode(device = device)
 
     def __repr__(self):
         s = "Agent {}\nFor environment {}\n{}".format(self.name, 

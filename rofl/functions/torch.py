@@ -29,8 +29,10 @@ def copyDictState(net, grad:bool = True):
         newSD[i] = t
     return newSD
 
-def newNet(net, config):
+def newNet(net, config = {}):
     netClass = net.__class__
+    if config == {}:
+        config = net.config
     new = netClass(config)
     return new
 
@@ -75,8 +77,14 @@ def meanGrad(net):
     return Tmean(torch.tensor([Tmean(p.grad.detach()) for p in net.parameters()])).item()
 
 def zeroGrad(net):
-    for p in net.parameters():
-        p.grad = p.new_zeros(p.shape)
+    zeroGradParams(net.parameters())
+
+def zeroGradParams(parameters):
+    for p in parameters:
+        if p.grad is None:
+            p.grad = p.new_zeros(p.shape)
+        else:
+            p.grad.fill_(0)
 
 def noneGrad(net):
     for p in net.parameters():
@@ -182,6 +190,8 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'n
         FOpt = optim.SGD
     elif name == 'adagrad':
         FOpt = optim.Adagrad
+    elif name == 'dummy':
+        FOpt = dummyOptimizer
     else:
         print("Warning: {} is not a valid optimizer. {} was generated instead".format(name, OPTIMIZER_DEF))
         config['policy'][key]['optimizer'] = OPTIMIZER_DEF
@@ -190,3 +200,18 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'n
         return getOptimizer(config, network)
 
     return FOpt(network.parameters(), lr = lr, **config['policy'][key].get("optimizer_args", {}))
+
+class dummyOptimizer():
+    egg = 'Do nothing, receive everything (?)'
+
+    def __init__(self, parameters, lr = 0, **kwargs):
+        self.parameters = [p for p in parameters]
+
+    def __repr__(self) -> str:
+        return self.egg
+
+    def zero_grad(self):
+        zeroGradParams(self.parameters)
+
+    def step(self):
+        pass

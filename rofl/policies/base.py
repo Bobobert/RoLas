@@ -191,7 +191,16 @@ class Policy(ABC):
             -------
             policy
         """
-        raise NotImplementedError
+        policyClass = self.__class__
+        actor = self.actor
+        if actor is not None:
+            try:
+                newActor = actor.new()
+            except AttributeError:
+                print('Warning: %s couldnt create a new actor' % self)
+                newActor = None
+        new = policyClass(self.config, newActor)
+        return new
 
     def getActions(self, batchDict):
         """

@@ -1,4 +1,5 @@
 from rofl import setUpExperiment
+from rofl.functions.const import MINIBATCH_SIZE
 
 envConfig = {
     'envMaker' : 'gymEnvMaker',
@@ -9,24 +10,23 @@ envConfig = {
     }
 
 agentConfig = {
-    'agentClass' : 'pgAgent',
-    'memory_size' : 10**3,
     'gamma' : 0.99,
     'nstep' : 20,
+    'workers' : 8,
     }
 
 policyConfig = {
-    'policyClass' : 'pgPolicy',
     'continuos' : True,
+    'minibatch_size' : MINIBATCH_SIZE,
     'entropy_bonus' : 5e-3,
     'network' : {
-        'networkClass' : 'gymActor',
+        'networkClass' : 'gymAC',
         'linear_1' : 56,
         'linear_2' : 32,
         'learning_rate' : 1e-5,
     },
     'baseline' :{
-        'networkClass' : 'gymBaseline',
+        'networkClass' : None,#'gymBaseline',
         'linear_1' : 56,
         'linear_2' : 32,
         'learning_rate': 1e-5,
@@ -48,7 +48,7 @@ expConfig = {
 }
 
 if __name__ == '__main__':
-    config, agent, policy, train, manager = setUpExperiment('pg', expConfig, dummyManager = True, cuda = False)
+    config, agent, policy, train, manager = setUpExperiment('a2c', expConfig, dummyManager = True, cuda = False)
     train(config, agent, policy, saver = manager.startSaver())
     agent.close()
     manager.close()

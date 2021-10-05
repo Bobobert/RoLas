@@ -20,7 +20,7 @@ train = {
 
 network = {
     'networkClass' : None,
-    'size_hidden_1' : 512,
+    'linear_1' : 512,
     'optimizer' : OPTIMIZER_DEF,
     'learning_rate' : OPTIMIZER_LR_DEF,
     'optimizer_args' : {},

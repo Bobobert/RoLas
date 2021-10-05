@@ -11,6 +11,7 @@
 
 """
 
+from rofl.functions.functions import combDeviations
 from .const import *
 
 def obsDict(obs, action, reward, step, done, info = {}, **kwargs) -> dict:
@@ -105,3 +106,32 @@ def addBootstrapArg(obsDict: dict):
     obsDict['advantage'] = 0.0
     obsDict['bootstrapping'] = 0.0
     return obsDict
+
+def mergeResults(*dicts):
+    mR, sR, mS, sS, N = 0, 0, 0, 0, 0
+    mC, maxR, minR = 0, -np.inf, np.inf
+    for d in dicts:
+        t = d['tot_tests']
+        mR, sR = combDeviations(mR, d['mean_return'], N, t, sR, d['std_return'])
+        mS, sS = combDeviations(mS, d['mean_steps'], N, t, sS, d['std_steps'])
+        mC = d['custom']
+        N += t
+        maxD, minD = d['max_return'], d['min_return']
+        if maxD > maxR:
+            maxR = maxD
+        if minD < minR:
+            minR = minD
+
+    results = {
+        'mean_return': mR,
+        'std_return': sR,
+        'mean_steps': mS,
+        'std_steps': sS,
+        'custom': mC,
+        'max_return': maxR,
+        'min_return': minR,
+        'tot_tests' : N,
+    }
+
+    return results
+    

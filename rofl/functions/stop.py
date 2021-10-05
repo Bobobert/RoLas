@@ -11,6 +11,7 @@ def initResultDict():
             "time_execution": [],
             "max_return": [],
             "min_return": [],
+            "tot_tests": []
             }
 
 def testEvaluation(config, agent, trainResults = None):

@@ -12,7 +12,7 @@ envConfig = {
 agentConfig = {
     'agentClass' : 'dqnAtariAgent',
     'lhist' : 5,
-    'memory_size' : 7 * 10**5, # around 22GB of ram using CUDA
+    'memory_size' : 5 * 10**5, # around 22GB of ram using CUDA
     }
 policyConfig = {
     'policyClass' : 'dqnPolicy',
@@ -29,11 +29,11 @@ policyConfig = {
     },
 }
 trainConfig = {
-    'epochs' : 2 * 10**6,
-    'fill_memory' : 10**2,
+    'epochs' : 10**6,
+    'fill_memory' : 10**5,
     'test_freq' : 5 * 10**4,
     'max_steps_per_test' : 10**4,
-    'expected_perfomance' : 100,
+    'max_time' : 100,
 }
 expConfig = {
     'agent' : agentConfig,

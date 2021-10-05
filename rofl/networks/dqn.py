@@ -60,7 +60,7 @@ class forestFireDQNVanilla(QValue):
         super(forestFireDQNVanilla, self).__init__()
         # Variables
         obsShape = config["env"]["obs_shape"]
-        h0 = config["policy"]['network'].get("size_hidden_1", 512)
+        h0 = config["policy"]['network'].get("linear_1", 512)
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         self.config= config
@@ -98,7 +98,7 @@ class forestFireDQN(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config["policy"]['network'].get("size_hidden_1", 328)
+        h0 = config["policy"]['network'].get("linear_1", 328)
         self.config= config
 
         self.lHist = lHist
@@ -124,7 +124,7 @@ class forestFireDQNv2(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config["policy"]['network'].get("size_hidden_1", 328)
+        h0 = config["policy"]['network'].get("linear_1", 328)
         self.config= config
 
         self.lHist = lHist
@@ -153,7 +153,7 @@ class forestFireDQNv3(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config["policy"]['network'].get("size_hidden_1", 328)
+        h0 = config["policy"]['network'].get("linear_1", 328)
         self.config= config
 
         self.lHist = lHist
@@ -226,7 +226,7 @@ class forestFireDuelingDQN(QValue):
         lHist = config["agent"]["lhist"]
         actions = config["policy"]["n_actions"]
         obsShape = config["env"]["obs_shape"]
-        h0 = config["policy"]['network'].get("size_hidden_1", 328)
+        h0 = config["policy"]['network'].get("linear_1", 328)
         self.config= config
 
         self.lHist = lHist

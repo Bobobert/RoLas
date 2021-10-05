@@ -3,8 +3,7 @@
 """
 from typing import List, Tuple, Type, Union
 from rofl.utils import Saver
-from rofl.agents.base import Agent as AgentType
-from rofl.policies.base import Policy as PolicyType
+from rofl.config.types import AgentType, PolicyType
 from rofl.networks.base import BaseNet, QValue, Value, Actor, ActorCritic
 from gym import Env
 

@@ -1,6 +1,9 @@
+from rofl.config.config import createPolicy
+from rofl.functions.torch import newNet
 from .base import Agent
 from rofl.functions.const import *
-from rofl.functions.dicts import mergeDicts
+from rofl.functions.functions import ceil
+from rofl.functions.dicts import mergeDicts, mergeResults
 import ray
 
 # Status Flags
@@ -91,33 +94,46 @@ class Worker:
         return self.worker
 
 class agentMaster():
-    
-    def __init__(self, config, policy, envMaker, agentClass, **kwargs):
+    name = 'Agent Master v0'
 
-        #self.mainAgent = agentClass(config, policy, envMaker, **kwargs)
+    def __init__(self, config, policy, envMaker, **kwargs):
+
         self.policy = policy
         self.config = config
 
-        nags = config["agent"].get("workers", NCPUS)
-        nags += 1 if nags == 1 else 0
-        self._nAgents = nags = NCPUS if nags > NCPUS or nags < 1 else nags
+        self.tbw = kwargs.get('tbw')
+        self.testCalls = 0
 
-        ray.init(num_cpus = nags)
+        nWorkers = config["agent"].get("workers", NCPUS)
+        nWorkers += 1 if nWorkers == 1 else 0
+        self._nWorkers = nWorkers = NCPUS if nWorkers > NCPUS or nWorkers < 1 else nWorkers
+
+        import rofl.agents as agents
+        agentClass = getattr(agents, config['agent']['workerClass']) # should raise error when ill config
+        ray.init(num_cpus = nWorkers)
         ragnt = ray.remote(agentClass)
 
         self.workers = workers = dict()
         s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
-        for i in range(nags):
+        for i in range(nWorkers):
             nconfig, worker = config.copy(), Worker()
             workers[i] = worker
             nconfig["agent"]["id"] = worker.id = i
             nconfig["env"]["seedTrain"] = s1 + i + 1
             nconfig["env"]["seedTest"] = s2 + i + 1
-            worker.worker = ragnt.remote(nconfig, policy.new() if policy is not None else None, envMaker)
+            nconfig['policy']['policyClass'] = nconfig['policy']['workerPolicyClass']
+            if policy is not None:
+                workerPolicy = createPolicy(nconfig, newNet(policy.actor))
+            else:
+                workerPolicy = None
+            worker.worker = ragnt.remote(nconfig, workerPolicy, envMaker)
     
     @property
     def device(self):
-        return self.policy.device
+        if self.policy is not None:
+            return self.policy.device
+        else:
+            return DEVICE_DEFT
 
     def reset(self):
         for worker in self.workers.values():
@@ -141,9 +157,6 @@ class agentMaster():
         actions, ids = self.policy.getActions(self.lastObs)
         self.lastObs = obs = self.envStep(actions, ids)
         return obs
-
-    def getBatch(self, size: int, proportion: float = 1.0):
-        pass
 
     def listWorkers(self, timeout = 0):
         """
@@ -239,14 +252,18 @@ class agentMaster():
 
     def close(self):
         for w in self.workers.values():
+            w.ref = w().close.remote()
+        self.syncResolve()
+        for w in self.workers.values():
             del w.worker
         ray.shutdown()
 
+    def __repr__(self) -> str:
+        s = self.name + '. Working with %d workers' % len(self.workers)
+        return s
+
 class agentSync(agentMaster):
-    
-    @property
-    def device(self):
-        return self.policy.device
+    name = 'Agent master sync'
 
     def reset(self):
         for worker in self.workers.values():
@@ -259,13 +276,18 @@ class agentSync(agentMaster):
         for w in self.workers.values():
             w.ref = w().fullStep.remote()
         
-        return mergeDicts(*self.syncResolve, targetDevice = self.device)
+        return mergeDicts(*self.syncResolve(), targetDevice = self.device)
 
-    def getEpisodes(self):
+    def getEpisode(self, random: bool = False, device = None):
         for w in self.workers.values():
             w.ref = w().getEpisode.remote()
 
-        return mergeDicts(*self.syncResolve())
+        return self.syncResolve()
+        device = device if device is not None else self.device
+        return mergeDicts(*self.syncResolve(), targetDevice = device)
+
+    def getBatch(self, size: int, proportion: float = 1.0):
+        pass
 
     def sync(self, batch):
         self.policy.update(batch)
@@ -275,3 +297,31 @@ class agentSync(agentMaster):
             w.ref = w().loadState.remote(state)
         
         self.syncResolve()
+
+    def updateParams(self, piParams, blParams):
+        for w in self.workers.values():
+            w.ref = w().updateParams.remote(piParams, blParams)
+        
+        self.syncResolve()
+
+    def test(self, iters: int = TEST_N_DEFT, progBar: bool = False):
+        '''
+            From Agent base test method
+        '''
+        itersPerWorker = ceil(iters / self._nWorkers)
+        for w in self.workers.values():
+            w.ref = w().test.remote(itersPerWorker)
+
+        results = mergeResults(*self.syncResolve())
+
+        if self.tbw != None:
+            self.tbw.add_scalar("test/mean Return", results['mean_return'], self.testCalls)
+            self.tbw.add_scalar("test/mean Steps", results['mean_steps'], self.testCalls)
+            self.tbw.add_scalar("test/std Return", results['std_return'], self.testCalls)
+            self.tbw.add_scalar("test/std Steps", results['std_steps'], self.testCalls)
+            self.tbw.add_scalar("test/max Return", results['max_return'], self.testCalls)
+            self.tbw.add_scalar("test/min Return", results['min_return'], self.testCalls)
+            self.tbw.add_scalar("test/tests Achieved", results['tot_tests'], self.testCalls)
+        self.testCalls += 1
+
+        return results

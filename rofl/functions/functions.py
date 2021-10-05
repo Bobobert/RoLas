@@ -104,3 +104,15 @@ def reduceBatch(batch, op = Tsum):
         return batch.squeeze()
     dims = [n for n, _ in enumerate(shape[1:], 1)]
     return op(batch, dim = dims)
+
+def combDeviations(m1, m2, n1, n2, s1, s2):
+    '''
+        From: https://handbook-5-1.cochrane.org/chapter_7/table_7_7_a_formulae_for_combining_groups.htm
+    '''
+    Ns = n1 + n2
+    newMean = (m1 * n1 + m2 * n2) / Ns
+    aux1 = (n1 - 1) * s1**2
+    aux2 = (n2 - 1) * s2**2
+    aux3 = (m1**2 + m2**2 -2 * m1 * m2) * n1 * n2 / Ns
+    newStd = math.sqrt((aux1 + aux2 + aux3) / (Ns - 1))
+    return newMean, newStd
