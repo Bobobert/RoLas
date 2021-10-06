@@ -12,12 +12,12 @@ envConfig = {
 agentConfig = {
     'gamma' : 0.99,
     'nstep' : 20,
-    'workers' : 8,
+    'workers' : 3,
     }
 
 policyConfig = {
+    'shared_memory' : True,
     'continuos' : True,
-    'minibatch_size' : MINIBATCH_SIZE,
     'entropy_bonus' : 5e-3,
     'network' : {
         'networkClass' : 'gymAC',
@@ -34,7 +34,7 @@ policyConfig = {
 }
 
 trainConfig = {
-    'epochs' : 10**6,
+    'epochs' : 10**3,
     'test_freq' : 5 * 10**3,
     'expected_performance': 100,
     'max_time' : 30,

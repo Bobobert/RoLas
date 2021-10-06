@@ -1,5 +1,5 @@
 from rofl.config.config import createPolicy
-from rofl.functions.torch import newNet
+from rofl.functions.torch import cloneNet, newNet
 from .base import Agent
 from rofl.functions.const import *
 from rofl.functions.functions import ceil
@@ -107,11 +107,18 @@ class agentMaster():
         nWorkers = config["agent"].get("workers", NCPUS)
         nWorkers += 1 if nWorkers == 1 else 0
         self._nWorkers = nWorkers = NCPUS if nWorkers > NCPUS or nWorkers < 1 else nWorkers
+        self.actorIsShared = actorShared = config['policy']['shared_memory']
 
         import rofl.agents as agents
         agentClass = getattr(agents, config['agent']['workerClass']) # should raise error when ill config
         ray.init(num_cpus = nWorkers)
         ragnt = ray.remote(agentClass)
+
+        workerPolicy = None
+        nActor = actor = policy.actor
+        nBl = baseline = getattr(policy, 'baseline') if not getattr(policy, 'actorHasCritic', True) else None
+        if actorShared: actor.shareMemory()
+        if actorShared and baseline is not None: baseline.shareMemory()
 
         self.workers = workers = dict()
         s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
@@ -123,9 +130,10 @@ class agentMaster():
             nconfig["env"]["seedTest"] = s2 + i + 1
             nconfig['policy']['policyClass'] = nconfig['policy']['workerPolicyClass']
             if policy is not None:
-                workerPolicy = createPolicy(nconfig, newNet(policy.actor))
-            else:
-                workerPolicy = None
+                if not actorShared:
+                    nActor = cloneNet(actor)
+                    nBl = cloneNet(baseline) if baseline is not None else None
+                workerPolicy = createPolicy(nconfig, nActor, baseline = nBl)
             worker.worker = ragnt.remote(nconfig, workerPolicy, envMaker)
     
     @property
@@ -259,7 +267,7 @@ class agentMaster():
         ray.shutdown()
 
     def __repr__(self) -> str:
-        s = self.name + '. Working with %d workers' % len(self.workers)
+        s = self.name + ', with %d workers' % len(self.workers)
         return s
 
 class agentSync(agentMaster):
@@ -297,6 +305,12 @@ class agentSync(agentMaster):
             w.ref = w().loadState.remote(state)
         
         self.syncResolve()
+
+    def getParams(self):
+        for w in self.workers.values():
+            w.ref = w().getParams.remote()
+        
+        return self.syncResolve()
 
     def updateParams(self, piParams, blParams):
         for w in self.workers.values():

@@ -33,7 +33,9 @@ algConfig = {
         'entropy_bonus' : ENTROPY_LOSS,
         'n_actions' : None,
         'continuos' : False,
-        'clip_grad' : 5.0,
+        'shared_memory' : True,
+        'clip_grad' : 10.0,
+        'minibatch_size' : MINIBATCH_SIZE,
         'max_div_kl' : MAX_DKL,
         'surrogate_epsilon' : EPS_SURROGATE,
         'loss_policy_const' : LOSS_POLICY_CONST,
@@ -68,6 +70,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
             policy.update(*episodes)
             params = policy.getParams()
             agent.updateParams(*params)
+            #otherParams = agent.getParams()
             updateVar(config)
             # Check for test
             if epoch % freqTest == 0:

@@ -41,14 +41,37 @@ def cloneNet(net):
     new.load_state_dict(copyDictState(net), strict = True)
     return new.to(net.device)
 
+# from https://docs.ray.io/en/master/serialization.html
+# TODO; managing parameters from main policy in __main__ could be 
+# done efficiently if the parameters are saved as a list of numpy
+# then the update can be done with a 'zero copy read'
+# as the torch shared memory is futile with Ray! 
+# (seems that TENSOR is not consider native data type)
+
+def getListParams(net):
+    params = []
+    shared = getattr(net, 'isShared', False)
+    for p in net.parameters():
+        if not shared:
+            targetP = p.clone().detach_()
+        else:
+            targetP = p.data.numpy()# excludes grad
+        params.append(targetP)
+    return params
+
 def updateNet(net, targetLoad):
     #net.opParams = copyStateDict(net)
     if isinstance(targetLoad, dict):
         net.load_state_dict(targetLoad)
     elif isinstance(targetLoad, list):
+        shared = getattr(net, 'isShared', False)
         for p, pt in zip(targetLoad, net.parameters()):
             pt.requires_grad_(False) # This is a must to change the values properly
-            pt.copy_(p).detach_()
+            if not shared:
+                pt.copy_(p).detach_()
+            else:
+                # This should be used only when net.device is CPU
+                pt.data = torch.from_numpy(p)
             pt.requires_grad_(True)
 
 def getDictState(net, cpu:bool = True):
@@ -64,11 +87,19 @@ def getListState(net, cpu:bool = True):
         params += [p if not cpu else p.clone().to(DEVICE_DEFT)]
     return params
 
-def getListParams(net):
+def oldgetListParams(net):
     params = []
     for p in net.parameters():
         params += [p.clone().detach_()]
     return params
+
+def getParams(policy):
+    pi = policy.actor
+    baseline = getattr(policy, 'baseline')
+    isAC = getattr(policy, 'actorHasCritic', False)
+    piParams = getListParams(pi)
+    blParams = [] if baseline is None or isAC else getListParams(baseline)
+    return piParams, blParams
 
 def maxGrad(net):
     return max(p.grad.detach().abs().max() for p in net.parameters()).item()

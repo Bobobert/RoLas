@@ -1,4 +1,4 @@
-from rofl.functions.torch import accumulateGrad, getGradients, getListState, newNet, updateNet
+from rofl.functions.torch import accumulateGrad, getParams
 from rofl.policies.pg import pgPolicy
 
 class a2cPolicy(pgPolicy):
@@ -36,11 +36,7 @@ class a2cPolicy(pgPolicy):
         self.epoch += 1
     
     def getParams(self):
-        pi = self
-        piParams = getListState(pi.actor)
-        blParams = [] if pi.baseline is None else getListState(pi.baseline)
-
-        return piParams, blParams
+        return getParams(self)
 
 class a2cWorkerPolicy(pgPolicy):
     name = 'a2c v0 - worker'

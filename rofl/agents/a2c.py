@@ -6,7 +6,7 @@
 # TODO, use shared memory in RAY? for CPU only, perhaps the weights could be cheaper...
 
 from rofl.agents.pg import pgAgent
-from rofl.functions.torch import getGradients, getListState, updateNet
+from rofl.functions.torch import getGradients, getParams, updateNet
 
 class a2cAgent(pgAgent):
     name = 'A2C worker'
@@ -32,8 +32,4 @@ class a2cAgent(pgAgent):
             updateNet(pi.baseline, blParams)
 
     def getParams(self):
-        pi = self.policy
-        piParams = getListState(pi.actor)
-        blParams = [] if pi.baseline is None else getListState(pi.baseline)
-
-        return piParams, blParams
+        return getParams(self.policy)

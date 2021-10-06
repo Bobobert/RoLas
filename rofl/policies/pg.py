@@ -2,7 +2,7 @@ from .base import Policy
 from rofl.networks.base import ActorCritic
 from rofl.functions.functions import Tmean, Tmul, Tsum, F, torch, reduceBatch, np
 from rofl.functions.const import DEVICE_DEFT, ENTROPY_LOSS
-from rofl.functions.torch import clipGrads, getListState, getOptimizer
+from rofl.functions.torch import clipGrads, getOptimizer
 from rofl.config.config import createNetwork
 
 class pgPolicy(Policy):
@@ -89,14 +89,11 @@ class pgPolicy(Policy):
         lossBaseline = _FBl(baselines, returns) if self.actorHasCritic else torch.zeros((), device=self.device)
 
         loss = self.lossPolicyC * lossPolicy + self.entropyBonus * lossEntropy + self.lossValueC * lossBaseline
-        #oldParams = getListState(self.actor)
         self.optimizer.zero_grad()
         loss.backward()
         if self.clipGrad > 0:
             clipGrads(self.actor, self.clipGrad)
         self.optimizer.step()
-        #newParams = getListState(self.actor)
-        #catchChanges(oldParams, newParams)
 
         if self.baseline is not None and not self.actorHasCritic:
             lossB = _FBl(baselines, returns)
