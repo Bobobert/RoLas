@@ -416,8 +416,7 @@ class Agent(ABC):
             action = self.rndAction()
         else:
             obs = self.lastObs
-            with no_grad():
-                action = self.policy.getAction(obs)
+            action = self.policy.getAction(obs)
         return self.envStep(action)
 
     def reset(self):

@@ -33,3 +33,10 @@ class a2cAgent(pgAgent):
 
     def getParams(self):
         return getParams(self.policy)
+
+    def set4Ray(self):
+        self.policy.actor.inRay = True
+        bl = getattr(self.policy, 'baseline')
+        if bl is not None:
+            bl.inRay = True
+    

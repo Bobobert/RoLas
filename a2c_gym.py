@@ -12,7 +12,7 @@ envConfig = {
 agentConfig = {
     'gamma' : 0.99,
     'nstep' : 20,
-    'workers' : 3,
+    'workers' : 6,
     }
 
 policyConfig = {
@@ -34,7 +34,7 @@ policyConfig = {
 }
 
 trainConfig = {
-    'epochs' : 10**3,
+    'epochs' : 5*10**3,
     'test_freq' : 5 * 10**3,
     'expected_performance': 100,
     'max_time' : 30,

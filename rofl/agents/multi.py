@@ -12,19 +12,24 @@ WORKING = 2
 DONE = 3
 
 class Worker:
+    _eqvDict = {
+        READY: 'ready',
+        WORKING: 'working',
+        DONE: 'done',
+    }
     """
         Design to store and manage the ray actors
 
         Status codes:
-        0 - not initialized
         1 - initialized / ready
         2 - working
         3 - done
     """
-    worker = None
-    _objRef = None
-    id = None
-    _result, _newconsult = None, False
+    def __init__(self, rayWorker, id: int) -> None:
+        self.worker = rayWorker
+        self.id = id
+        self._objRef = None
+        self._result, self._newconsult = None, False
 
     @property
     def status(self):
@@ -52,8 +57,8 @@ class Worker:
     @property
     def result(self):
         if self.status == WORKING:
-            print("Warning: Worker {} haven't been resolved".format(self.id))
-            return None
+            raise Exception("Worker %d haven't been resolved" % self.id)
+            return
         else:
             temp = self._result
             self._result = None
@@ -92,6 +97,10 @@ class Worker:
 
     def __call__(self):
         return self.worker
+    
+    def __repr__(self) -> str:
+        s = 'Worker for Ray. ID: %d. Status: %s' %(self.id, self.status)
+        return s
 
 class agentMaster():
     name = 'Agent Master v0'
@@ -123,9 +132,8 @@ class agentMaster():
         self.workers = workers = dict()
         s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
         for i in range(nWorkers):
-            nconfig, worker = config.copy(), Worker()
-            workers[i] = worker
-            nconfig["agent"]["id"] = worker.id = i
+            nconfig = config.copy()
+            nconfig["agent"]["id"] = i
             nconfig["env"]["seedTrain"] = s1 + i + 1
             nconfig["env"]["seedTest"] = s2 + i + 1
             nconfig['policy']['policyClass'] = nconfig['policy']['workerPolicyClass']
@@ -133,8 +141,13 @@ class agentMaster():
                 if not actorShared:
                     nActor = cloneNet(actor)
                     nBl = cloneNet(baseline) if baseline is not None else None
+                # serializes the current actor and baseline to the agent init on thread
+                # within the workerPolicy serialization
                 workerPolicy = createPolicy(nconfig, nActor, baseline = nBl)
-            worker.worker = ragnt.remote(nconfig, workerPolicy, envMaker)
+            worker = Worker(ragnt.remote(nconfig, workerPolicy, envMaker), i)
+            workers[i] = worker
+
+        self.set4Ray()
     
     @property
     def device(self):
@@ -266,6 +279,13 @@ class agentMaster():
             del w.worker
         ray.shutdown()
 
+    def set4Ray(self):
+        wrks = []
+        for w in self.workers.values():
+            w.ref = w().set4Ray.remote()
+            wrks.append(w)
+        self.syncResolve(wrks)
+
     def __repr__(self) -> str:
         s = self.name + ', with %d workers' % len(self.workers)
         return s
@@ -281,16 +301,20 @@ class agentSync(agentMaster):
         return results
 
     def fullStep(self):
+        wrks = []
         for w in self.workers.values():
             w.ref = w().fullStep.remote()
+            wrks.append(w)
         
-        return mergeDicts(*self.syncResolve(), targetDevice = self.device)
+        return mergeDicts(*self.syncResolve(wrks), targetDevice = self.device)
 
     def getEpisode(self, random: bool = False, device = None):
+        wrks = []
         for w in self.workers.values():
             w.ref = w().getEpisode.remote()
+            wrks.append(w)
 
-        return self.syncResolve()
+        return self.syncResolve(wrks)
         device = device if device is not None else self.device
         return mergeDicts(*self.syncResolve(), targetDevice = device)
 
@@ -307,26 +331,34 @@ class agentSync(agentMaster):
         self.syncResolve()
 
     def getParams(self):
+        wrks = []
         for w in self.workers.values():
             w.ref = w().getParams.remote()
-        
-        return self.syncResolve()
+            wrks.append(w)
+
+        return self.syncResolve(wrks)
 
     def updateParams(self, piParams, blParams):
+        piParams_ = ray.put(piParams)
+        blParams_ = ray.put(blParams)
+        wrks = []
         for w in self.workers.values():
-            w.ref = w().updateParams.remote(piParams, blParams)
-        
-        self.syncResolve()
+            w.ref = w().updateParams.remote(piParams_, blParams_)
+            wrks.append(w)
+
+        self.syncResolve(wrks)
 
     def test(self, iters: int = TEST_N_DEFT, progBar: bool = False):
         '''
             From Agent base test method
         '''
         itersPerWorker = ceil(iters / self._nWorkers)
+        wrks = []
         for w in self.workers.values():
             w.ref = w().test.remote(itersPerWorker)
+            wrks.append(w)
 
-        results = mergeResults(*self.syncResolve())
+        results = mergeResults(*self.syncResolve(wrks))
 
         if self.tbw != None:
             self.tbw.add_scalar("test/mean Return", results['mean_return'], self.testCalls)

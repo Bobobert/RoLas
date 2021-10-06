@@ -48,31 +48,41 @@ def cloneNet(net):
 # as the torch shared memory is futile with Ray! 
 # (seems that TENSOR is not consider native data type)
 
+### Meant to be used to share information between BaseNets of the same type ###
+#### CPU ONLY ####
+# order, shapes and dtypes of parameters are NOT in check #
+def netFlags(net):
+    shared = net.isShared#getattr(net, 'isShared', False)
+    inRay = net.inRay#getattr(net, 'inRay', False)
+    return shared, inRay
+
 def getListParams(net):
     params = []
-    shared = getattr(net, 'isShared', False)
+    shared, inRay = netFlags(net)
     for p in net.parameters():
-        if not shared:
-            targetP = p.clone().detach_()
-        else:
-            targetP = p.data.numpy()# excludes grad
+        targetP = p.data.numpy()
+        #if shared and not inRay:
+        #    targetP = np.copy(targetP) # to be a shared ndarray
         params.append(targetP)
     return params
 
 def updateNet(net, targetLoad):
-    #net.opParams = copyStateDict(net)
     if isinstance(targetLoad, dict):
         net.load_state_dict(targetLoad)
+
     elif isinstance(targetLoad, list):
-        shared = getattr(net, 'isShared', False)
+        shared, inRay = netFlags(net)
         for p, pt in zip(targetLoad, net.parameters()):
             pt.requires_grad_(False) # This is a must to change the values properly
             if not shared:
-                pt.copy_(p).detach_()
-            else:
-                # This should be used only when net.device is CPU
-                pt.data = torch.from_numpy(p)
+                p = np.copy(p)
+            # This should be used only when net.device is CPU
+            # raises warning about data being writible but p is not
+            # BE SURE NOT TO MODIFY THIS DATA (even if you cant)
+            pt.data = torch.from_numpy(p)
             pt.requires_grad_(True)
+    else:
+        raise ValueError('Should be either a state_dict or a list of ndarrays')
 
 def getDictState(net, cpu:bool = True):
     stateDict = net.state_dict()
@@ -81,7 +91,7 @@ def getDictState(net, cpu:bool = True):
             stateDict[key] = stateDict[key].to(DEVICE_DEFT)
     return stateDict
 
-def getListState(net, cpu:bool = True):
+def getListState(net, cpu:bool = True): # to be deprecated
     params = []
     for p in net.parameters():
         params += [p if not cpu else p.clone().to(DEVICE_DEFT)]
@@ -100,6 +110,8 @@ def getParams(policy):
     piParams = getListParams(pi)
     blParams = [] if baseline is None or isAC else getListParams(baseline)
     return piParams, blParams
+
+### ---- ###
 
 def maxGrad(net):
     return max(p.grad.detach().abs().max() for p in net.parameters()).item()
@@ -169,13 +181,13 @@ def convertFromFlat(x, shapes):
 def getGradients(net):
     grads = []
     for p in net.parameters():
-        grads.append(p.grad.clone().detach_())
+        grads.append(p.grad.detach().numpy())
     return grads
 
 def accumulateGrad(net, *grads):
     for grad in grads:
         for p, g in zip(net.parameters(), grad):
-            p.grad.add_(g)
+            p.grad.add_(torch.from_numpy(g))
 
 def tryCopy(T: TENSOR):
     if isinstance(T, TENSOR): 

@@ -70,7 +70,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
             policy.update(*episodes)
             params = policy.getParams()
             agent.updateParams(*params)
-            #otherParams = agent.getParams()
+            #otherParams = agent.getParams()[0]
             updateVar(config)
             # Check for test
             if epoch % freqTest == 0:

@@ -1,6 +1,6 @@
 from rofl.functions.const import *
 from typing import Tuple
-from rofl.functions.functions import multiplyIter, nn, sqrConvDim
+from rofl.functions.functions import multiplyIter, nn, sqrConvDim, no_grad
 from rofl.functions.torch import newNet, noneGrad
 
 def isItem(T):
@@ -29,7 +29,7 @@ class BaseNet(nn.Module):
     def __init__(self, config):
         self.discrete, self.__dvc__ = True, None
         self.config = config
-        self.isShared = False
+        self.isShared, self.inRay = False, False
         super(BaseNet, self).__init__()
 
     def new(self):
@@ -64,6 +64,7 @@ class Value(BaseNet):
     - getValue: float or int
         From a pair observation and action, this net should output
         a single value. Action may not be required in the process.
+        Uses no_grad
 
     """
     name = "Value Base"
@@ -71,6 +72,7 @@ class Value(BaseNet):
         super().__init__(config)
         self.discrete = False
     
+    @no_grad()
     def getValue(self, observation, action):
         value = self.forward(observation)
         return value.item()
@@ -84,19 +86,22 @@ class QValue(BaseNet):
     - getValue:
         From a pair observation and action, this net should output
         a single value. Action may not be required in the process.
+        Uses no_grad.
     - processAction:
         The output of the net could represent something different from
         what the problems needs, as this could be a great order of difference
         is up to the network to output a proper action, instead of a env wrapper
         to translate it.
     - getAction:
-        From a single observation outputs a single action.
+        From a single observation outputs a single action corresponding to the 
+        maximum q_value given the observation. Uses no_grad.
     """
     name = "QValue Base"
     def __init__(self, config):
         super().__init__(config)
         self.discrete = True
-        
+    
+    @no_grad()
     def getValue(self, observation, action):
         assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
         return self.forward(observation)[action].item()
@@ -104,6 +109,7 @@ class QValue(BaseNet):
     def processAction(self, action):
         return simpleActionProc(action, self.discrete)
 
+    @no_grad()
     def getAction(self, observation):
         """
         Returns the max action from the Q network. Actions
@@ -131,7 +137,7 @@ class Actor(BaseNet):
         is up to the network to output a proper action, instead of a env wrapper
         to translate it.
     - getAction:
-        From a single observation outputs a single action.
+        From a single observation outputs a single action. Uses no_grad.
     """
     name = "Actor Base"
     def __init__(self, config):
@@ -189,6 +195,7 @@ class Actor(BaseNet):
         """
         return simpleActionProc(action, self.discrete)
 
+    @no_grad()
     def getAction(self, observation):
         """
         From a tensor observation returns the sampled actions.
@@ -231,7 +238,11 @@ class ActorCritic(Actor):
         is up to the network to output a proper action, instead of a env wrapper
         to translate it.
     - getAction:
-        From a single observation outputs a single action.
+        From a single observation outputs a single action. Uses no_grad.
+    - getValue:
+        From a pair observation and action, this net should output
+        a single value. Action may not be required in the process.
+        Uses no_grad.
     """
     name = "Actor critic Base"
     def __init__(self, config):
@@ -293,6 +304,7 @@ class ActorCritic(Actor):
 
         return values, raw_actor
     
+    @no_grad()
     def getValue(self, observation, action):
         """
         Form a tensor observation returns the value approximation 
