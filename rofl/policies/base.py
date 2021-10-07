@@ -241,11 +241,6 @@ class Policy(ABC):
     def train(self, flag: bool):
         self.test = not flag
 
-    def shareMem(self):
-        if self._nn and self.device == DEVICE_DEFT:
-            self._sharedMem = True
-            self.actor.share_memory()
-
     def _evalTBWActor_(self):
         if self.evalMeanGrad:
             self.tbw.add_scalar("train/mean grad",  meanGrad(self.actor), self.epoch)

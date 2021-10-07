@@ -29,7 +29,6 @@ class BaseNet(nn.Module):
     def __init__(self, config):
         self.discrete, self.__dvc__ = True, None
         self.config = config
-        self.isShared, self.inRay = False, False
         super(BaseNet, self).__init__()
 
     def new(self):
@@ -49,11 +48,6 @@ class BaseNet(nn.Module):
         if self.__dvc__ is None:
             self.__dvc__ =  next(self.parameters()).device
         return self.__dvc__
-
-    def shareMemory(self):
-        self.isShared = True
-        noneGrad(self)
-        #super().share_memory() #futile with ray
 
 class Value(BaseNet):
     """

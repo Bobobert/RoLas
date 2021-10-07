@@ -1,5 +1,5 @@
 from .const import *
-from .functions import Tmean, Tcat, nn, optim
+from .functions import Tmean, Tcat, multiplyIter, nn, optim
 
 def getDevice(cudaTry:bool = True):
     if torch.cuda.is_available() and cudaTry:
@@ -41,28 +41,19 @@ def cloneNet(net):
     new.load_state_dict(copyDictState(net), strict = True)
     return new.to(net.device)
 
-# from https://docs.ray.io/en/master/serialization.html
-# TODO; managing parameters from main policy in __main__ could be 
-# done efficiently if the parameters are saved as a list of numpy
-# then the update can be done with a 'zero copy read'
-# as the torch shared memory is futile with Ray! 
-# (seems that TENSOR is not consider native data type)
-
 ### Meant to be used to share information between BaseNets of the same type ###
-#### CPU ONLY ####
 # order, shapes and dtypes of parameters are NOT in check #
-def netFlags(net):
-    shared = net.isShared#getattr(net, 'isShared', False)
-    inRay = net.inRay#getattr(net, 'inRay', False)
-    return shared, inRay
+# while  using ray, ndarrays is the best way to share information
+# between main and workers, as their serialization is done in shared memory
+# from https://docs.ray.io/en/master/serialization.html
 
-def getListParams(net):
+def getListNParams(net):
+    '''
+        Ordered list of ARRAYS for a network's parameters
+    '''
     params = []
-    shared, inRay = netFlags(net)
     for p in net.parameters():
-        targetP = p.data.numpy()
-        #if shared and not inRay:
-        #    targetP = np.copy(targetP) # to be a shared ndarray
+        targetP = p.data.cpu().numpy()
         params.append(targetP)
     return params
 
@@ -71,18 +62,25 @@ def updateNet(net, targetLoad):
         net.load_state_dict(targetLoad)
 
     elif isinstance(targetLoad, list):
-        shared, inRay = netFlags(net)
         for p, pt in zip(targetLoad, net.parameters()):
             pt.requires_grad_(False) # This is a must to change the values properly
-            if not shared:
-                p = np.copy(p)
-            # This should be used only when net.device is CPU
-            # raises warning about data being writible but p is not
-            # BE SURE NOT TO MODIFY THIS DATA (even if you cant)
-            pt.data = torch.from_numpy(p)
+            #p = np.copy(p) # works better(in time) using a copy (weird!?!)
+            pt.data = torch.from_numpy(p).to(pt.device)
             pt.requires_grad_(True)
     else:
         raise ValueError('Should be either a state_dict or a list of ndarrays')
+
+def getParams(policy):
+    """
+        Returns lists of ARRAYS of the parameters for actor and baseline (if any 
+        different from actor).
+    """
+    pi = policy.actor
+    baseline = getattr(policy, 'baseline')
+    isAC = getattr(policy, 'actorHasCritic', False)
+    piParams = getListNParams(pi)
+    blParams = [] if baseline is None or isAC else getListNParams(baseline)
+    return piParams, blParams
 
 def getDictState(net, cpu:bool = True):
     stateDict = net.state_dict()
@@ -91,27 +89,18 @@ def getDictState(net, cpu:bool = True):
             stateDict[key] = stateDict[key].to(DEVICE_DEFT)
     return stateDict
 
-def getListState(net, cpu:bool = True): # to be deprecated
+def getListTParams(net, device = None):
+    '''
+        Ordered list of TENSORS for a network's parameters.
+        These are detached and can be directed to a device.
+    '''
     params = []
     for p in net.parameters():
-        params += [p if not cpu else p.clone().to(DEVICE_DEFT)]
+        p = p.detach()
+        if device is not None:
+            p.to(device)
+        params.append(p)
     return params
-
-def oldgetListParams(net):
-    params = []
-    for p in net.parameters():
-        params += [p.clone().detach_()]
-    return params
-
-def getParams(policy):
-    pi = policy.actor
-    baseline = getattr(policy, 'baseline')
-    isAC = getattr(policy, 'actorHasCritic', False)
-    piParams = getListParams(pi)
-    blParams = [] if baseline is None or isAC else getListParams(baseline)
-    return piParams, blParams
-
-### ---- ###
 
 def maxGrad(net):
     return max(p.grad.detach().abs().max() for p in net.parameters()).item()
@@ -119,8 +108,16 @@ def maxGrad(net):
 def meanGrad(net):
     return Tmean(torch.tensor([Tmean(p.grad.detach()) for p in net.parameters()])).item()
 
-def zeroGrad(net):
-    zeroGradParams(net.parameters())
+def zeroGrad(obj, isPolicy: bool = False):
+    if not isPolicy:
+        zeroGradParams(obj.parameters())
+    else:
+        pi = obj.actor
+        bl = getattr(obj, 'baseline')
+        useBl = getattr(obj, 'doBaseline', False)
+        zeroGradParams(pi.parameters())
+        if useBl:
+            zeroGradParams(bl.parameters())
 
 def zeroGradParams(parameters):
     for p in parameters:
@@ -160,38 +157,36 @@ def convert2flat(x):
     shapes = []
     flat = []
     for p in x:
-        shapes += [p.shape]
-        flat += [p.flatten()]
+        shapes.append(p.shape)
+        flat.append(p.flatten())
     return Tcat(flat, dim=0), shapes
-
-def totSize(t):
-    tot = 1
-    for i in t:
-        tot *= i
-    return tot
 
 def convertFromFlat(x, shapes):
     newX, iL, iS = [], 0, 0
     for s in shapes:
-        iS = iL + totSize(s)
-        newX += [x[iL:iS].reshape(s)]
+        iS = iL + multiplyIter(s)
+        newX.append(x[iL:iS].reshape(s))
         iL = iS
     return newX
     
-def getGradients(net):
+def getNGradients(net):
+    '''
+        Returns a list of ARRAYS for the gradients
+        in the networks parameters
+    '''
     grads = []
     for p in net.parameters():
-        grads.append(p.grad.detach().numpy())
+        grads.append(p.grad.cpu().numpy())
     return grads
 
 def accumulateGrad(net, *grads):
     for grad in grads:
         for p, g in zip(net.parameters(), grad):
-            p.grad.add_(torch.from_numpy(g))
+            p.grad.add_(torch.from_numpy(g).to(p.device))
 
 def tryCopy(T: TENSOR):
     if isinstance(T, TENSOR): 
-        return T.clone().detach()
+        return T.detach()
     elif isinstance(T, ARRAY):
         return np.copy(T)
     else:

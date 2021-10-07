@@ -3,6 +3,8 @@
 """
 
 ### IMPORTS ###
+from typing import Union
+from numpy.core.fromnumeric import clip
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -70,11 +72,14 @@ def multiplyIter(itm):
         result_ *= i
     return result_
 
-def clipReward(agent, reward):
+def clipReward(agent, reward: Union[float, int]):
     clipTarget = agent.clipReward
-    if clipTarget!= 0:
-        clipTarget = abs(clipTarget)
-        return np.clip(reward, -clipTarget, clipTarget)
+    if clipTarget > 0:
+        mClipTarget = -clipTarget
+        if reward > clipTarget:
+            reward = clipTarget
+        elif reward < mClipTarget:
+            reward = mClipTarget
     return reward
 
 def isTerminalAtari(agent, info):

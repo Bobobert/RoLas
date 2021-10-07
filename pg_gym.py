@@ -12,7 +12,7 @@ agentConfig = {
     'agentClass' : 'pgAgent',
     'memory_size' : 10**3,
     'gamma' : 0.99,
-    'nstep' : 20,
+    'nstep' : -1,
     }
 
 policyConfig = {

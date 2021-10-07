@@ -95,9 +95,11 @@ class pgPolicy(Policy):
             clipGrads(self.actor, self.clipGrad)
         self.optimizer.step()
 
-        if self.baseline is not None and not self.actorHasCritic:
+        if self.doBaseline:
             lossB = _FBl(baselines, returns)
             self.optimizerBl.zero_grad()
+            if self.clipGrad > 0:
+                clipGrads(self.baseline, self.clipGrad)
             lossB.backward()
             self.optimizerBl.step()
 
@@ -106,6 +108,10 @@ class pgPolicy(Policy):
             self.tbw.add_scalar('train/Total loss', loss.item(), self.epoch)
             self._evalTBWActor_()
         self.newEpoch = False
+
+    @property
+    def doBaseline(self):
+        return self.baseline is not None and not self.actorHasCritic
 
 def catchChanges(oldParams, newParams, th = 10**3):
     maxChange = -np.inf

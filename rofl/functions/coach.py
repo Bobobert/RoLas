@@ -1,11 +1,12 @@
 """
     Functions to manage actors and policies while developing or treating trajectories.
 """
-from rofl.networks.base import Value
-from .dicts import addBootstrapArg, obsDict
+from .dicts import addBootstrapArg
 from rofl.functions.const import *
+from rofl.functions.functions import no_grad
 from rofl.utils.memory import episodicMemory
 
+@no_grad()
 def calcBootstrap(agent):
     """
         Calculates the current value if able of the ongoing agent state.

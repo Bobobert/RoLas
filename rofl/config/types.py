@@ -15,7 +15,7 @@ class AgentType:
         pass
     def getBatch(self, size: int,proportion: float = 1.0, random = False,) -> dict:
         pass
-    def getEpisode(self, random) -> dict:
+    def getEpisode(self, random, device = None) -> dict:
         pass
     def fullStep(self) -> dict:
         pass

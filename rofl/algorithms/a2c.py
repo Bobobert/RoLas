@@ -1,20 +1,18 @@
 from rofl import Agent, Policy
-from rofl.config.defaults import network
 from rofl.functions.const import *
 from rofl.functions.stop import testEvaluation, initResultDict
+from rofl.functions.torch import zeroGrad
 from rofl.functions.vars import updateVar
 from rofl.utils import Saver
 from tqdm import tqdm
 
-
+from rofl.config.defaults import network
 baselineConf = network.copy()
-baselineConf['minibatch_size'] = MINIBATCH_SIZE
-baselineConf['batch_minibatches'] = 10
 
 algConfig = {
     'agent' :{
         'agentClass' : 'agentSync',
-        'memory_size' : 10**4,
+        'memory_size' : 10**3,
         'workers' : NCPUS,
         'workerClass' : 'a2cAgent',
         'clip_reward' : 1.0,
@@ -25,6 +23,7 @@ algConfig = {
         'batch_size' : -1,
         'batch_proportion' : 1.0,
         'test_freq' : 10**2,
+        'modeGrad' : True, 
     },
 
     'policy' :{
@@ -33,7 +32,6 @@ algConfig = {
         'entropy_bonus' : ENTROPY_LOSS,
         'n_actions' : None,
         'continuos' : False,
-        'shared_memory' : True,
         'clip_grad' : 10.0,
         'minibatch_size' : MINIBATCH_SIZE,
         'max_div_kl' : MAX_DKL,
@@ -60,17 +58,21 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
 
     freqTest = config['train']['test_freq']
     epochs, stop = config['train']['epochs'], False
+    modeGrad = config['train']['modeGrad']
     I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
     
     try:
         ## Train loop
+        zeroGrad(policy, True)
         for epoch in I:
             # Train step
-            episodes = agent.getEpisode()
-            policy.update(*episodes)
-            params = policy.getParams()
-            agent.updateParams(*params)
-            #otherParams = agent.getParams()[0]
+            if not modeGrad:
+                episodes = agent.getEpisode() # a tad slower, needs to serialize and unserialize the tensors
+                policy.update(*episodes)
+            else:
+                grads = agent.getGrads()
+                policy.gradUpdate(*grads) # with ndarrays this is a tad faster (when the networks are little for CPU)
+            agent.updateParams(*policy.getParams())
             updateVar(config)
             # Check for test
             if epoch % freqTest == 0:

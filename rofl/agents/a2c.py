@@ -6,13 +6,16 @@
 # TODO, use shared memory in RAY? for CPU only, perhaps the weights could be cheaper...
 
 from rofl.agents.pg import pgAgent
-from rofl.functions.torch import getGradients, getParams, updateNet
+from rofl.functions.torch import getNGradients, getParams, updateNet
+from rofl.utils.random import seeder
 
 class a2cAgent(pgAgent):
     name = 'A2C worker'
     
-    def updatePolicy(self, piParams, blParams):
-        self.policy.updateParams(piParams, blParams)
+    def initAgent(self, **kwargs):
+        super().initAgent(**kwargs)
+        config = self.config
+        seeder(config['seed'] + config['agent']['id'], self.device)
 
     def calculateGrad(self, random: bool = False):
         pi = self.policy
@@ -20,8 +23,8 @@ class a2cAgent(pgAgent):
         observation, action, returns = batchDict['observation'], batchDict['action'], batchDict['return']
         
         pi.batchUpdate(observation, action, returns)
-        piGrad = getGradients(pi.actor)
-        blGrad = getGradients(pi.baseline) if pi.baseline is not None else []
+        piGrad = getNGradients(pi.actor)
+        blGrad = getNGradients(pi.baseline) if pi.baseline is not None else []
 
         return piGrad, blGrad
 
@@ -33,10 +36,4 @@ class a2cAgent(pgAgent):
 
     def getParams(self):
         return getParams(self.policy)
-
-    def set4Ray(self):
-        self.policy.actor.inRay = True
-        bl = getattr(self.policy, 'baseline')
-        if bl is not None:
-            bl.inRay = True
     

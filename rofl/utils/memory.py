@@ -33,46 +33,35 @@ class simpleMemory():
             eg. ('return', torch.float16)
         
     """
-    _exp_, _slack_ = None, 4
+    _exp_ = None
     memType = 'simple'
     __keysDeft__ = [("reward", F_TDTYPE_DEFT), ("done", B_TDTYPE_DEFT)]
 
     def __init__(self, config, *aditionalKeys):
         self.size = config["agent"].get("memory_size", DEFT_MEMORY_SIZE)
-        self._slack_ *= self.size
         self.gamma = config["agent"]["gamma"]
         self.gae = config["agent"]["gae"]
         self.lmbda = config["agent"]["lambda"]
         self._mem_, self._i_, self._li_ = None, 0, 0
+        self.fillOnce = False
         self._keys_ = self.__keysDeft__.copy()
         for key in aditionalKeys:
             self._keys_.append(key)
 
     def reset(self,):
-        self._mem_, self._i_, self._li_ = [], 0, 0
+        self._mem_, self._i_, self._li_ = [None]*self.size, 0, 0
+        self.fillOnce = False
         return self
     
     def add(self, infoDict):
-        self._mem_.append(infoDict)
-        self._i_ += 1
-        self._cleanItem_()
-    
-    @property
-    def diff(self,):
-        return self._i_ - self._li_
+        self._mem_[self._i_] = infoDict
+        self._i_ = self._i_ + 1 % self.size
+        if self._i_ == 0:
+            self.fillOnce = True
 
     @property
     def last(self,):
         return self._i_ - 1
-
-    def _cleanItem_(self):
-        if self.diff >= self.size:
-            # For more than one.. but not this time
-            #ds = di - self.size + 1
-            self._mem_[self._li_] = None
-            self._li_ += 1
-        if self._li_ > self._slack_:
-            self._cleanMem_()
     
     def sample(self, size, device = DEVICE_DEFT):
         """
@@ -99,7 +88,9 @@ class simpleMemory():
             -------
             index generator
         """
-        return itemsSeq(self._li_, self._i_)
+        if self.fillOnce:
+            return itemsSeq(0, self.size)
+        return itemsSeq(0, self._i_)
 
     def gatherSample(self, size):
         """
@@ -110,7 +101,9 @@ class simpleMemory():
             -------
             index generator
         """
-        return itemsRnd(self._li_, self._i_ - 1, size)
+        if self.fillOnce:
+            return itemsRnd(0, self.size - 1, size)
+        return itemsRnd(0, self.last, size)
 
     def createSample(self, genSample, device):
         """
@@ -145,35 +138,44 @@ class simpleMemory():
             the memory configuration.
         """
         self.reset()
-        self._mem_ = memory._mem_
-        self._i_, self._li_ = memory._i_, memory._li_
-        if memory.diff > self.size:
-            self._li_ = memory._i_ - self.size + 1 #TODO: check this
-    
-    def _cleanMem_(self):
-        self._mem_ = self._mem_[max(0, self._i_ - self.size, self._li_):self._i_]
-        self._i_, self._li_ = len(self._mem_), 0
+        self._assertSize_(memory)
+        self._mem_[:len(memory)] = memory._mem_
 
     def addMemory(self, memory):
         """
             Add the experiences from a memory to another. 
         """
-        pass
-        self._mem_ += memory._mem_
-        self._i_ += memory.diff
-        if self.diff > self.size:
-            self._cleanMem_()
+        self._assertSize_(memory)
+        lTarget = len(memory)
+        if lTarget + self._i_ > self.size:
+            underThat = self.size - self._i_
+            overThis = lTarget + self._i_ % self.size
+            self._mem_[self._i_:] = memory._mem_[:underThat]
+            self._mem_[:overThis] = memory._mem_[underThat:]
+            self._i_, self.fillOnce = overThis, True
+        else:
+            self._mem_[self._i_:self._i_ + lTarget] = memory._mem_
+            self._i_ = self._i_ + lTarget % self.size
+            if self._i_ == 0:
+                self.fillOnce = True
+
+    def _assertSize_(self, memory):
+        lTarget = len(memory)
+        if lTarget > self.size:
+            raise ValueError('That memory (%d) is bigger than this (%d)' % (lTarget, len(self)))
 
     def __len__(self):
-        return self.diff
+        if self.fillOnce:
+            return self.size
+        return self._i_
 
     def __getitem__(self, i):
-        if i >= self._i_ or i < self._li_:
+        if i >= self._i_ or i < 0:
             return dict()
         return self._mem_[i]
 
     def __repr__(self) -> str:
-        s = 'Memory %s with %d capacity, %d items stored'%(self.memType, self.size, self.diff)
+        s = 'Memory %s with %d capacity, %d items stored'%(self.memType, self.size, len(self))
         return s
 
 class episodicMemory(simpleMemory):
@@ -187,29 +189,26 @@ class episodicMemory(simpleMemory):
 
     def reset(self):
         super().reset()
-        self._lastEpisode_ = 0
+        self._lastEpisode_ = -1
 
     def add(self, infoDict):
         super().add(infoDict) 
         if infoDict["done"]:
             self.resolveReturns()
 
-    def resolveReturns(self):
-        if self._lastEpisode_ < self._li_:
-            self._lastEpisode_ = self._li_
-        
+    def resolveReturns(self):        
         # Collect the episode rewards
         # this could be done better in here? Anyway an iterator throu all the dicts is needed anyway
         # using dicts I don-t see a better way.
         lastReturn = self[self.last].get('bootstrapping', 0.0)
-        for i in range(self.last, self._lastEpisode_ - 1, - 1):
+        for i in range(self.last, self._lastEpisode_, - 1):
             lastDict = self[i]
             lastReturn = lastDict['return'] = lastDict["reward"] + self.gamma * lastReturn 
 
-        self._lastEpisode_ = self._i_
+        self._lastEpisode_ = self.last
 
     def getEpisode(self, device = DEVICE_DEFT):
-        if self._lastEpisode_ == 0:
+        if self._lastEpisode_ == -1:
             raise AttributeError("Memory does not have an episode ready!")
         return self.createSample(self.gatherMem(), device)
 
@@ -238,7 +237,9 @@ class dqnMemory(simpleMemory):
         return item
 
     def gatherSample(self, size):
-        return itemsRnd(self._li_ + 1, self._i_ - 1, size)
+        if self.fillOnce:
+            return itemsRnd(0, self.size - 1, size)
+        return itemsRnd(1, self._i_ - 1, size)
 
     def __getitem__(self, i):
         item = super().__getitem__(i)

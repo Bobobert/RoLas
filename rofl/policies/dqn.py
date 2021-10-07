@@ -75,3 +75,5 @@ class dqnPolicy(Policy):
         if self.epoch % self.updateTarget == 0:
             updateNet(self.dqnTarget, self.dqnOnline.state_dict())
         self.epoch += 1
+
+        del infoDict

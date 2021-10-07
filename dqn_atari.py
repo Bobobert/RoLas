@@ -9,15 +9,17 @@ envConfig = {
     'max_length': -1,
     'warmup' : 'noop',
     }
+
 agentConfig = {
     'agentClass' : 'dqnAtariAgent',
-    'lhist' : 5,
+    'lhist' : 4,
     'memory_size' : 5 * 10**5, # around 22GB of ram using CUDA
     }
+
 policyConfig = {
     'policyClass' : 'dqnPolicy',
     'n_actions' : 4,
-    'epsilon_life' : 3 * 10**5,
+    'epsilon_life' : 25 * 10**4,
     'double' : True,
     'network' : {
         'networkClass' : 'dqnAtariDueling',
@@ -28,6 +30,7 @@ policyConfig = {
         'learning_rate' : 5e-5,
     },
 }
+
 trainConfig = {
     'epochs' : 10**6,
     'fill_memory' : 10**5,
@@ -35,6 +38,7 @@ trainConfig = {
     'max_steps_per_test' : 10**4,
     'max_time' : 100,
 }
+
 expConfig = {
     'agent' : agentConfig,
     'policy' : policyConfig,

@@ -103,7 +103,18 @@ class Worker:
         return s
 
 class agentMaster():
-    name = 'Agent Master v0'
+    """
+        Main class to create and manage a pool of ray workers.
+
+        Notes:
+        - workers will be seeded with the base of the main seed, but results
+            will vary with the number of workers. To reproduce both need to be
+            equal.
+        - Needs in agent config a wokerClass, as the main agent class is this (agentMaster).
+        - Needs in policy config a workerPolicyClass, same or not. A new subclass from a policy
+            could be used to save resources, eg. omits to create an optimizer or else.
+    """
+    name = 'Agent Master v1'
 
     def __init__(self, config, policy, envMaker, **kwargs):
 
@@ -116,7 +127,6 @@ class agentMaster():
         nWorkers = config["agent"].get("workers", NCPUS)
         nWorkers += 1 if nWorkers == 1 else 0
         self._nWorkers = nWorkers = NCPUS if nWorkers > NCPUS or nWorkers < 1 else nWorkers
-        self.actorIsShared = actorShared = config['policy']['shared_memory']
 
         import rofl.agents as agents
         agentClass = getattr(agents, config['agent']['workerClass']) # should raise error when ill config
@@ -124,12 +134,11 @@ class agentMaster():
         ragnt = ray.remote(agentClass)
 
         workerPolicy = None
-        nActor = actor = policy.actor
-        nBl = baseline = getattr(policy, 'baseline') if not getattr(policy, 'actorHasCritic', True) else None
-        if actorShared: actor.shareMemory()
-        if actorShared and baseline is not None: baseline.shareMemory()
+        nActor = policy.actor
+        nBl = getattr(policy, 'baseline') if not getattr(policy, 'actorHasCritic', True) else None
 
-        self.workers = workers = dict()
+        self.workersDict = workersD = dict()
+        self.workers = workersL = []
         s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
         for i in range(nWorkers):
             nconfig = config.copy()
@@ -138,16 +147,12 @@ class agentMaster():
             nconfig["env"]["seedTest"] = s2 + i + 1
             nconfig['policy']['policyClass'] = nconfig['policy']['workerPolicyClass']
             if policy is not None:
-                if not actorShared:
-                    nActor = cloneNet(actor)
-                    nBl = cloneNet(baseline) if baseline is not None else None
                 # serializes the current actor and baseline to the agent init on thread
                 # within the workerPolicy serialization
                 workerPolicy = createPolicy(nconfig, nActor, baseline = nBl)
             worker = Worker(ragnt.remote(nconfig, workerPolicy, envMaker), i)
-            workers[i] = worker
-
-        self.set4Ray()
+            workersD[i] = worker
+            workersL.append(worker)
     
     @property
     def device(self):
@@ -200,17 +205,17 @@ class agentMaster():
             status, list of workers with done status
         """
         working, ready, done = [], [], []
-        for w in self.workers.values():
-            s = w.states
-            if s == READY:
+        for w in self.workers:
+            status = w.status
+            if status == READY:
                 ready.append(w)
-            elif s == WORKING:
+            elif status == WORKING:
                 # try to resolve
                 if timeout > 0:
                     if w.resolve(timeout):
                         done.append(w)
                 working.append(w)
-            elif s == DONE:
+            elif status == DONE:
                 done.append(w)
         return ready, working, done
 
@@ -231,7 +236,7 @@ class agentMaster():
             list of results
         """
         if working == None:
-            working = [w for w in self.workers.values() if w.status == WORKING]
+            working = [w for w in self.workers if w.status == WORKING]
         for w in working:
             w.resolve()
         return [w.result for w in working] 
@@ -272,19 +277,12 @@ class agentMaster():
         return results, solved, stillWork
 
     def close(self):
-        for w in self.workers.values():
+        for w in self.workers:
             w.ref = w().close.remote()
         self.syncResolve()
-        for w in self.workers.values():
+        for w in self.workers:
             del w.worker
         ray.shutdown()
-
-    def set4Ray(self):
-        wrks = []
-        for w in self.workers.values():
-            w.ref = w().set4Ray.remote()
-            wrks.append(w)
-        self.syncResolve(wrks)
 
     def __repr__(self) -> str:
         s = self.name + ', with %d workers' % len(self.workers)
@@ -294,7 +292,7 @@ class agentSync(agentMaster):
     name = 'Agent master sync'
 
     def reset(self):
-        for worker in self.workers.values():
+        for worker in self.workers:
             worker.ref = worker().reset.remote()
         results = self.syncResolve()
         self.lastObs = mergeDicts(*results, targetDevice = self.device)
@@ -302,21 +300,28 @@ class agentSync(agentMaster):
 
     def fullStep(self):
         wrks = []
-        for w in self.workers.values():
+        for w in self.workers:
             w.ref = w().fullStep.remote()
             wrks.append(w)
         
         return mergeDicts(*self.syncResolve(wrks), targetDevice = self.device)
 
-    def getEpisode(self, random: bool = False, device = None):
+    def getEpisode(self, random: bool = False, device = None) -> list[dict]:
         wrks = []
-        for w in self.workers.values():
+        #device_ = ray.put(device if device is not None else self.device) # cpu only still 
+        for w in self.workers:
             w.ref = w().getEpisode.remote()
             wrks.append(w)
 
         return self.syncResolve(wrks)
-        device = device if device is not None else self.device
-        return mergeDicts(*self.syncResolve(), targetDevice = device)
+
+    def getGrads(self, random: bool = False):
+        wrks = []
+        for w in self.workers:
+            w.ref = w().calculateGrad.remote()
+            wrks.append(w)
+
+        return self.syncResolve(wrks)
 
     def getBatch(self, size: int, proportion: float = 1.0):
         pass
@@ -325,14 +330,14 @@ class agentSync(agentMaster):
         self.policy.update(batch)
 
         state = self.policy.currentState()
-        for w in self.workers.values():
+        for w in self.workers:
             w.ref = w().loadState.remote(state)
         
         self.syncResolve()
 
     def getParams(self):
         wrks = []
-        for w in self.workers.values():
+        for w in self.workers:
             w.ref = w().getParams.remote()
             wrks.append(w)
 
@@ -340,10 +345,13 @@ class agentSync(agentMaster):
 
     def updateParams(self, piParams, blParams):
         piParams_ = ray.put(piParams)
-        blParams_ = ray.put(blParams)
+        blParams_ = ray.put(blParams) if blParams != [] else []
         wrks = []
-        for w in self.workers.values():
-            w.ref = w().updateParams.remote(piParams_, blParams_)
+        for w in self.workers:
+            if blParams == []: # ray.put has a cost per call, even for []
+                w.ref = w().updateParams.remote(piParams_)
+            else:
+                w.ref = w().updateParams.remote(piParams_, blParams)
             wrks.append(w)
 
         self.syncResolve(wrks)
@@ -354,7 +362,7 @@ class agentSync(agentMaster):
         '''
         itersPerWorker = ceil(iters / self._nWorkers)
         wrks = []
-        for w in self.workers.values():
+        for w in self.workers:
             w.ref = w().test.remote(itersPerWorker)
             wrks.append(w)
 

@@ -12,7 +12,7 @@ class dqnAtariAgent(Agent):
         self.lives = None
         self.lhist = self.config['agent']['lhist']
         self.memory = dqnMemory(self.config)
-        self.clipReward = self.config['agent'].get('clip_reward', 0)
+        self.clipReward = abs(self.config['agent'].get('clip_reward', 0))
         self.frameSize = tuple(self.config['env']['obs_shape'])
         self.frameStack = genFrameStack(self.config)
         self.isAtari = self.config['env'].get('atari', False)

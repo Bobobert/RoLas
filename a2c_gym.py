@@ -1,9 +1,8 @@
 from rofl import setUpExperiment
-from rofl.functions.const import MINIBATCH_SIZE
 
 envConfig = {
     'envMaker' : 'gymEnvMaker',
-    'name': 'LunarLanderContinuous-v2',
+    'name': 'CartPole-v1',
     'atari': False,
     'max_length': 500,
     'warmup' : None,
@@ -11,19 +10,18 @@ envConfig = {
 
 agentConfig = {
     'gamma' : 0.99,
-    'nstep' : 20,
-    'workers' : 6,
+    'nstep' : 10,
+    'workers' : 8,
+    'memory_size' : 10**2,
     }
 
 policyConfig = {
-    'shared_memory' : True,
-    'continuos' : True,
+    'continuos' : False,
     'entropy_bonus' : 5e-3,
     'network' : {
         'networkClass' : 'gymAC',
-        'linear_1' : 56,
-        'linear_2' : 32,
-        'learning_rate' : 1e-5,
+        'linear_1' : 32,
+        'learning_rate' : 5e-5,
     },
     'baseline' :{
         'networkClass' : None,#'gymBaseline',
@@ -34,10 +32,11 @@ policyConfig = {
 }
 
 trainConfig = {
-    'epochs' : 5*10**3,
+    'epochs' : 10**5,
     'test_freq' : 5 * 10**3,
     'expected_performance': 100,
     'max_time' : 30,
+    'modeGrad' : True,
 }
 
 expConfig = {

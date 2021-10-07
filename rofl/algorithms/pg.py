@@ -1,17 +1,16 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
-from rofl.config.defaults import network
 from rofl.functions.stop import testEvaluation, initResultDict
 from rofl.functions.vars import updateVar
 from rofl.utils import Saver
 from tqdm import tqdm
 
+from rofl.config.defaults import network
 baselineConf = network.copy()
-baselineConf['minibatch_size'] = MINIBATCH_SIZE
-baselineConf['batch_minibatches'] = 10
 
 algConfig = {
     'agent' :{
+        'memory_size' : 10 ** 3,
         'clip_reward' : 1.0,
         'nstep' : -1,
     },

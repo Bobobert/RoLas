@@ -10,7 +10,7 @@ class pgAgent(Agent):
     name = "pg gym agent"
     def initAgent(self, **kwargs):
         config = self.config
-        self.clipReward = config["agent"].get("clip_reward", 0.0)
+        self.clipReward = abs(config["agent"].get("clip_reward", 0))
         self.nstep = config['agent'].get('nstep', -1)
         self.forceLen = True if self.nstep > 0 else False
 
@@ -27,11 +27,12 @@ class pgAgent(Agent):
                     device=DEVICE_DEFT, progBar: bool = False):
         return super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
 
-    def getEpisode(self, random = False):
+    def getEpisode(self, random = False, device = None):
         memory = self.memory
         memory.reset()
         singlePathRollout(self, maxLength = self.nstep, memory = memory, random = random, forceLen = self.forceLen)
-        return memory.getEpisode(self.device)
+        device = self.device if device is None else device
+        return memory.getEpisode(device)
 
 class pgFFAgent(pgAgent):
     name = "forestFire_pgAgent"
