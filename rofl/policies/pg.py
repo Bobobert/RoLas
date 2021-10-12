@@ -1,3 +1,4 @@
+from rofl.utils.policies import getParamsBaseline
 from .base import Policy
 from rofl.networks.base import ActorCritic
 from rofl.functions.functions import Tmean, Tmul, Tsum, F, torch, reduceBatch, np
@@ -22,7 +23,7 @@ class pgPolicy(Policy):
         config = self.config
         self.actorHasCritic, self.valueBased = False, False
 
-        self.entropyBonus = abs(config['policy'].get('entropy_bonus', ENTROPY_LOSS))
+        self.entropyBonus = -1.0 * abs(config['policy'].get('entropy_bonus', ENTROPY_LOSS))
         self.lossPolicyC = -1.0 * abs(config['policy']['loss_policy_const'])
         self.lossValueC = abs(config['policy']['loss_value_const'])
         self.minibatchSize = config['policy']['minibatch_size']
@@ -42,9 +43,6 @@ class pgPolicy(Policy):
             self.valueBased = True
         self.baseline = baseline
 
-    def getAction(self, state):
-        return self.actor.getAction(state)
-
     def getValue(self, observation, action):
         if self.actorHasCritic:
             return super().getValue(observation, action)
@@ -57,7 +55,7 @@ class pgPolicy(Policy):
         N, miniSize = batchDict['N'], self.minibatchSize
         observations, actions, returns = batchDict['observation'], batchDict['action'], batchDict['return']
         if N < miniSize:
-            self.batchUpdate(observations, actions, returns) # TODO, a minibatch generator to slip large batches
+            self.batchUpdate(observations, actions, returns)
         else:
             for lower in range(0, N, miniSize):
                 obsMini = observations[lower:lower + miniSize]
@@ -70,14 +68,8 @@ class pgPolicy(Policy):
         self.newEpoch = True
 
     def batchUpdate(self, observations, actions, returns):
-        if self.baseline is None:
-            baselines = returns.new_zeros(returns.shape)
-        elif not self.actorHasCritic:
-            baselines = self.baseline(observations)
-        else:
-            baselines, params = self.actor(observations)
-        
-        params = params if self.actorHasCritic else self.actor.onlyActor(observations)
+        params, baselines = getParamsBaseline(self, observations)
+
         log_probs, entropy = self.actor.processDist(params, actions)
         log_probs = reduceBatch(log_probs)
 
@@ -96,31 +88,21 @@ class pgPolicy(Policy):
         self.optimizer.step()
 
         if self.doBaseline:
-            lossB = _FBl(baselines, returns)
+            lossBaseline = _FBl(baselines, returns)
             self.optimizerBl.zero_grad()
             if self.clipGrad > 0:
                 clipGrads(self.baseline, self.clipGrad)
-            lossB.backward()
+            lossBaseline.backward()
             self.optimizerBl.step()
 
-        if self.tbw != None and (self.epoch % self.tbwFreq == 0) and self.newEpoch:
-            self.tbw.add_scalar('train/Actor loss', -1 * lossPolicy.item(), self.epoch)
-            self.tbw.add_scalar('train/Total loss', loss.item(), self.epoch)
+        tbw = self.tbw
+        if tbw != None and (self.epoch % self.tbwFreq == 0) and self.newEpoch:
+            tbw.add_scalar('train/Actor loss', -1 * lossPolicy.item(), self.epoch)
+            tbw.add_scalar('train/Baseline loss', lossBaseline.item(), self.epoch)
+            tbw.add_scalar('train/Total loss', loss.item(), self.epoch)
             self._evalTBWActor_()
         self.newEpoch = False
 
     @property
     def doBaseline(self):
         return self.baseline is not None and not self.actorHasCritic
-
-def catchChanges(oldParams, newParams, th = 10**3):
-    maxChange = -np.inf
-    for op, p in zip(oldParams, newParams):
-        diff = p.detach() - op.detach()
-        mD = diff.max().to(DEVICE_DEFT).item() 
-        if mD > maxChange:
-            maxChange = mD
-        if maxChange > th:
-            raise ValueError('This is BAD news')
-        if torch.isnan(p).any():
-            raise ValueError('THIS IS REALLY BAD NEWS')

@@ -6,6 +6,7 @@ agent = {
     'gamma' : GAMMA,
     'lambda' : LAMDA_GAE,
     'gae' : False,
+    'need_log_prob' : False,
 }
 
 train = {

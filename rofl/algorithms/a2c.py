@@ -16,7 +16,7 @@ algConfig = {
         'workers' : NCPUS,
         'workerClass' : 'a2cAgent',
         'clip_reward' : 1.0,
-        'nstep' : -1,
+        'nstep' : 20,
     },
 
     'train' :{
@@ -34,8 +34,6 @@ algConfig = {
         'continuos' : False,
         'clip_grad' : 10.0,
         'minibatch_size' : MINIBATCH_SIZE,
-        'max_div_kl' : MAX_DKL,
-        'surrogate_epsilon' : EPS_SURROGATE,
         'loss_policy_const' : LOSS_POLICY_CONST,
         'loss_value_const' : LOSS_VALUES_CONST,
         'evaluate_tb_freq' : 10**3,

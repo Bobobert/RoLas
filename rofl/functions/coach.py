@@ -27,6 +27,7 @@ def prepareBootstrapping(agent, obsDict):
 
     obsDict['bootstrapping'] = bootstrap = calcBootstrap(agent)
     obsDict['acuumulate_reward'] = obsDict['accumulate_reward'] + bootstrap
+    obsDict['done'] = True
     return obsDict
 
 def singlePathRollout(agent, maxLength = -1, memory: episodicMemory = None,

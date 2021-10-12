@@ -202,6 +202,22 @@ class Actor(BaseNet):
         action = dist.sample()
         return self.processAction(action)
 
+    @no_grad()
+    def getActionWProb(self, observation):
+        """
+            Combined method
+
+            returns
+            --------
+            - action
+            - log_prob for action
+        """
+        dist = self.getDist(self.onlyActor(observation))
+        action = dist.sample()
+        log_prob = dist.log_prob(action)
+        action = self.processAction(action)
+        return action, log_prob
+
 class ActorCritic(Actor):
     """
     Class design to host both actor and critic for those architectures 

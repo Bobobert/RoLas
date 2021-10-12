@@ -1,5 +1,5 @@
 from .const import *
-from .functions import Tmean, Tcat, multiplyIter, nn, optim
+from .functions import Tdiv, Tmean, Tcat, Tstd, multiplyIter, nn, optim
 
 def getDevice(cudaTry:bool = True):
     if torch.cuda.is_available() and cudaTry:
@@ -253,3 +253,7 @@ class dummyOptimizer():
 
     def step(self):
         pass
+
+def normMean(t: TENSOR):
+    return Tdiv(t - Tmean(t), EPSILON_OP + Tstd(t))
+    

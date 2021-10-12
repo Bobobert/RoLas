@@ -1,4 +1,5 @@
 from rofl.functions.torch import accumulateGrad, getParams
+from rofl.utils.policies import setEmptyOpt
 from rofl.policies.pg import pgPolicy
 
 class a2cPolicy(pgPolicy):
@@ -45,10 +46,5 @@ class a2cWorkerPolicy(pgPolicy):
     name = 'a2c v0 - worker'
 
     def initPolicy(self, **kwargs):
-        self.tbw = None
-        config = self.config
-        # set config for dummy optimizers
-        config['policy']['network']['optimizer'] = 'dummy'
-        if config['policy']['baseline']['networkClass'] is not None:
-            config['policy']['baseline']['optimizer'] = 'dummy'
+        setEmptyOpt(self)
         super().initPolicy(**kwargs)

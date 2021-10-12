@@ -33,7 +33,7 @@ Tstack = torch.stack
 no_grad = torch.no_grad
 
 #### LITTLE USEFUL FUNCTIONS ###
-def assertProb(sus):
+def assertProb(sus: Union[float, int]) -> Union[float, int]:
     f = (sus >= 0.0) and (sus <= 1.0)
     if not f:
         raise ValueError("Value must be in [0,1]")

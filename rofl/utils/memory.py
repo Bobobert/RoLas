@@ -105,7 +105,7 @@ class simpleMemory():
             return itemsRnd(0, self.size - 1, size)
         return itemsRnd(0, self.last, size)
 
-    def createSample(self, genSample, device):
+    def createSample(self, genSample, device) -> dict:
         """
             Generates and process the sample from the gatherSample method. 
             This could be done per item or in bulk. Either way is expected to

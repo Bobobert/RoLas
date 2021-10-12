@@ -103,7 +103,7 @@ def dev2devDict(infoDict: dict, targetDevice):
     return infoDict
 
 def addBootstrapArg(obsDict: dict):
-    obsDict['advantage'] = 0.0
+    #obsDict['advantage'] = 0.0
     obsDict['bootstrapping'] = 0.0
     return obsDict
 

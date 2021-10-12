@@ -1,5 +1,5 @@
 from rofl.functions.const import *
-from rofl.functions.functions import np, torch, no_grad, math, ceil
+from rofl.functions.functions import assertProb, np, torch, no_grad, math, ceil
 from rofl.functions.torch import tryCopy
 from rofl.functions.dicts import obsDict
 from rofl.functions.gym import doWarmup, noOpSample
@@ -8,6 +8,8 @@ from gym import Env
 from abc import ABC
 from copy import deepcopy
 from tqdm import tqdm
+
+from rofl.utils.policies import logProb4Action
 
 class Agent(ABC):
     """
@@ -102,12 +104,15 @@ class Agent(ABC):
         
         # some administrative
         self.workerID = config["agent"].get("id", 0)
-        self.gamma = config["agent"]["gamma"]
-        self.lmbd = config["agent"].get("lambda", 1.0)
+        self.gamma = assertProb(config["agent"]["gamma"])
+        self.lmbd = assertProb(config["agent"].get("lambda", 1.0))
         self.gae = config["agent"].get("gae", False)
         self.maxEpLen = config["env"].get("max_length", -1)
         self.warmup = config["env"].get("warmup")
-    
+        self.needsLogProb = needProbs = config['agent']['need_log_prob']
+        if needProbs and not getattr(policy, 'stochastic', False):
+            raise AttributeError('%s cannot provide log_probs as requested'%policy)
+        
         self.initAgent(**kwargs)
 
     def initAgent(self, **kwargs):
@@ -410,14 +415,28 @@ class Agent(ABC):
             -------
             obsDict
         """
+        needProbs, log_prob = self.needsLogProb, None
+        
         if self.done:
             action = None
         elif random:
             action = self.rndAction()
+        elif needProbs:
+            action, log_prob = self.policy.getActionWProb(self.lastObs)
         else:
-            obs = self.lastObs
-            action = self.policy.getAction(obs)
-        return self.envStep(action)
+            action = self.policy.getAction(self.lastObs)
+        
+        infoDict = self.envStep(action)
+        if needProbs:
+            if log_prob is None:
+                # after a reset the actor was never samppled, then the noOP or whatever
+                # 'joker' action from reset function needs to be sampled in this version
+                # to keep the calculations accurate
+                with no_grad():
+                    log_prob = logProb4Action(self.policy, self.lastObs, infoDict['action'])
+            infoDict['log_prob'] = log_prob
+
+        return infoDict
 
     def reset(self):
         """

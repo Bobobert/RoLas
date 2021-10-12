@@ -105,6 +105,16 @@ class Policy(ABC):
             as int if discrete or as a numpy.ndarray if
             continuous
         """
+        if self.stochastic:
+            return self.actor.getAction(observation)
+        raise NotImplementedError
+
+    def getActionWProb(self, observation, **kwargs):
+        """
+            New test
+        """
+        if self.stochastic:
+            return self.actor.getActionWProb(observation)
         raise NotImplementedError
 
     def getRndAction(self):
@@ -242,10 +252,11 @@ class Policy(ABC):
         self.test = not flag
 
     def _evalTBWActor_(self):
+        tbw, actor, epoch = self.tbw, self.actor, self.epoch
         if self.evalMeanGrad:
-            self.tbw.add_scalar("train/mean grad",  meanGrad(self.actor), self.epoch)
+            tbw.add_scalar("train/mean grad",  meanGrad(actor), epoch)
         if self.evalMaxGrad:
-            self.tbw.add_scalar("train/max grad",  maxGrad(self.actor), self.epoch)
+            tbw.add_scalar("train/max grad",  maxGrad(actor), epoch)
         
 class dummyPolicy(Policy):
     """
