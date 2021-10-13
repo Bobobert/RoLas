@@ -63,7 +63,7 @@ class simpleMemory():
     def last(self,):
         return self._i_ - 1
     
-    def sample(self, size, device = DEVICE_DEFT):
+    def sample(self, size, device = DEVICE_DEFT, keys = None):
         """
             Standard method to sample the memory. This is
             intended to be used as the main method to interface
@@ -78,7 +78,7 @@ class simpleMemory():
             raise ValueError("Not enough data to generate sample")
         if size == memSize or size < 0:
             return self.createSample(self.gatherMem(), device)
-        return self.createSample(self.gatherSample(size), device)
+        return self.createSample(self.gatherSample(size), device, keys)
 
     def gatherMem(self):
         """
@@ -105,7 +105,7 @@ class simpleMemory():
             return itemsRnd(0, self.size - 1, size)
         return itemsRnd(0, self.last, size)
 
-    def createSample(self, genSample, device) -> dict:
+    def createSample(self, genSample, device, keys) -> dict:
         """
             Generates and process the sample from the gatherSample method. 
             This could be done per item or in bulk. Either way is expected to
@@ -115,10 +115,12 @@ class simpleMemory():
             --------
             obsDict
         """
-        sample = mergeDicts(*[self[i] for i in genSample], targetDevice = device)
+        sample = mergeDicts(*[self[i] for i in genSample], targetDevice = device, keys = keys)
 
         for key, dtype in self._keys_:
             aux = sample.get(key)
+            if aux is None: # When the key in memory was not asked in keys for the merge result
+                continue
             if isinstance(aux, list):
                 sample[key] = list2Tensor(aux, device, dtype)
             elif isinstance(aux, ARRAY):
@@ -185,7 +187,8 @@ class episodicMemory(simpleMemory):
     memType = 'episodic simple'
 
     def __init__(self, config, *additionalKeys):
-        super().__init__(config, ("return", F_TDTYPE_DEFT), *additionalKeys)
+        keys = [("return", F_TDTYPE_DEFT)]
+        super().__init__(config, *keys, *additionalKeys)
 
     def reset(self):
         super().reset()
@@ -197,20 +200,18 @@ class episodicMemory(simpleMemory):
             self.resolveReturns()
 
     def resolveReturns(self):        
-        # Collect the episode rewards
-        # this could be done better in here? Anyway an iterator throu all the dicts is needed anyway
-        # using dicts I don-t see a better way.
         lastReturn = self[self.last].get('bootstrapping', 0.0)
+        gamma = self.gamma
         for i in range(self.last, self._lastEpisode_, - 1):
             lastDict = self[i]
-            lastReturn = lastDict['return'] = lastDict["reward"] + self.gamma * lastReturn 
+            lastReturn = lastDict['return'] = lastDict["reward"] + gamma * lastReturn 
 
         self._lastEpisode_ = self.last
 
-    def getEpisode(self, device = DEVICE_DEFT):
+    def getEpisode(self, device = DEVICE_DEFT, keys = None):
         if self._lastEpisode_ == -1:
             raise AttributeError("Memory does not have an episode ready!")
-        return self.createSample(self.gatherMem(), device)
+        return self.createSample(self.gatherMem(), device, keys)
 
 class dqnMemory(simpleMemory):
     memType = 'dqn v0'
@@ -251,8 +252,8 @@ class dqnMemory(simpleMemory):
                 item['frame'] = prevItem['next_frame']
         return item
 
-    def createSample(self, genSample, device):
-        sample = super().createSample(genSample, device)
+    def createSample(self, genSample, device, keys):
+        sample = super().createSample(genSample, device, keys)
         sample['observation'] = array2Tensor(sample['frame'], device, batch=True).div(255)
         sample['next_observation'] = array2Tensor(sample['next_frame'], device, batch=True).div(255)
         sample['action'] = list2Tensor(sample['action'], device, torch.int64)

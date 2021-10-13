@@ -7,6 +7,7 @@ agent = {
     'lambda' : LAMDA_GAE,
     'gae' : False,
     'need_log_prob' : False,
+    'need_obs_value' : False,
 }
 
 train = {

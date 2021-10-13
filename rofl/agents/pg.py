@@ -32,7 +32,7 @@ class pgAgent(Agent):
         memory.reset()
         singlePathRollout(self, maxLength = self.nstep, memory = memory, random = random, forceLen = self.forceLen)
         device = self.device if device is None else device
-        return memory.getEpisode(device)
+        return memory.getEpisode(device, self.keysForBatches)
 
 class pgFFAgent(pgAgent):
     name = "forestFire_pgAgent"

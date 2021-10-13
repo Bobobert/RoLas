@@ -11,7 +11,7 @@
 
 """
 
-from rofl.functions.functions import combDeviations
+from .functions import combDeviations
 from .const import *
 
 def obsDict(obs, action, reward, step, done, info = {}, **kwargs) -> dict:
@@ -29,13 +29,30 @@ def obsDict(obs, action, reward, step, done, info = {}, **kwargs) -> dict:
 
     return dict_
 
-def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
+def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT, keys = None):
+    """
+        Function to merge info dicts (preferably of the same origin) into
+        a single big dict.
+
+        parameters
+        ----------
+        batchDicts: dict
+            Source info for the new bigger batch
+        targetDevice: torch.device
+            Default 'cpu'
+        keys: list of str
+            Default None, uses all the keys available. If given a list
+            or tuple of strings from the dictionaries, the batch can be reduced
+            to those.
+    """
     # Making work if more than one dict has came, else return the dict
     if len(batchDicts) > 1:
         # Construct the manager dict
         zero = batchDicts[1] 
         templateDict, dtypes, shapes, zeroDevice = {}, {}, {}, zero["device"]
-        for k in zero.keys():
+        if keys is None:
+            keys = zero.keys()
+        for k in keys:
             if k == 'N' or k == 'device':
                 continue
             templateDict[k] = None
@@ -71,7 +88,7 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT):
         for d in batchDicts:
             n = d["N"]
             for k in templateDict.keys():
-                ref, target = templateDict[k], d[k]
+                ref, target = templateDict[k], d.get(k)
                 if isinstance(target, ARRAY):
                     ref[m:m+n] = target
                 elif isinstance(target, TENSOR):
@@ -105,7 +122,6 @@ def dev2devDict(infoDict: dict, targetDevice):
 def addBootstrapArg(obsDict: dict):
     #obsDict['advantage'] = 0.0
     obsDict['bootstrapping'] = 0.0
-    return obsDict
 
 def mergeResults(*dicts):
     mR, sR, mS, sS, N = 0, 0, 0, 0, 0

@@ -1,4 +1,4 @@
-from rofl.utils.policies import getParamsBaseline
+from rofl.utils.policies import getActionWProb, getActionWValProb, getParamsBaseline
 from .base import Policy
 from rofl.networks.base import ActorCritic
 from rofl.functions.functions import Tmean, Tmul, Tsum, F, torch, reduceBatch, np
@@ -21,6 +21,7 @@ class pgPolicy(Policy):
 
     def initPolicy(self, **kwargs):
         config = self.config
+        self.keysForUpdate = ['observation', 'action', 'return']
         self.actorHasCritic, self.valueBased = False, False
 
         self.entropyBonus = -1.0 * abs(config['policy'].get('entropy_bonus', ENTROPY_LOSS))
@@ -106,3 +107,14 @@ class pgPolicy(Policy):
     @property
     def doBaseline(self):
         return self.baseline is not None and not self.actorHasCritic
+
+    def getAVP(self, observation):
+        if self.actorHasCritic:
+            return getActionWValProb(self.actor, observation)
+
+        action, logProb = getActionWProb(self.actor, observation)
+        if self.valueBased:
+            value = self.baseline.getValue(observation, action)
+        else:
+            value = 0.0 # bite me twice
+        return action, value, logProb

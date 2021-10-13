@@ -19,9 +19,6 @@ def prepareBootstrapping(agent, obsDict):
         Process the last obsDict to have a done flag and bootstraps
         from the policy if able.
     """
-    
-    obsDict = addBootstrapArg(obsDict)
-    
     if obsDict['done'] == True:
         return obsDict
 
@@ -75,6 +72,7 @@ def singlePathRollout(agent, maxLength = -1, memory: episodicMemory = None,
     stepsDone = 0
     while True:
         obsDict = agent.fullStep(random = random)
+        addBootstrapArg(obsDict)
         memory.add(obsDict)
         stepsDone += 1
 

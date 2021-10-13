@@ -7,10 +7,11 @@ algConfig = {
     'agent' : {
         'gae' : True,
         'need_log_prob' : True,
-        'workerClass' : 'ppoAgent',
+        #'need_obs_value' : True,
+        'workerClass' : 'a2cAgent',
     },
     'policy': {
-        'normalize_advantage' : True,
+        'normalize_advantage' : False,
         'max_diff_kl' : MAX_DKL,
         'epsilon_surrogate' : EPS_SURROGATE,
         'policyClass' : 'ppoPolicy',

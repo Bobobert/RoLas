@@ -2,6 +2,7 @@ from rofl.functions.torch import maxGrad, meanGrad
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
 from rofl.functions.functions import nn, no_grad
 from rofl.functions.const import DEVICE_DEFT
+from rofl.utils.policies import getActionWProb
 from abc import ABC
 
 class Policy(ABC):
@@ -64,6 +65,7 @@ class Policy(ABC):
         self.evalMaxGrad = config['policy']["evaluate_max_grad"]
         self.evalMeanGrad = config['policy']["evaluate_mean_grad"]
         self.clipGrad = config['policy']['clip_grad']
+        self.keysForUpdate = None
 
         self.initPolicy(**kwargs)
         self.__checkInit__()
@@ -83,6 +85,8 @@ class Policy(ABC):
                 raise ValueError("Attribute .discrete should be declared to a boolean type")
         if isinstance(self.actor, nn.Module):
             self._nn = True
+        if self.gae and not self.valueBased:
+            raise Exception('%s cannot process GAE while not value based!' % self)
 
     def initPolicy(self, **kwargs):
         """
@@ -109,13 +113,41 @@ class Policy(ABC):
             return self.actor.getAction(observation)
         raise NotImplementedError
 
-    def getActionWProb(self, observation, **kwargs):
+    def getActionWProb(self, observation, *kwargs):
         """
-            New test
+            New, in test
         """
-        if self.stochastic:
-            return self.actor.getActionWProb(observation)
-        raise NotImplementedError
+        if not self.stochastic:
+            raise AttributeError('%s does not support this operation')
+        return getActionWProb(self.actor, observation)
+
+    def getActionWVal(self, observation):
+        """
+            New, in test
+        """
+        if not self.valueBased:
+            raise AttributeError('%s does not support this operation')
+        action = self.getAction(observation)
+        value = self.getValue(observation, action)
+        return action, value
+
+    def getAVP(self, observation):
+        """
+            New, in test
+            From an observation returns all the policy can process about it:
+            an action, a value and the log_prob of said action.
+
+            returns
+            --------
+            - action
+            - value of the observation
+            - log_prob of action
+        """
+        if not self.valueBased and not self.stochastic:
+            raise AttributeError('%s does not support this operation')
+        action, logprob = self.getActionWProb(observation)
+        value = self.getValue(observation, action)
+        return action, value, logprob
 
     def getRndAction(self):
         """
@@ -276,6 +308,7 @@ class dummyPolicy(Policy):
         self.stochastic = False
         self.config = {}
         self._test = False
+        self.keysForUpdate = None
 
     def getAction(self, observation):
         return self.noop

@@ -96,11 +96,12 @@ class Agent(ABC):
 
         if policy is None:
             from rofl.policies.base import dummyPolicy
-            self.policy = dummyPolicy(self.noOp)
+            self.policy = policy = dummyPolicy(self.noOp)
             print("Warning, agent working with a dummy plug policy!")
         else:
             self.policy = policy
-        self.policy.rndFunc = self.rndAction
+        policy.rndFunc = self.rndAction
+        self.keysForBatches = policy.keysForUpdate
         
         # some administrative
         self.workerID = config["agent"].get("id", 0)
@@ -110,8 +111,11 @@ class Agent(ABC):
         self.maxEpLen = config["env"].get("max_length", -1)
         self.warmup = config["env"].get("warmup")
         self.needsLogProb = needProbs = config['agent']['need_log_prob']
-        if needProbs and not getattr(policy, 'stochastic', False):
+        if needProbs and not policy.stochastic:
             raise AttributeError('%s cannot provide log_probs as requested'%policy)
+        self.needsObsValue = needValue = config['agent']['need_obs_value']
+        if needValue and not policy.valueBased:
+            raise AttributeError('%s cannot provide value as requested'%policy)
         
         self.initAgent(**kwargs)
 
@@ -415,26 +419,38 @@ class Agent(ABC):
             -------
             obsDict
         """
-        needProbs, log_prob = self.needsLogProb, None
-        
+        needProbs, needValues = self.needsLogProb, self.needsObsValue
+        pi, observation = self.policy, self.lastObs
+
         if self.done:
             action = None
         elif random:
             action = self.rndAction()
-        elif needProbs:
-            action, log_prob = self.policy.getActionWProb(self.lastObs)
+        elif needProbs and not needValues:
+            action, logProb = pi.getActionWProb(observation)
+        elif not needProbs and needValues:
+            action, value = pi.getActionWVal(observation)
+        elif needProbs and needValues:
+            action, value, logProb = pi.getAVP(observation)
         else:
-            action = self.policy.getAction(self.lastObs)
+            action = pi.getAction(observation)
         
         infoDict = self.envStep(action)
+
+        if needValues:
+            if self._reseted:
+                # this should happen just after a reset call
+                value = pi.getValue(infoDict['observation'], infoDict['action'])
+            infoDict['obs_value'] = value
+
         if needProbs:
-            if log_prob is None:
+            if self._reseted:
                 # after a reset the actor was never samppled, then the noOP or whatever
                 # 'joker' action from reset function needs to be sampled in this version
                 # to keep the calculations accurate
                 with no_grad():
-                    log_prob = logProb4Action(self.policy, self.lastObs, infoDict['action'])
-            infoDict['log_prob'] = log_prob
+                    logProb = logProb4Action(pi, infoDict['observation'], infoDict['action'])
+            infoDict['log_prob'] = logProb
 
         return infoDict
 
@@ -512,7 +528,7 @@ class Agent(ABC):
             iter = tqdm(iter, desc = 'Generating batch', unit = 'envStep')
         for _ in iter:
             memory.add(self.fullStep(random = random))
-        return memory.sample(size, device)
+        return memory.sample(size, device, self.keysForBatches)
 
     def getEpisode(self, random = False, device = None):
         """
@@ -525,7 +541,7 @@ class Agent(ABC):
         """
         memory = singlePathRollout(self, random = random, reset = True)
         device = device if device is not None else self.device
-        return memory.getEpisode(device = device)
+        return memory.getEpisode(device, self.keysForBatches)
 
     def __repr__(self):
         s = "Agent {}\nFor environment {}\n{}".format(self.name, 
