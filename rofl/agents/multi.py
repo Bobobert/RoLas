@@ -115,6 +115,7 @@ class agentMaster():
             could be used to save resources, eg. omits to create an optimizer or else.
     """
     name = 'Agent Master v1'
+    isMulti = True
 
     def __init__(self, config, policy, envMaker, **kwargs):
 

@@ -119,7 +119,8 @@ class Policy(ABC):
         """
         if not self.stochastic:
             raise AttributeError('%s does not support this operation')
-        return getActionWProb(self.actor, observation)
+        with no_grad():
+            return getActionWProb(self.actor, observation)
 
     def getActionWVal(self, observation):
         """
@@ -145,7 +146,8 @@ class Policy(ABC):
         """
         if not self.valueBased and not self.stochastic:
             raise AttributeError('%s does not support this operation')
-        action, logprob = self.getActionWProb(observation)
+        with no_grad():
+            action, logprob = self.getActionWProb(observation)
         value = self.getValue(observation, action)
         return action, value, logprob
 

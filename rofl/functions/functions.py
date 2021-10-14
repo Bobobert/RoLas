@@ -121,3 +121,6 @@ def combDeviations(m1, m2, n1, n2, s1, s2):
     aux3 = (m1**2 + m2**2 -2 * m1 * m2) * n1 * n2 / Ns
     newStd = math.sqrt((aux1 + aux2 + aux3) / (Ns - 1))
     return newMean, newStd
+
+def newZero(t, grad: bool = False):
+    return t.new_zeros(t.shape, requires_grad = grad)

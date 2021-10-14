@@ -1,7 +1,7 @@
+from math import gamma
 from typing import Union
-
-from numpy.lib.function_base import insert
-from rofl.functions.const import ARRAY, F_TDTYPE_DEFT, TENSOR, torch
+from rofl.functions.const import ARRAY, F_TDTYPE_DEFT, TENSOR
+from rofl.functions.functions import Tmul, newZero, torch, no_grad
 
 def getParamsBaseline(policy, observations):
     if policy.baseline is None:
@@ -23,6 +23,30 @@ def getBaselines(policy, observations):
         baselines = policy.actor.onlyValue(observations)
     return baselines
 
+def actorSampleAction(actor, params):
+    dist = actor.getDist(params)
+    action = dist.sample()
+    logProb = dist.log_prob(action)
+    action = actor.processAction(action)
+    return action, logProb
+
+def getActionWProb(actor, observation):
+    """
+        Combined method
+
+        returns
+        --------
+        - action
+        - log_prob for action
+    """
+    params = actor.onlyActor(observation)
+    return actorSampleAction(actor, params)
+
+def getActionWValProb(actorCritic, observation):
+    value, params = actorCritic(observation)
+    action, logProb = actorSampleAction(actorCritic, params)
+    return action, value, logProb
+
 def logProb4Action(policy, observation:TENSOR, action:Union[TENSOR, ARRAY, int, float]) -> TENSOR:
     if isinstance(action, ARRAY):
         action = torch.from_numpy(action).unsqueeze(0)
@@ -30,7 +54,6 @@ def logProb4Action(policy, observation:TENSOR, action:Union[TENSOR, ARRAY, int, 
         action = torch.tensor([action], device = observation.device)
     actor = policy.actor
     params = actor.onlyActor(observation)
-    print(f'logProb: action type {type(action)}, shape {action.shape}. Observation shape {observation.shape}')
     dist = actor.getDist(params)
     log_prob = dist.log_prob(action)
     return log_prob
@@ -43,17 +66,47 @@ def setEmptyOpt(policy):
     if config['policy']['baseline']['networkClass'] is not None:
         config['policy']['baseline']['optimizer'] = 'dummy'
 
-def calculateGAE(advantage: TENSOR, done: TENSOR, gamma: float, lmbd: float):
-    gaeFactor, gaeRun = gamma * lmbd, 1.0
-    gaes = advantage.new_zeros(advantage.shape)
-    gaes[-1] = advantage[-1]
-    for i in range(len(advantage) - 1, -1, -1):
-        if done[i]:
+def calculateReturn(policy, nextObsevation, dones, rewards):
+    with no_grad():
+        valueST1 = getBaselines(policy, nextObsevation[-1].unsqueeze(0))
+    returns = newZero(rewards).cpu()
+    lastReturn = valueST1[0]
+    gamma = policy.gamma
+    for i in range(rewards.shape[0], -1, -1):
+        if dones[i]:
+            lastReturn = 0.0
+        returns[i] = lastReturn = rewards[i] + gamma * lastReturn
+    return returns
+
+def genMiniBatchLin(miniBatchSize, batchSize, *targets):
+    for lower in range(0, batchSize, miniBatchSize):
+        newYield = []
+        for t in targets:
+            upper = lower + miniBatchSize
+            if upper > batchSize:
+                upper = batchSize
+            newYield.append(t[lower:upper])
+        yield newYield
+
+def calculateGAE(policy,  valuesST, nextObservations, dones, rewards, gamma, lmbda) -> TENSOR:
+    with no_grad():
+        valuesST1 = getBaselines(policy, nextObservations)
+    # calculate TDs
+    notDones = dones.bitwise_not()
+    valuesST1 = Tmul(valuesST1, notDones)
+    tds = rewards + gamma * valuesST1 - valuesST
+
+    gaeFactor, gaeRun = gamma * lmbda, 1.0
+    gaes = rewards.new_zeros(rewards.shape)
+    gaes[-1] = tds[-1]
+    for i in range(len(rewards) - 2, -1, -1):
+        if dones[i]:
             gaeRun = 1.0
-            gaes[i] = advantage[i]
+            gaes[i] = tds[i]
         else:
             gaeRun *= gaeFactor
-            gaes[i] = advantage[i] + gaeRun * gaes[i + 1]
+            gaes[i] = tds[i] + gaeRun * gaes[i + 1]
     gaes.detach_()
+
     return gaes
         

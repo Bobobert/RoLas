@@ -1,5 +1,5 @@
 from rofl.functions.const import *
-from rofl.functions.functions import rnd
+from rofl.functions.functions import rnd, newZero
 from rofl.functions.dicts import mergeDicts
 from rofl.functions.torch import array2Tensor, list2Tensor
 
@@ -172,8 +172,6 @@ class simpleMemory():
         return self._i_
 
     def __getitem__(self, i):
-        if i >= self._i_ or i < 0:
-            return dict()
         return self._mem_[i]
 
     def __repr__(self) -> str:
@@ -189,24 +187,43 @@ class episodicMemory(simpleMemory):
     def __init__(self, config, *additionalKeys):
         keys = [("return", F_TDTYPE_DEFT)]
         super().__init__(config, *keys, *additionalKeys)
+        self.zeroObs = None
 
     def reset(self):
         super().reset()
         self._lastEpisode_ = -1
 
     def add(self, infoDict):
-        super().add(infoDict) 
+        lastItem = self[self.last]
+        super().add(infoDict)
+
+        if lastItem is not None:
+            if lastItem['done']:
+                zeroObs = self.zeroObs
+                if zeroObs is None:
+                    self.zeroObs = zeroObs = newZero(lastItem['observation'])
+                lastItem['next_observation'] = zeroObs
+            else:
+                lastItem['next_observation'] = infoDict['observation']
+        
         if infoDict["done"]:
             self.resolveReturns()
 
-    def resolveReturns(self):        
-        lastReturn = self[self.last].get('bootstrapping', 0.0)
+    def resolveReturns(self):
+        lastEpsisode = self._lastEpisode_
+        self._lastEpisode_ = last = self.last
         gamma = self.gamma
-        for i in range(self.last, self._lastEpisode_, - 1):
+
+        lastDict = self[last]
+        zeroObs = self.zeroObs
+        if zeroObs is None:
+            self.zeroObs = zeroObs = newZero(lastDict['observation'])
+        lastDict['next_observation'] = zeroObs
+        
+        lastReturn = lastDict.get('bootstrapping', 0.0)
+        for i in range(last, lastEpsisode, - 1):
             lastDict = self[i]
             lastReturn = lastDict['return'] = lastDict["reward"] + gamma * lastReturn 
-
-        self._lastEpisode_ = self.last
 
     def getEpisode(self, device = DEVICE_DEFT, keys = None):
         if self._lastEpisode_ == -1:

@@ -1,9 +1,10 @@
-from rofl.utils.policies import getActionWProb, getActionWValProb, getParamsBaseline
+from torch.autograd.grad_mode import no_grad
 from .base import Policy
 from rofl.networks.base import ActorCritic
-from rofl.functions.functions import Tmean, Tmul, Tsum, F, torch, reduceBatch, np
+from rofl.functions.functions import Tmean, Tmul, Tsum, F, torch, reduceBatch, no_grad
 from rofl.functions.const import DEVICE_DEFT, ENTROPY_LOSS
 from rofl.functions.torch import clipGrads, getOptimizer
+from rofl.utils.policies import genMiniBatchLin, getActionWProb, getActionWValProb, getParamsBaseline
 from rofl.config.config import createNetwork
 
 class pgPolicy(Policy):
@@ -22,6 +23,7 @@ class pgPolicy(Policy):
     def initPolicy(self, **kwargs):
         config = self.config
         self.keysForUpdate = ['observation', 'action', 'return']
+
         self.actorHasCritic, self.valueBased = False, False
 
         self.entropyBonus = -1.0 * abs(config['policy'].get('entropy_bonus', ENTROPY_LOSS))
@@ -55,13 +57,12 @@ class pgPolicy(Policy):
     def update(self, batchDict):
         N, miniSize = batchDict['N'], self.minibatchSize
         observations, actions, returns = batchDict['observation'], batchDict['action'], batchDict['return']
+
         if N < miniSize:
             self.batchUpdate(observations, actions, returns)
         else:
-            for lower in range(0, N, miniSize):
-                obsMini = observations[lower:lower + miniSize]
-                actMini = actions[lower:lower + miniSize]
-                rtrnMini = returns[lower:lower + miniSize]
+            gen = genMiniBatchLin(miniSize, N, observations, actions, returns)
+            for obsMini, actMini, rtrnMini in gen:
                 self.batchUpdate(obsMini, actMini, rtrnMini)
         
         del batchDict
@@ -110,9 +111,10 @@ class pgPolicy(Policy):
 
     def getAVP(self, observation):
         if self.actorHasCritic:
-            return getActionWValProb(self.actor, observation)
-
-        action, logProb = getActionWProb(self.actor, observation)
+            with no_grad():
+                return getActionWValProb(self.actor, observation)
+        with no_grad():
+            action, logProb = getActionWProb(self.actor, observation)
         if self.valueBased:
             value = self.baseline.getValue(observation, action)
         else:

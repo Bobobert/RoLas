@@ -92,15 +92,17 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT, keys = None):
                 if isinstance(target, ARRAY):
                     ref[m:m+n] = target
                 elif isinstance(target, TENSOR):
-                    target.to(zeroDevice) if not allSameDev else None
-                    ref[m:m+n] = target
+                    ref[m:m+n] = target.to(zeroDevice) if not allSameDev else target
                 elif isinstance(target, List):
                     for i in target:
                         ref.append(i)
                 elif isinstance(target, list):
                     ref += target
                 else:
-                    ref.append(target)
+                    try:
+                        ref.append(target)
+                    except AttributeError:
+                        print(f'Taget was {type(target)} while ref is a {type(ref)}. Using key {k} with dict: {d}')
             m += n
         assert N == m, 'Houston, something went wrong with this batch! expected %d samples but got %d' % (N, m)
         templateDict["device"] = zeroDevice

@@ -10,6 +10,7 @@ baselineConf = network.copy()
 
 algConfig = {
     'agent' :{
+        'agentClass' : 'pgAgent',
         'memory_size' : 10 ** 3,
         'clip_reward' : 1.0,
         'nstep' : -1,
@@ -22,6 +23,7 @@ algConfig = {
     },
 
     'policy' :{
+        'policyClass' : 'pgPolicy',
         'entropy_bonus' : ENTROPY_LOSS,
         'n_actions' : None,
         'continuos' : False,

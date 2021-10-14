@@ -10,9 +10,11 @@ def putVariables(policy):
     policy.normAdv = config['policy']['normalize_advantage']
     policy.epochsPerBatch = config['policy']['epochs']
     policy.maxKLDiff = config['policy']['max_diff_kl']
+    policy.keysForUpdate = None
 
 class ppoPolicy(a2cPolicy):
     name = 'ppo v0'
+
     def initPolicy(self, **kwargs):
         super().initPolicy(**kwargs)
         putVariables(self)
@@ -20,35 +22,39 @@ class ppoPolicy(a2cPolicy):
     def update(self, *batchDict):
         for dict_ in batchDict:
             obs, act, rtrn = dict_['observation'], dict_['action'], dict_['return']
-            dones, advantages = dict_['done'], dict_['advantage']
+            dones = dict_['done']
             logProbs = dict_['log_prob']
-            self.batchUpdate(obs, act, rtrn, dones, advantages, logProbs)
+            self.batchUpdate(dict_)
 
         self.newEpoch = True
         self.epoch += 1
 
-    def batchUpdate(self, observations, actions, returns, dones, advantages, oldLogProb):
-        log_probs_old = reduceBatch(oldLogProb)
+    def batchUpdate(self, batchDict):
+        observations, nObservations = batchDict['observation'], batchDict['next_observation']
+        actions, rewards, returns = batchDict['action'], batchDict['reward'], batchDict['return']
+        dones = batchDict['done']
 
+        log_probs_old = reduceBatch(batchDict['log_prob'])
+
+        params, baselines = getParamsBaseline(self, observations)
         if self.gae:
-            advantages = calculateGAE(advantages, dones, self.gamma, self.lmbd)
-        if self.normAdv:
-            advantages = normMean(advantages).detach_()
-
+            advantages = calculateGAE(self, baselines, nObservations, dones, rewards, self.gamma, self.lmbd)
+        else:
+            advantages = returns - baselines.detach()
+        
         eps = self.epsSurrogate
         _F, _FBl = Tmean, F.mse_loss
-    
+        
         for i in range(self.epochsPerBatch):
-
-            params, baselines = getParamsBaseline(self, observations)
+            
+            if i > 0:
+                params, baselines = getParamsBaseline(self, observations)
             log_probs, entropy = self.actor.processDist(params, actions)
             log_probs = reduceBatch(log_probs)
 
             # check KL difference through the log_probs
             kl = Tmean(log_probs_old - log_probs).cpu().item()
-            if kl > self.maxKLDiff and i != 0: 
-                #TODO, perhaps this is not necessary, but later batches could
-                # not apport something ? but the idea is the limit how much...
+            if kl > self.maxKLDiff: 
                 break
 
             # this need to be constructed K times (epochs) per batch of experiences
@@ -87,6 +93,7 @@ class ppoPolicy(a2cPolicy):
 
 class ppoWorkerPolicy(ppoPolicy):
     name = 'ppo v0 - worker'
+
     def initPolicy(self, **kwargs):
         setEmptyOpt(self)
         super().initPolicy(**kwargs)

@@ -7,8 +7,6 @@ algConfig = {
     'agent' : {
         'gae' : True,
         'need_log_prob' : True,
-        #'need_obs_value' : True,
-        'workerClass' : 'a2cAgent',
     },
     'policy': {
         'normalize_advantage' : False,

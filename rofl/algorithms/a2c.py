@@ -58,13 +58,17 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     epochs, stop = config['train']['epochs'], False
     modeGrad = config['train']['modeGrad']
     I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
+    agentMulti = getattr(agent, 'isMulti', False)
     
     try:
         ## Train loop
         zeroGrad(policy, True)
         for epoch in I:
             # Train step
-            if not modeGrad:
+            if not agentMulti:
+                episode = agent.getEpisode()
+                policy.update(episode)
+            elif not modeGrad:
                 episodes = agent.getEpisode() # a tad slower, needs to serialize and unserialize the tensors
                 policy.update(*episodes)
             else:

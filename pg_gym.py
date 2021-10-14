@@ -9,24 +9,22 @@ envConfig = {
     }
 
 agentConfig = {
-    'agentClass' : 'pgAgent',
     'memory_size' : 10**3,
     'gamma' : 0.99,
-    'nstep' : -1,
+    'nstep' : 25,
     }
 
 policyConfig = {
-    'policyClass' : 'pgPolicy',
     'continuos' : True,
-    'entropy_bonus' : 5e-3,
+    'entropy_bonus' : 5e-1,
     'network' : {
-        'networkClass' : 'gymActor',
+        'networkClass' : 'gymAC',#'gymActor',
         'linear_1' : 56,
-        'linear_2' : 32,
-        'learning_rate' : 1e-5,
+        #'linear_2' : 32,
+        'learning_rate' : 5e-5,
     },
     'baseline' :{
-        'networkClass' : 'gymBaseline',
+        'networkClass' : None,#'gymBaseline',
         'linear_1' : 56,
         'linear_2' : 32,
         'learning_rate': 1e-5,
