@@ -1,15 +1,12 @@
 from rofl.functions.const import *
-from rofl.functions.functions import assertProb, np, torch, no_grad, math, ceil
+from rofl.functions.functions import assertProb, newZero, np, torch, no_grad, math, ceil, deepcopy
 from rofl.functions.torch import tryCopy
 from rofl.functions.dicts import obsDict
 from rofl.functions.gym import doWarmup, noOpSample
 from rofl.functions.coach import singlePathRollout
 from gym import Env
 from abc import ABC
-from copy import deepcopy
 from tqdm import tqdm
-
-from rofl.utils.policies import logProb4Action
 
 class Agent(ABC):
     """
@@ -75,6 +72,7 @@ class Agent(ABC):
         self._acR_, self._agentStep_, self._envStep_ = 0.0, 0, 0
         self.done, self._reseted = True, False
         self.lastObs, self.lastReward, self.lastAction, self.lastInfo =  None, 0.0, None, {}
+        self.zeroObs = None
         self._totSteps, self._totEpisodes, self.memory = 0, 0, None
 
         if self.name == "BaseAgent":
@@ -97,9 +95,12 @@ class Agent(ABC):
         if policy is None:
             from rofl.policies.base import dummyPolicy
             self.policy = policy = dummyPolicy(self.noOp)
+            self.needsLogProb = self.needsObsValue = needProbs = needValue = False
             print("Warning, agent working with a dummy plug policy!")
         else:
             self.policy = policy
+            self.needsLogProb = needProbs = config['agent']['need_log_prob']
+            self.needsObsValue = needValue = config['agent']['need_obs_value']
         policy.rndFunc = self.rndAction
         self.keysForBatches = policy.keysForUpdate
         
@@ -110,10 +111,9 @@ class Agent(ABC):
         self.gae = config["agent"].get("gae", False)
         self.maxEpLen = config["env"].get("max_length", -1)
         self.warmup = config["env"].get("warmup")
-        self.needsLogProb = needProbs = config['agent']['need_log_prob']
+
         if needProbs and not policy.stochastic:
             raise AttributeError('%s cannot provide log_probs as requested'%policy)
-        self.needsObsValue = needValue = config['agent']['need_obs_value']
         if needValue and not policy.valueBased:
             raise AttributeError('%s cannot provide value as requested'%policy)
         
@@ -399,10 +399,10 @@ class Agent(ABC):
         self._acR_ += reward
         self._totEpisodes += 1 if done else 0
 
-        return obsDict(pastObs, action, reward, 
+        return obsDict(pastObs, obs, action, reward, 
                         self._agentStep_, done, info, 
                         accumulate_reward = self._acR_,
-                        id = self.workerID) 
+                        id = self.workerID, reseted = False) 
 
     def fullStep(self, random = False, **kwargs):
         """
@@ -440,7 +440,7 @@ class Agent(ABC):
         if needValues:
             if self._reseted:
                 # this should happen just after a reset call
-                value = pi.getValue(infoDict['observation'], infoDict['action'])
+                value = pi.getValue(infoDict['next_observation'], infoDict['action'])
             infoDict['obs_value'] = value
 
         if needProbs:
@@ -449,7 +449,7 @@ class Agent(ABC):
                 # 'joker' action from reset function needs to be sampled in this version
                 # to keep the calculations accurate
                 with no_grad():
-                    logProb = logProb4Action(pi, infoDict['observation'], infoDict['action'])
+                    logProb = pi.getProb4Action(infoDict['next_observation'], infoDict['action'])
             infoDict['log_prob'] = logProb
 
         return infoDict
@@ -474,13 +474,16 @@ class Agent(ABC):
             obs, self._envStep_, action = env.reset(), 0, self.noOp
 
         self.lastObs = obs = self.processObs(obs, True)
+        zeroObs = self.zeroObs
+        if zeroObs is None:
+            self.zeroObs = zeroObs = newZero(obs)
         self.lastReward, self.lastInfo, self.lastAction = 0.0, {}, action
         self._agentStep_, self._acR_ = 0, 0.0
         self._reseted, self.done = True, False
 
-        return obsDict(obs, action, 0.0, 0, False, 
+        return obsDict(zeroObs, obs, action, 0.0, 0, False, 
                         accumulate_reward = self._acR_,
-                        id = self.workerID)
+                        id = self.workerID, reseted = True)
     
     def rndAction(self):
         """

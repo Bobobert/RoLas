@@ -4,7 +4,7 @@ from rofl.networks.base import ActorCritic
 from rofl.functions.functions import Tmean, Tmul, Tsum, F, torch, reduceBatch, no_grad
 from rofl.functions.const import DEVICE_DEFT, ENTROPY_LOSS
 from rofl.functions.torch import clipGrads, getOptimizer
-from rofl.utils.policies import genMiniBatchLin, getActionWProb, getActionWValProb, getParamsBaseline
+from rofl.utils.policies import genMiniBatchLin, getActionWProb, getActionWValProb, getBaselines, getParamsBaseline
 from rofl.config.config import createNetwork
 
 class pgPolicy(Policy):
@@ -115,8 +115,6 @@ class pgPolicy(Policy):
                 return getActionWValProb(self.actor, observation)
         with no_grad():
             action, logProb = getActionWProb(self.actor, observation)
-        if self.valueBased:
-            value = self.baseline.getValue(observation, action)
-        else:
-            value = 0.0 # bite me twice
+            value = getBaselines(self, observation)
+
         return action, value, logProb

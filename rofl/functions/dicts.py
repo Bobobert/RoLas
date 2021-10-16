@@ -11,14 +11,17 @@
 
 """
 
-from .functions import combDeviations
+from typing import Tuple
+from numpy import dtype
+from .functions import combDeviations, torch
 from .const import *
 
-def obsDict(obs, action, reward, step, done, info = {}, **kwargs) -> dict:
+def obsDict(obs, nextObs, action, reward, step, done, info = {}, **kwargs) -> dict:
     
     zeroDevice = obs.device if isinstance(obs, TENSOR) else DEVICE_DEFT
 
     dict_ = {"observation": obs, "device": zeroDevice,
+            "next_observation" : nextObs,
             "action": action, "reward": reward, 
             "step": step, "done": done, 
             "info": info, "N": 1,
@@ -102,7 +105,7 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT, keys = None):
                     try:
                         ref.append(target)
                     except AttributeError:
-                        print(f'Taget was {type(target)} while ref is a {type(ref)}. Using key {k} with dict: {d}')
+                        print(f'Target was {type(target)} while ref is a {type(ref)}. Using key {k} with dict: {d}')
             m += n
         assert N == m, 'Houston, something went wrong with this batch! expected %d samples but got %d' % (N, m)
         templateDict["device"] = zeroDevice
@@ -122,7 +125,6 @@ def dev2devDict(infoDict: dict, targetDevice):
     return infoDict
 
 def addBootstrapArg(obsDict: dict):
-    #obsDict['advantage'] = 0.0
     obsDict['bootstrapping'] = 0.0
 
 def mergeResults(*dicts):
@@ -152,4 +154,31 @@ def mergeResults(*dicts):
     }
 
     return results
+
+def composeObs(*infoDicts, device = DEVICE_DEFT) -> Tuple[TENSOR, TENSOR, list]:
+    # a hard-coded mergeDicts
+    ids = []
+    for i, dict_ in enumerate(infoDicts):
+        obs = dict_['observation']
+
+        if i == 0:# init tensors
+            l = len(infoDicts)
+            newObs = obs.new_zeros((l, *obs.shape[1:]), device = device)
+            dones = obs.new_zeros((l,), dtype = B_TDTYPE_DEFT, device = device)
+        
+        ids.append(dict_['id'])
+        newObs[i] = obs.to(device)
+        dones[i] = dict_['done']
+
+    return newObs, dones, ids
+
+def solveOthers(other, ids, otherKey, *infoDicts):
+    iDs = {}
+    for dict_ in infoDicts:
+        iDs[dict_['id']] = dict_
+    for other, iD in zip(other, ids):
+        dict_ = iDs[iD]
+        if isinstance(other,TENSOR): # Return to batch notation
+            other = other.unsqueeze(0)
+        dict_[otherKey] = other
     

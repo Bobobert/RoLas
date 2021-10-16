@@ -1,19 +1,25 @@
 from rofl.functions.const import *
 from typing import Tuple
-from rofl.functions.functions import multiplyIter, nn, sqrConvDim, no_grad
+from rofl.functions.functions import multiplyIter, nn, sqrConvDim, no_grad, isItem, isBatch
 from rofl.functions.torch import newNet, noneGrad
 
-def isItem(T):
-    if T.squeeze().shape == ():
-        return True
-    return False
-
-def simpleActionProc(action, discrete):
+def simpleActionProc(action, discrete: bool):
+    if isBatch(action):
+        return simpleActionProcBatch(action, discrete)
     if discrete and isItem(action):
         action = action.item()
     else:
         action = action.to(DEVICE_DEFT).squeeze(0).numpy()
     return action
+
+def simpleActionProcBatch(action, discrete: bool):
+    actions = []
+    if discrete and isItem(action[0]):
+        for a in action:
+            actions.append(a.cpu().item())
+    else:
+        actions = action.cpu().numpy()
+    return actions
 
 class BaseNet(nn.Module):
     """
@@ -68,6 +74,8 @@ class Value(BaseNet):
     
     @no_grad()
     def getValue(self, observation, action):
+        if isBatch(observation):
+            return self.forward(observation).cpu().numpy()
         value = self.forward(observation)
         return value.item()
 
@@ -98,6 +106,10 @@ class QValue(BaseNet):
     @no_grad()
     def getValue(self, observation, action):
         assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
+        if isBatch(observation):
+            Qvalues = self.forward(observation)
+            values = Qvalues.gather(1, torch.tensor(action, dtype = I_TDTYPE_DEFT).unsqueeze_(1))
+            return values.cpu().numpy()
         return self.forward(observation)[action].item()
         
     def processAction(self, action):
@@ -305,6 +317,9 @@ class ActorCritic(Actor):
         for it with no_grad operation.
         """
         value = self.onlyValue(observation)
+        if isBatch(value):
+            value = value.squeeze()
+            return value.cpu().numpy()
         return value.item()
 
 ### Functions to create easier networks ###

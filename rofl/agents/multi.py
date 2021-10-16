@@ -1,9 +1,11 @@
-from rofl.config.config import createPolicy
-from rofl.functions.torch import cloneNet, newNet
-from .base import Agent
+from torch._C import Value
+from rofl.config.config import createPolicy, createAgent
+from rofl.functions.coach import singlePathRolloutMulti
 from rofl.functions.const import *
-from rofl.functions.functions import ceil
-from rofl.functions.dicts import mergeDicts, mergeResults
+from rofl.functions.functions import ceil, deepcopy
+from rofl.functions.dicts import composeObs, mergeDicts, mergeResults
+from rofl.policies.base import Policy
+from rofl.utils.memory import multiMemory
 import ray
 
 # Status Flags
@@ -117,7 +119,7 @@ class agentMaster():
     name = 'Agent Master v1'
     isMulti = True
 
-    def __init__(self, config, policy, envMaker, **kwargs):
+    def __init__(self, config: dict, policy: Policy, envMaker, **kwargs):
 
         self.policy = policy
         self.config = config
@@ -142,23 +144,21 @@ class agentMaster():
         self.workers = workersL = []
         s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
         for i in range(nWorkers):
-            nconfig = config.copy()
+            nconfig = deepcopy(config) # TODO, deep copy
             nconfig["agent"]["id"] = i
             nconfig["env"]["seedTrain"] = s1 + i + 1
             nconfig["env"]["seedTest"] = s2 + i + 1
             nconfig['policy']['policyClass'] = nconfig['policy']['workerPolicyClass']
-            if policy is not None:
-                # serializes the current actor and baseline to the agent init on thread
-                # within the workerPolicy serialization
-                workerPolicy = createPolicy(nconfig, nActor, baseline = nBl)
+            workerPolicy = createPolicy(nconfig, nActor, baseline = nBl)
             worker = Worker(ragnt.remote(nconfig, workerPolicy, envMaker), i)
             workersD[i] = worker
             workersL.append(worker)
     
     @property
     def device(self):
-        if self.policy is not None:
-            return self.policy.device
+        pi = self.policy
+        if pi is not None:
+            return pi.device
         else:
             return DEVICE_DEFT
 
@@ -293,19 +293,27 @@ class agentSync(agentMaster):
     name = 'Agent master sync'
 
     def reset(self):
+        wrks = []
         for worker in self.workers:
             worker.ref = worker().reset.remote()
-        results = self.syncResolve()
-        self.lastObs = mergeDicts(*results, targetDevice = self.device)
-        return results
+            wrks.append(worker)
+        return self.syncResolve(wrks)
 
-    def fullStep(self):
+    def envStep(self, actions, **kwargs):
+        wrks = []
+        actions = ray.put(actions)
+        for w in self.workers:
+            w.ref = w().envStep.remote(actions, **kwargs)
+            wrks.append(w)
+        return self.syncResolve(wrks)
+
+    def fullStep(self, random: bool = False, **kwargs):
         wrks = []
         for w in self.workers:
-            w.ref = w().fullStep.remote()
+            w.ref = w().fullStep.remote(random, **kwargs)
             wrks.append(w)
         
-        return mergeDicts(*self.syncResolve(wrks), targetDevice = self.device)
+        return self.syncResolve(wrks)
 
     def getEpisode(self, random: bool = False, device = None) -> list[dict]:
         wrks = []
@@ -329,7 +337,6 @@ class agentSync(agentMaster):
 
     def sync(self, batch):
         self.policy.update(batch)
-
         state = self.policy.currentState()
         for w in self.workers:
             w.ref = w().loadState.remote(state)
@@ -380,3 +387,96 @@ class agentSync(agentMaster):
         self.testCalls += 1
 
         return results
+
+class agentMultiEnv(agentSync):
+    name = 'Agent multi env'
+
+    def __init__(self, config, policy, envMaker, **kwargs):
+        super().__init__(config, policy, envMaker, **kwargs)
+        # More like BaseAgent, but to manage multiAgent
+        keys = [('action', I_TDTYPE_DEFT)] if self.policy.discrete else [('action', F_TDTYPE_DEFT)]
+        self.memory = multiMemory(config, *keys)
+        
+        nConfig = config.copy()
+        nConfig['agent']['agentClass'] = config['agent']['workerClass']
+        self.leadAgent = createAgent(nConfig, policy, envMaker, **kwargs)
+        self.nSteps = config['agent']['nstep']
+        if self.nSteps < 0:
+            raise ValueError('For this agent, nstep needs to be positive to impose a nstep return')
+
+        self.stepReady = False
+        self.lastObs, self.lastDones = None, None
+        self.lastIds = None
+        
+        self.needsLogProb = needProbs = config['agent']['need_log_prob']
+        if needProbs and not policy.stochastic:
+            raise AttributeError('%s cannot provide log_probs as requested'%policy)
+        self.needsObsValue = needValue = config['agent']['need_obs_value']
+        if needValue and not policy.valueBased:
+            raise AttributeError('%s cannot provide value as requested'%policy)
+
+    def test(self, iters: int = TEST_N_DEFT, progBar: bool = False):
+        return self.leadAgent.test(iters=iters, progBar=progBar)
+
+    def rndAction(self):
+        """
+            Returns a random action from the gym space
+        """
+        actions = []
+        rndFun = self.leadAgent.rndAction
+        for _ in self.workers:
+            actions.append(rndFun())
+        return actions
+
+    def getEpisode(self, random: bool = False, device = None) -> list[dict]:
+        pi, memory = self.policy, self.memory
+        device = pi.device if device is None else device
+        singlePathRolloutMulti(self, self.nSteps, random)
+        return memory.getEpisodes(device, pi.keysForUpdate)
+
+    def reset(self):
+        observations = super().reset()
+        self.lastObs, self.lastDones, self.lastIds = composeObs(*observations, device = self.device)
+        self.memory.reset()
+        self.stepReady = True
+
+        return observations
+
+    def fullStep(self, random: bool = False):
+        if not self.stepReady:
+            self.reset()
+
+        needProbs, needValues = self.needsLogProb, self.needsObsValue
+        pi, observation, ids = self.policy, self.lastObs, self.lastIds
+
+        if random:
+            actions = self.rndAction()
+        elif needProbs and not needValues:
+            actions, logProbs = pi.getActionWProb(observation)
+        elif not needProbs and needValues:
+            actions, values = pi.getActionWVal(observation)
+        elif needProbs and needValues:
+            actions, values, logProbs = pi.getAVP(observation)
+        else:
+            actions = pi.getAction(observation)
+
+        observations = self.envStep(actions, ids = ids)
+
+        if needValues or needProbs:
+            iDS = {}
+            for dict_ in observations:
+                iDS[dict_['id']] = dict_
+        if needValues:
+            for value, iD in zip(values, ids):
+                dict_ = iDS[iD]
+                dict_['obs_value'] = value
+        if needProbs:
+            for prob, iD in zip(logProbs, ids):
+                dict_ = iDS[iD]
+                dict_['log_prob'] = prob
+
+        self.lastObs, self.lastDones, self.lastIds = composeObs(*observations, device = self.device) # compose to have a state to process actions with
+        return observations
+        self.memory.add(*observations) # the rest of the info goes to the memories in raw
+
+        

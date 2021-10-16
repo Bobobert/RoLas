@@ -1,18 +1,20 @@
 """
     Functions to manage actors and policies while developing or treating trajectories.
 """
-from .dicts import addBootstrapArg
+from rofl.utils.policies import getBaselines
+from .dicts import addBootstrapArg, composeObs, solveOthers
 from rofl.functions.const import *
-from rofl.functions.functions import no_grad
+from rofl.functions.functions import Tmul, no_grad
 from rofl.utils.memory import episodicMemory
 
 @no_grad()
-def calcBootstrap(agent):
+def calcBootstrap(agent, obsDict):
     """
         Calculates the current value if able of the ongoing agent state.
 
     """
-    return agent.processReward(agent.policy.getValue(agent.lastObs, agent.lastAction))
+    obs, action = obsDict['observation'], obsDict['action']
+    return agent.processReward(agent.policy.getValue(obs, action))
 
 def prepareBootstrapping(agent, obsDict):
     """
@@ -90,4 +92,42 @@ def singlePathRollout(agent, maxLength = -1, memory: episodicMemory = None,
                 memory.resolveReturns()
                 break
     
+    return memory
+
+
+def prepareBootstrappingMulti(agent, *infoDicts):
+    pi = agent.policy
+    obs, dones, ids =  composeObs(*infoDicts, device = pi.device)
+    with no_grad():
+        bootstrapping = getBaselines(pi, obs)
+        notDones = dones.bitwise_not().unsqueeze(1)
+        bootstrapping = agent.processReward(Tmul(bootstrapping, notDones))
+    solveOthers(bootstrapping, ids, 'bootstrapping', *infoDicts)
+    for dict_ in infoDicts:
+        dict_['done'] = True
+
+def singlePathRolloutMulti(multiAgent, length, random: bool = False):
+    """
+        Does a rollout per environment with the given length. 
+        If a terminal state is not reached a bootstrap value is
+        calculated for it.
+
+        Cannot do episodes of variable length, all the environments are
+        called at the same time in a sync way
+
+        parameters
+        ----------
+        agent: agentSync type with support for fullStep
+        legth: int
+            The desired length of the rollout
+    """
+    memory, pi = multiAgent.memory, multiAgent.policy
+    memory.reset()
+    for i in range(length):
+        experiences = multiAgent.fullStep(random = random)
+        if i != length - 1:
+            memory.add(*experiences)
+    prepareBootstrappingMulti(multiAgent.leadAgent, *experiences)
+    memory.add(*experiences)
+
     return memory

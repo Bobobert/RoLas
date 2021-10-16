@@ -121,7 +121,9 @@ class simpleMemory():
             aux = sample.get(key)
             if aux is None: # When the key in memory was not asked in keys for the merge result
                 continue
-            if isinstance(aux, list):
+            if isinstance(aux, TENSOR):
+                continue
+            elif isinstance(aux, list):
                 sample[key] = list2Tensor(aux, device, dtype)
             elif isinstance(aux, ARRAY):
                 sample[key] = array2Tensor(aux, device, dtype, batch=True)
@@ -187,25 +189,13 @@ class episodicMemory(simpleMemory):
     def __init__(self, config, *additionalKeys):
         keys = [("return", F_TDTYPE_DEFT)]
         super().__init__(config, *keys, *additionalKeys)
-        self.zeroObs = None
 
     def reset(self):
         super().reset()
         self._lastEpisode_ = -1
 
     def add(self, infoDict):
-        lastItem = self[self.last]
         super().add(infoDict)
-
-        if lastItem is not None:
-            if lastItem['done']:
-                zeroObs = self.zeroObs
-                if zeroObs is None:
-                    self.zeroObs = zeroObs = newZero(lastItem['observation'])
-                lastItem['next_observation'] = zeroObs
-            else:
-                lastItem['next_observation'] = infoDict['observation']
-        
         if infoDict["done"]:
             self.resolveReturns()
 
@@ -214,13 +204,9 @@ class episodicMemory(simpleMemory):
         self._lastEpisode_ = last = self.last
         gamma = self.gamma
 
-        lastDict = self[last]
-        zeroObs = self.zeroObs
-        if zeroObs is None:
-            self.zeroObs = zeroObs = newZero(lastDict['observation'])
-        lastDict['next_observation'] = zeroObs
-        
-        lastReturn = lastDict.get('bootstrapping', 0.0)
+        lastReturn = self[last].get('bootstrapping', 0.0)
+        if isinstance(lastReturn, TENSOR):
+            lastReturn = lastReturn.cpu().item()
         for i in range(last, lastEpsisode, - 1):
             lastDict = self[i]
             lastReturn = lastDict['return'] = lastDict["reward"] + gamma * lastReturn 
@@ -230,6 +216,59 @@ class episodicMemory(simpleMemory):
             raise AttributeError("Memory does not have an episode ready!")
         return self.createSample(self.gatherMem(), device, keys)
 
+class multiMemory:
+    name = 'multi episodic'
+
+    def __init__(self, config, *additionalKeys):
+        self.n = config['agent']['workers']
+        self.config = config
+        self._addKeys = additionalKeys
+        self._hasInit = False
+        self._memories, self._memList = {}, []
+
+    def reset(self):
+        for mem in self._memList:
+            mem.reset()
+    
+    def __getitem__(self, i):
+        memories = self._memories
+        mem = memories.get(i)
+        if mem is not None:
+            return mem
+        elif mem is None and len(memories) < self.n:
+            new = episodicMemory(self.config, *self._addKeys)
+            new.reset()
+            self._memList.append(new)
+            memories[i] = new
+            return new
+        elif len(memories) >= self.n:
+            raise ValueError('New memories cannot be crated, already at max capacity.')
+
+    def __repr__(self) -> str:
+        s = 'Memory %s, managing %d units.' % (self.name, len(self._memories))
+        return s
+
+    def add(self, *obsDict):
+        for dict_ in obsDict:
+            iD = dict_['id']
+            mem = self[iD]
+            mem.add(dict_)
+
+    def getEpisodes(self, device = DEVICE_DEFT, keys = None, forceResolve = True):
+        episodes = []
+        for mem in self._memList:
+            if forceResolve: mem.resolveReturns()
+            episode = mem.getEpisode(device, keys)
+            episodes.append(episode)
+        return episodes
+
+    def getSamples(self, size, device = DEVICE_DEFT, keys = None):
+        samples = []
+        for mem in self._memList:
+            sample = mem.getSample(size, device, keys)
+            samples.append(sample)
+        return samples
+            
 class dqnMemory(simpleMemory):
     memType = 'dqn v0'
 
@@ -264,7 +303,7 @@ class dqnMemory(simpleMemory):
         if item.get('frame') is None:
             prevItem = super().__getitem__(i-1)
             if prevItem.get('done', True): # if gatherMem is called the first item will have to have frame in zeros!
-                item['frame'] = self.zeroFrame# this should keep only references
+                item['frame'] = self.zeroFrame
             else:
                 item['frame'] = prevItem['next_frame']
         return item

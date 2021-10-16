@@ -2,7 +2,7 @@ from rofl.functions.torch import maxGrad, meanGrad
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
 from rofl.functions.functions import nn, no_grad
 from rofl.functions.const import DEVICE_DEFT
-from rofl.utils.policies import getActionWProb
+from rofl.utils.policies import getActionWProb, logProb4Action
 from abc import ABC
 
 class Policy(ABC):
@@ -125,6 +125,11 @@ class Policy(ABC):
     def getActionWVal(self, observation):
         """
             New, in test
+            
+            returns
+            --------
+            - action
+            - value
         """
         if not self.valueBased:
             raise AttributeError('%s does not support this operation')
@@ -150,6 +155,15 @@ class Policy(ABC):
             action, logprob = self.getActionWProb(observation)
         value = self.getValue(observation, action)
         return action, value, logprob
+
+    def getProb4Action(self, observation, action):
+        """
+            New in test
+            returns
+            -------
+            - log_prob tensor for the action
+        """
+        return logProb4Action(self, observation, action)
 
     def getRndAction(self):
         """
@@ -256,9 +270,8 @@ class Policy(ABC):
 
         """
         observations = batchDict["observation"]
-        N = observations.shape[0]
         actions = []
-        for n in range(N):
+        for n in range(batchDict['N']):
             actions.append(self.getAction(observations[n].unsqueeze(0)))
 
         return actions, batchDict["id"]

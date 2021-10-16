@@ -1,5 +1,5 @@
 from .const import *
-from .functions import Tdiv, Tmean, Tcat, Tstd, multiplyIter, nn, optim
+from .functions import Tdiv, Tmean, Tcat, Tstd, multiplyIter, nn, optim, deepcopy
 
 def getDevice(cudaTry:bool = True):
     if torch.cuda.is_available() and cudaTry:
@@ -190,7 +190,6 @@ def tryCopy(T: TENSOR):
     elif isinstance(T, ARRAY):
         return np.copy(T)
     else:
-        from copy import deepcopy
         return deepcopy(T)
 
 def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'network'):

@@ -42,7 +42,7 @@ class dqnAtariAgent(Agent):
         obsDict = super().envStep(action)
         # sligth mod to the obsDict from DQN memory
         obsDict['next_frame'] = self.frameStack.copy()
-        obsDict['observation'] = None # Deletes the reference to the tensor generated, mem expensive while GPU
+        obsDict['observation'] = obsDict['next_observation'] = None # Deletes the reference to the tensor generated, mem expensive while GPU
         obsDict['device'] = DEVICE_DEFT
         return obsDict
     

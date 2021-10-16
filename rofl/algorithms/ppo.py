@@ -17,7 +17,7 @@ algConfig = {
         'epochs' : 10,
     },
     'train' : {
-        'modeGrad' : False,
+        'modeTrain' : 0,
     }
 }
 

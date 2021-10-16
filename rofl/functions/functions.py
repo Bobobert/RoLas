@@ -14,6 +14,7 @@ import random as rnd
 import numpy as np
 import numpy.random as nprnd
 import numba as nb
+from copy import deepcopy
 
 ### FUNCTION FROM LIBS ###
 ceil = math.ceil
@@ -48,6 +49,16 @@ def assertIntPos(sus):
 def sqrConvDim(inpt, kernel, stride, pad = 1, dil = 1):
     return floor((inpt + 2*pad - dil*(kernel-1) - 1) /stride + 1)
 
+def isItem(T):
+    if T.squeeze().shape == ():
+        return True
+    return False
+
+def isBatch(T):
+    if T.shape[0] > 1:
+        return True
+    return False
+
 def runningMean(xt, y, t):
     """
         parameters
@@ -72,8 +83,10 @@ def multiplyIter(itm):
         result_ *= i
     return result_
 
-def clipReward(agent, reward: Union[float, int]):
+def clipReward(agent, reward: Union[float, int, torch.Tensor]):    
     clipTarget = agent.clipReward
+    if isinstance(reward, torch.Tensor):
+        return torch.clamp(reward, min = -clipTarget, max = clipTarget)
     if clipTarget > 0:
         mClipTarget = -clipTarget
         if reward > clipTarget:

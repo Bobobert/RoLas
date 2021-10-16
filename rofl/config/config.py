@@ -61,7 +61,7 @@ def createAgent(config, policy, envMaker, **kwargs) -> AgentType:
 def createPolicy(config, actor, **kwargs) -> PolicyType:
     import rofl.policies as policies
     targetClass = config['policy']['policyClass']
-    if targetClass is None:
+    if targetClass is None or targetClass == '':
         return None # None is also a policy :)
     policyClass = getattr(policies, targetClass)
     policy = policyClass(config, actor, **kwargs)

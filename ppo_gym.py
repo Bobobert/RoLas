@@ -13,6 +13,7 @@ agentConfig = {
     'nstep' : 30,
     'workers' : 6,
     'memory_size' : 10**2,
+    'agentClass' : 'agentMultiEnv'
     }
 
 policyConfig = {
@@ -23,13 +24,15 @@ policyConfig = {
         'linear_1' : 32,
         'learning_rate' : 5e-5,
     },
+    'workerPolicyClass' : '',
 }
 
 trainConfig = {
     'epochs' : 10**4,
     'test_freq' : 5 * 10**2,
     'expected_performance': 100,
-    'max_time' : None#10,
+    'max_time' : None,#10,
+    'modeTrain' : 1,
 }
 
 expConfig = {

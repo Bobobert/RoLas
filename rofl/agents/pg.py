@@ -17,7 +17,7 @@ class pgAgent(Agent):
         keys = [('action', I_TDTYPE_DEFT)] if self.policy.discrete else [('action', F_TDTYPE_DEFT)]
         self.memory = episodicMemory(config, *keys)
 
-    def processReward(self, reward):
+    def processReward(self, reward, **kwargs):
         return clipReward(self, reward)
 
     def processObs(self, obs, reset = False):

@@ -21,9 +21,6 @@ class ppoPolicy(a2cPolicy):
 
     def update(self, *batchDict):
         for dict_ in batchDict:
-            obs, act, rtrn = dict_['observation'], dict_['action'], dict_['return']
-            dones = dict_['done']
-            logProbs = dict_['log_prob']
             self.batchUpdate(dict_)
 
         self.newEpoch = True
