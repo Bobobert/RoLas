@@ -43,7 +43,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     saver.addObj(policy.actor, 'actor_net',
                 isTorch = True, device = policy.device,
                 key = 'mean_return')
-    if getattr(policy, 'baseline', False):
+    if getattr(policy, 'baseline', False) and not getattr(policy, 'actorHasCritic', False):
         if policy.baseline != None:
             saver.addObj(policy.baseline, 'baseline_net',
                     isTorch = True, device = policy.device,

@@ -11,28 +11,27 @@ envConfig = {
 agentConfig = {
     'gamma' : 0.99,
     'nstep' : 30,
-    'workers' : 6,
+    'workers' : 16,
     'memory_size' : 10**2,
     'agentClass' : 'agentMultiEnv'
     }
 
 policyConfig = {
     'continuos' : False,
-    'entropy_bonus' : 5e-2,
+    'entropy_bonus' : 5e-1,
     'network' : {
         'networkClass' : 'gymAC',
         'linear_1' : 32,
-        'learning_rate' : 5e-5,
+        'learning_rate' : 1e-4,
     },
-    'workerPolicyClass' : '',
+    'epochs' : 10,
 }
 
 trainConfig = {
     'epochs' : 10**4,
-    'test_freq' : 5 * 10**2,
+    'test_freq' : 10**2,
     'expected_performance': 100,
-    'max_time' : None,#10,
-    'modeTrain' : 1,
+    'max_time' : None,
 }
 
 expConfig = {
@@ -43,7 +42,7 @@ expConfig = {
 }
 
 if __name__ == '__main__':
-    config, agent, policy, train, manager = setUpExperiment('ppo', expConfig, dummyManager = True, cuda = False)
+    config, agent, policy, train, manager = setUpExperiment('ppo', expConfig, dummyManager = False, cuda = False)
     train(config, agent, policy, saver = manager.startSaver())
     agent.close()
     manager.close()

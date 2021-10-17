@@ -104,7 +104,7 @@ class Worker:
         s = 'Worker for Ray. ID: %d. Status: %s' %(self.id, self.status)
         return s
 
-class agentMaster():
+class AgentMaster():
     """
         Main class to create and manage a pool of ray workers.
 
@@ -117,7 +117,6 @@ class agentMaster():
             could be used to save resources, eg. omits to create an optimizer or else.
     """
     name = 'Agent Master v1'
-    isMulti = True
 
     def __init__(self, config: dict, policy: Policy, envMaker, **kwargs):
 
@@ -126,14 +125,16 @@ class agentMaster():
 
         self.tbw = kwargs.get('tbw')
         self.testCalls = 0
+        self.isMultiEnv = False
 
-        nWorkers = config["agent"].get("workers", NCPUS)
-        nWorkers += 1 if nWorkers == 1 else 0
-        self._nWorkers = nWorkers = NCPUS if nWorkers > NCPUS or nWorkers < 1 else nWorkers
+        nWorkers = ncpus = config["agent"].get("workers", NCPUS)
+        self._nWorkers = nWorkers = NCPUS if nWorkers < 0 else nWorkers # a worker per thread available if < 0
+        ncpus += 1 if ncpus == 1 else 0
+        ncpus = NCPUS if ncpus > NCPUS else ncpus
 
         import rofl.agents as agents
         agentClass = getattr(agents, config['agent']['workerClass']) # should raise error when ill config
-        ray.init(num_cpus = nWorkers)
+        ray.init(num_cpus = ncpus) # TODO, test and validate when more agents are needed than CPUS
         ragnt = ray.remote(agentClass)
 
         workerPolicy = None
@@ -144,11 +145,11 @@ class agentMaster():
         self.workers = workersL = []
         s1, s2 = config["agent"].get("seedTrain", TRAIN_SEED), config["agent"].get("seedTest", TEST_SEED)
         for i in range(nWorkers):
-            nconfig = deepcopy(config) # TODO, deep copy
+            nconfig = deepcopy(config)
             nconfig["agent"]["id"] = i
             nconfig["env"]["seedTrain"] = s1 + i + 1
             nconfig["env"]["seedTest"] = s2 + i + 1
-            nconfig['policy']['policyClass'] = nconfig['policy']['workerPolicyClass']
+            nconfig['policy']['policyClass'] = config['policy']['workerPolicyClass']
             workerPolicy = createPolicy(nconfig, nActor, baseline = nBl)
             worker = Worker(ragnt.remote(nconfig, workerPolicy, envMaker), i)
             workersD[i] = worker
@@ -289,7 +290,7 @@ class agentMaster():
         s = self.name + ', with %d workers' % len(self.workers)
         return s
 
-class agentSync(agentMaster):
+class agentSync(AgentMaster):
     name = 'Agent master sync'
 
     def reset(self):
@@ -301,7 +302,7 @@ class agentSync(agentMaster):
 
     def envStep(self, actions, **kwargs):
         wrks = []
-        actions = ray.put(actions)
+        #actions = ray.put(actions)
         for w in self.workers:
             w.ref = w().envStep.remote(actions, **kwargs)
             wrks.append(w)
@@ -317,7 +318,6 @@ class agentSync(agentMaster):
 
     def getEpisode(self, random: bool = False, device = None) -> list[dict]:
         wrks = []
-        #device_ = ray.put(device if device is not None else self.device) # cpu only still 
         for w in self.workers:
             w.ref = w().getEpisode.remote()
             wrks.append(w)
@@ -356,10 +356,7 @@ class agentSync(agentMaster):
         blParams_ = ray.put(blParams) if blParams != [] else []
         wrks = []
         for w in self.workers:
-            if blParams == []: # ray.put has a cost per call, even for []
-                w.ref = w().updateParams.remote(piParams_)
-            else:
-                w.ref = w().updateParams.remote(piParams_, blParams)
+            w.ref = w().updateParams.remote(piParams_, blParams)
             wrks.append(w)
 
         self.syncResolve(wrks)
@@ -392,11 +389,13 @@ class agentMultiEnv(agentSync):
     name = 'Agent multi env'
 
     def __init__(self, config, policy, envMaker, **kwargs):
+        config['policy']['workerPolicyClass'] = '' # empty policies for the agents under AgentMaster
         super().__init__(config, policy, envMaker, **kwargs)
+
         # More like BaseAgent, but to manage multiAgent
         keys = [('action', I_TDTYPE_DEFT)] if self.policy.discrete else [('action', F_TDTYPE_DEFT)]
         self.memory = multiMemory(config, *keys)
-        
+
         nConfig = config.copy()
         nConfig['agent']['agentClass'] = config['agent']['workerClass']
         self.leadAgent = createAgent(nConfig, policy, envMaker, **kwargs)
@@ -405,6 +404,7 @@ class agentMultiEnv(agentSync):
             raise ValueError('For this agent, nstep needs to be positive to impose a nstep return')
 
         self.stepReady = False
+        self.isMultiEnv = True
         self.lastObs, self.lastDones = None, None
         self.lastIds = None
         

@@ -1,7 +1,7 @@
 from rofl.functions.const import *
 from rofl.functions.functions import nprnd, runningMean, multiplyIter
 from rofl.agents.base import Agent
-from rofl.agents.multi import agentMaster
+from rofl.agents.multi import AgentMaster
 from rofl.functions.torch import updateNet
 from rofl.functions.exploratory import qUCBAction
 
@@ -139,7 +139,7 @@ class dqnRollFFAgent(dqnRolloutAgent):
         n = c["policy"]["n_actions"]
         return torch.zeros((l, n), dtype = I_TDTYPE_DEFT)
 
-class multiAgentRollout(agentMaster):
+class multiAgentRollout(AgentMaster):
 
     def reset(self):
         super().reset()

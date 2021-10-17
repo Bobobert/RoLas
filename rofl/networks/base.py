@@ -1,25 +1,7 @@
 from rofl.functions.const import *
 from typing import Tuple
 from rofl.functions.functions import multiplyIter, nn, sqrConvDim, no_grad, isItem, isBatch
-from rofl.functions.torch import newNet, noneGrad
-
-def simpleActionProc(action, discrete: bool):
-    if isBatch(action):
-        return simpleActionProcBatch(action, discrete)
-    if discrete and isItem(action):
-        action = action.item()
-    else:
-        action = action.to(DEVICE_DEFT).squeeze(0).numpy()
-    return action
-
-def simpleActionProcBatch(action, discrete: bool):
-    actions = []
-    if discrete and isItem(action[0]):
-        for a in action:
-            actions.append(a.cpu().item())
-    else:
-        actions = action.cpu().numpy()
-    return actions
+from rofl.functions.torch import newNet
 
 class BaseNet(nn.Module):
     """
@@ -444,4 +426,21 @@ def assertLayers(layers:list):
                 \nPrevious layer is %s. Check the sequence of layers.'%(tup[2], prev))
         prev = tup[2]
         layers[n] = tup[1]
-        
+
+def simpleActionProc(action, discrete: bool):
+    if isBatch(action):
+        return simpleActionProcBatch(action, discrete)
+    if discrete and isItem(action):
+        action = action.item()
+    else:
+        action = action.to(DEVICE_DEFT).squeeze(0).numpy()
+    return action
+
+def simpleActionProcBatch(action, discrete: bool):
+    actions = []
+    if discrete and isItem(action[0]):
+        for a in action:
+            actions.append(a.cpu().item())
+    else:
+        actions = action.cpu().numpy()
+    return actions

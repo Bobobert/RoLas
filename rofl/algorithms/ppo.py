@@ -9,12 +9,11 @@ algConfig = {
         'need_log_prob' : True,
     },
     'policy': {
-        'normalize_advantage' : False,
         'max_diff_kl' : MAX_DKL,
         'epsilon_surrogate' : EPS_SURROGATE,
         'policyClass' : 'ppoPolicy',
         'workerPolicyClass' : 'ppoWorkerPolicy',
-        'epochs' : 10,
+        'epochs' : 20,
     },
     'train' : {
         'modeTrain' : 0,

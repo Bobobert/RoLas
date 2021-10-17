@@ -7,10 +7,9 @@ from rofl.utils.policies import getParamsBaseline, setEmptyOpt, calculateGAE
 def putVariables(policy):
     config = policy.config
     policy.epsSurrogate = config['policy']['epsilon_surrogate']
-    policy.normAdv = config['policy']['normalize_advantage']
     policy.epochsPerBatch = config['policy']['epochs']
     policy.maxKLDiff = config['policy']['max_diff_kl']
-    policy.keysForUpdate = None
+    policy.keysForUpdate = ['observation', 'next_observation', 'return', 'reward', 'action', 'done', 'log_prob']
 
 class ppoPolicy(a2cPolicy):
     name = 'ppo v0'
@@ -41,6 +40,7 @@ class ppoPolicy(a2cPolicy):
         
         eps = self.epsSurrogate
         _F, _FBl = Tmean, F.mse_loss
+        brokeKL = 0
         
         for i in range(self.epochsPerBatch):
             
@@ -52,6 +52,7 @@ class ppoPolicy(a2cPolicy):
             # check KL difference through the log_probs
             kl = Tmean(log_probs_old - log_probs).cpu().item()
             if kl > self.maxKLDiff: 
+                brokeKL = i
                 break
 
             # this need to be constructed K times (epochs) per batch of experiences
@@ -82,9 +83,11 @@ class ppoPolicy(a2cPolicy):
 
         tbw = self.tbw
         if tbw != None and (self.epoch % self.tbwFreq == 0) and self.newEpoch:
-            tbw.add_scalar('train/Actor loss', -1 * lossPolicy.item(), self.epoch)
-            tbw.add_scalar('train/Baseline loss', lossBaseline.item(), self.epoch)
-            tbw.add_scalar('train/Total loss', loss.item(), self.epoch)
+            epoch = self.epoch
+            tbw.add_scalar('train/Actor loss', -1 * lossPolicy.item(), epoch)
+            tbw.add_scalar('train/Baseline loss', lossBaseline.item(), epoch)
+            tbw.add_scalar('train/Total loss', loss.item(), epoch)
+            tbw.add_scalar('train/KL early stopping', brokeKL, epoch)
             self._evalTBWActor_()
         self.newEpoch = False
 

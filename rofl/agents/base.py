@@ -402,7 +402,7 @@ class Agent(ABC):
         return obsDict(pastObs, obs, action, reward, 
                         self._agentStep_, done, info, 
                         accumulate_reward = self._acR_,
-                        id = self.workerID, reseted = False) 
+                        id = self.workerID) 
 
     def fullStep(self, random = False, **kwargs):
         """
@@ -483,7 +483,7 @@ class Agent(ABC):
 
         return obsDict(zeroObs, obs, action, 0.0, 0, False, 
                         accumulate_reward = self._acR_,
-                        id = self.workerID, reseted = True)
+                        id = self.workerID)
     
     def rndAction(self):
         """

@@ -1,7 +1,7 @@
 from rofl.functions.const import GAMMA, LAMDA_GAE, OPTIMIZER_DEF, OPTIMIZER_LR_DEF, TRAIN_SEED, TEST_SEED
 
 agent = {
-    'agentClass' : None, # TODO, perhaps to validate this keys after createConfig
+    'agentClass' : None,
     'id' : 0,
     'gamma' : GAMMA,
     'lambda' : LAMDA_GAE,

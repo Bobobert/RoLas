@@ -27,7 +27,7 @@ def prepareBootstrapping(agent, obsDict):
     if obsDict['done'] == True:
         return obsDict
 
-    obsDict['bootstrapping'] = bootstrap = calcBootstrap(agent)
+    obsDict['bootstrapping'] = bootstrap = calcBootstrap(agent, obsDict)
     obsDict['acuumulate_reward'] = obsDict['accumulate_reward'] + bootstrap
     obsDict['done'] = True
     return obsDict
@@ -101,7 +101,7 @@ def prepareBootstrappingMulti(agent, *infoDicts):
     with no_grad():
         bootstrapping = getBaselines(pi, obs)
         notDones = dones.bitwise_not().unsqueeze(1)
-        bootstrapping = agent.processReward(Tmul(bootstrapping, notDones))
+        bootstrapping = agent.processReward(Tmul(bootstrapping, notDones)).detach_()
     solveOthers(bootstrapping, ids, 'bootstrapping', *infoDicts)
     for dict_ in infoDicts:
         dict_['done'] = True

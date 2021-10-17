@@ -1,4 +1,5 @@
-from rofl import Agent, Policy
+from typing import Union
+from rofl import AgentMaster, Agent, Policy
 from rofl.functions.const import *
 from rofl.functions.stop import testEvaluation, initResultDict
 from rofl.functions.torch import zeroGrad
@@ -24,8 +25,9 @@ algConfig = {
         'batch_proportion' : 1.0,
         'test_freq' : 10**2,
         'modeTrain' : 1, 
-        # Modes: 0 multi agents for generating episode, 
-        # 1 multi agent env to generate episodes, 2 multi agent to generate grads
+        # Modes: 
+        # 0 multi agents for generating episode, 
+        # 1 multi agent to generate grads
     },
 
     'policy' :{
@@ -43,13 +45,13 @@ algConfig = {
     }
 }
 
-def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
+def train(config:dict, agent:Union[Agent, AgentMaster], policy:Policy, saver: Saver):
     trainResults = initResultDict()
     saver.addObj(trainResults, 'train_results')
     saver.addObj(policy.actor, 'actor_net',
                 isTorch = True, device = policy.device,
                 key = 'mean_return')
-    if getattr(policy, 'baseline', False):
+    if getattr(policy, 'baseline', False) and not getattr(policy, 'actorHasCritic', False):
         if policy.baseline != None:
             saver.addObj(policy.baseline, 'baseline_net',
                     isTorch = True, device = policy.device,
@@ -60,7 +62,7 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     epochs, stop = config['train']['epochs'], False
     modeTrain = config['train']['modeTrain'] # 0 for episode mode, 1 for grads mode
     I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
-    agentMulti = getattr(agent, 'isMulti', False)
+    agentMulti, multiEnv = isinstance(agent, AgentMaster), getattr(agent, 'isMultiEnv',False)
     
     try:
         ## Train loop
@@ -70,13 +72,13 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
             if not agentMulti: # to debug with a normal agent
                 episode = agent.getEpisode()
                 policy.update(episode)
-            elif modeTrain < 2:
+            elif modeTrain == 0:
                 episodes = agent.getEpisode() # a tad slower, needs to serialize and unserialize the tensors
                 policy.update(*episodes)
-            elif modeTrain == 2:
+            else:
                 grads = agent.getGrads()
                 policy.gradUpdate(*grads) # with ndarrays this is a tad faster (when the networks are little for CPU)
-            if agentMulti and modeTrain != 1:
+            if agentMulti and not multiEnv:
                 agent.updateParams(*policy.getParams())
             updateVar(config)
             # Check for test
