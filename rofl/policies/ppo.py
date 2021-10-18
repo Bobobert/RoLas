@@ -57,6 +57,7 @@ class ppoPolicy(a2cPolicy):
             lossPolicy = _F(lossPolicy) # average falls flat first iters??
             lossEntropy = _F(entropy)
             lossBaseline = _FBl(baselines, returns) if self.actorHasCritic else torch.zeros((), device=self.device)
+            loss = self.lossPolicyC * lossPolicy + self.entropyBonus * lossEntropy + self.lossValueC * lossBaseline
 
             # check KL difference through the log_probs
             kl = Tmean(log_probs_old.detach() - log_probs.detach()).cpu().item()
@@ -64,7 +65,6 @@ class ppoPolicy(a2cPolicy):
                 brokeKL = i
                 break
 
-            loss = self.lossPolicyC * lossPolicy + self.entropyBonus * lossEntropy + self.lossValueC * lossBaseline
             self.optimizer.zero_grad()
             loss.backward()
             if self.clipGrad > 0:
