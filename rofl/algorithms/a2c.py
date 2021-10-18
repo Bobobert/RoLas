@@ -24,10 +24,10 @@ algConfig = {
         'batch_size' : -1,
         'batch_proportion' : 1.0,
         'test_freq' : 10**2,
-        'modeTrain' : 1, 
+        'modeGrad' : True, 
         # Modes: 
-        # 0 multi agents for generating episode, 
-        # 1 multi agent to generate grads
+        # False multi agents for generating episode, 
+        # True multi agent to generate grads
     },
 
     'policy' :{
@@ -60,7 +60,7 @@ def train(config:dict, agent:Union[Agent, AgentMaster], policy:Policy, saver: Sa
 
     freqTest = config['train']['test_freq']
     epochs, stop = config['train']['epochs'], False
-    modeTrain = config['train']['modeTrain'] # 0 for episode mode, 1 for grads mode
+    modeGrad = config['train']['modeGrad']
     I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
     agentMulti, multiEnv = isinstance(agent, AgentMaster), getattr(agent, 'isMultiEnv',False)
     
@@ -69,15 +69,15 @@ def train(config:dict, agent:Union[Agent, AgentMaster], policy:Policy, saver: Sa
         zeroGrad(policy, True)
         for epoch in I:
             # Train step
-            if not agentMulti: # to debug with a normal agent
+            if not agentMulti:
                 episode = agent.getEpisode()
                 policy.update(episode)
-            elif modeTrain == 0:
-                episodes = agent.getEpisode() # a tad slower, needs to serialize and unserialize the tensors
+            elif not modeGrad:
+                episodes = agent.getEpisode()
                 policy.update(*episodes)
             else:
                 grads = agent.getGrads()
-                policy.gradUpdate(*grads) # with ndarrays this is a tad faster (when the networks are little for CPU)
+                policy.gradUpdate(*grads)
             if agentMulti and not multiEnv:
                 agent.updateParams(*policy.getParams())
             updateVar(config)

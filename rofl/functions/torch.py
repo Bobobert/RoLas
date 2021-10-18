@@ -64,7 +64,7 @@ def updateNet(net, targetLoad):
     elif isinstance(targetLoad, list):
         for p, pt in zip(targetLoad, net.parameters()):
             pt.requires_grad_(False) # This is a must to change the values properly
-            #p = np.copy(p) # works better(in time) using a copy (weird!?!)
+            p = np.copy(p) # TODO, check this. Works better(in time) using a copy (weird!?!)
             pt.data = torch.from_numpy(p).to(pt.device)
             pt.requires_grad_(True)
     else:

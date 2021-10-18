@@ -31,7 +31,7 @@ trainConfig = {
     'epochs' : 10**4,
     'test_freq' : 10**2,
     'expected_performance': 100,
-    'max_time' : None,
+    'max_time' : 30,
 }
 
 expConfig = {

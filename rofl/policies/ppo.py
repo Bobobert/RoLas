@@ -49,15 +49,7 @@ class ppoPolicy(a2cPolicy):
             log_probs, entropy = self.actor.processDist(params, actions)
             log_probs = reduceBatch(log_probs)
 
-            # check KL difference through the log_probs
-            kl = Tmean(log_probs_old - log_probs).cpu().item()
-            if kl > self.maxKLDiff: 
-                brokeKL = i
-                break
-
-            # this need to be constructed K times (epochs) per batch of experiences
-            ratio = Texp(log_probs - log_probs_old)
-            
+            ratio = Texp(log_probs - log_probs_old)            
             clipped = Tmul(ratio.clamp(min = 1.0 - eps, max = 1.0 + eps), advantages.squeeze())
             unclipped = Tmul(ratio, advantages.squeeze())
             lossPolicy = torch.fmin(unclipped, clipped)
@@ -65,6 +57,12 @@ class ppoPolicy(a2cPolicy):
             lossPolicy = _F(lossPolicy) # average falls flat first iters??
             lossEntropy = _F(entropy)
             lossBaseline = _FBl(baselines, returns) if self.actorHasCritic else torch.zeros((), device=self.device)
+
+            # check KL difference through the log_probs
+            kl = Tmean(log_probs_old.detach() - log_probs.detach()).cpu().item()
+            if kl > self.maxKLDiff: 
+                brokeKL = i
+                break
 
             loss = self.lossPolicyC * lossPolicy + self.entropyBonus * lossEntropy + self.lossValueC * lossBaseline
             self.optimizer.zero_grad()
