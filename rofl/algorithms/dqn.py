@@ -8,6 +8,7 @@ from tqdm import tqdm
 algConfig = {
     'agent':{
         'lhist' : LHIST,
+        'channels' : 1,
         'memory_size' : MEMORY_SIZE,
         'max_steps_test' : 10**4,
         'steps_per_epoch' : 4,

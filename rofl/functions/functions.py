@@ -136,4 +136,7 @@ def combDeviations(m1, m2, n1, n2, s1, s2):
     return newMean, newStd
 
 def newZero(t, grad: bool = False):
-    return t.new_zeros(t.shape, requires_grad = grad)
+    if isinstance(t, torch.Tensor):
+        return t.new_zeros(t.shape, requires_grad = grad)
+    elif isinstance(t, np.ndarray):
+        return np.zeros_like(t)

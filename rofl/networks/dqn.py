@@ -1,4 +1,5 @@
 from rofl.functions.functions import *
+from rofl.utils.dqn import decomposeLHistv1
 from .base import QValue, construcConv, construcLinear, forwardConv, forwardLinear, layersFromConfig
 
 class dqnAtari(QValue):
@@ -41,6 +42,30 @@ class dqnAtariDueling(dqnAtari):
 
         Amean = Tmean(xA, dim=1, keepdim=True)
         return xVal + (xA - Amean)
+
+class dqnCA(QValue):
+    name = 'dqn CA support channels'
+    def __init__(self, config):
+        super().__init__(config)
+        self.noLinear = F.relu
+
+        lHist = config["agent"]["lhist"]
+        actions = config["policy"]["n_actions"]
+        obsShape = config["env"]["obs_shape"]
+        channels = config['agent']['channels']
+        self.frameShape = (lHist * channels, *obsShape)
+        self.outputs = actions
+        
+        self.configLayers = layers = layersFromConfig(config)
+        self.features, _ = construcConv(self, obsShape, lHist * channels, *layers['conv2d'])
+        construcLinear(self, self.features + 2, actions, *layers['linear'])
+
+    def forward(self, observation):
+        frame, position, time = decomposeLHistv1(observation, self.frameShape)
+        x = forwardConv(self, frame)
+        x = Tcat([x.flatten(1), position, time], dim = 1)
+        return forwardLinear(self, x)
+        
 
 ## TO BE DELETED ## TODO
 class forestFireDQNVanilla(QValue):

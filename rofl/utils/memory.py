@@ -1,5 +1,5 @@
 from rofl.functions.const import *
-from rofl.functions.functions import rnd, newZero
+from rofl.functions.functions import rnd
 from rofl.functions.dicts import mergeDicts
 from rofl.functions.torch import array2Tensor, list2Tensor
 
@@ -27,7 +27,7 @@ class simpleMemory():
         ----------
         - config: dict
 
-        - aditionalKeys: tuple(str, Any dtype)
+        - additionalKeys: tuple(str, Any dtype)
             Specify what aditional keys are required to process after
             gathering a sample to a torch.tensor and its data type.
             eg. ('return', torch.float16)
@@ -37,7 +37,7 @@ class simpleMemory():
     memType = 'simple'
     __keysDeft__ = [("reward", F_TDTYPE_DEFT), ("done", B_TDTYPE_DEFT)]
 
-    def __init__(self, config, *aditionalKeys):
+    def __init__(self, config, *additionalKeys):
         self.size = config["agent"].get("memory_size", DEFT_MEMORY_SIZE)
         self.gamma = config["agent"]["gamma"]
         self.gae = config["agent"]["gae"]
@@ -45,7 +45,7 @@ class simpleMemory():
         self._mem_, self._i_, self._li_ = None, 0, 0
         self.fillOnce = False
         self._keys_ = self.__keysDeft__.copy()
-        for key in aditionalKeys:
+        for key in additionalKeys:
             self._keys_.append(key)
 
     def reset(self,):
@@ -272,12 +272,10 @@ class multiMemory:
 class dqnMemory(simpleMemory):
     memType = 'dqn v0'
 
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, *additionalKeys):
+        super().__init__(config, *additionalKeys)
         self.lhist = config["agent"]["lhist"]
         assert self.lhist > 0, "Lhist needs to be at least 1"
-        from rofl.utils.dqn import genFrameStack
-        self.zeroFrame = genFrameStack(config)
     
     @staticmethod
     def lHistMem(memory, i, lHist): #Not in use, saving all the frames in this version :c
@@ -298,19 +296,3 @@ class dqnMemory(simpleMemory):
             return itemsRnd(0, self.size - 1, size)
         return itemsRnd(1, self._i_ - 1, size)
 
-    def __getitem__(self, i):
-        item = super().__getitem__(i)
-        if item.get('frame') is None:
-            prevItem = super().__getitem__(i-1)
-            if prevItem.get('done', True): # if gatherMem is called the first item will have to have frame in zeros!
-                item['frame'] = self.zeroFrame
-            else:
-                item['frame'] = prevItem['next_frame']
-        return item
-
-    def createSample(self, genSample, device, keys):
-        sample = super().createSample(genSample, device, keys)
-        sample['observation'] = array2Tensor(sample['frame'], device, batch=True).div(255)
-        sample['next_observation'] = array2Tensor(sample['next_frame'], device, batch=True).div(255)
-        sample['action'] = list2Tensor(sample['action'], device, torch.int64)
-        return sample
