@@ -44,7 +44,7 @@ class pgFFAgent(pgAgent):
         #self.memory = MemoryFF(config)
         self.obsShape = (lhist, *obsShape)
         self.frameSize = obsShape
-        self.frameStack, self.lastObs, self.lastFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
+        self.frameStack, self.lastObs, self.prevFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
         
     def processObs(self, obs, reset: bool = False): # TODO: pass this to a function that uses lHistObsProcess
         # with reward type, compose the outputs as a tensor alone always.
@@ -57,9 +57,9 @@ class pgFFAgent(pgAgent):
             self.frameStack.fill(0)
         else:
             self.frameStack = np.roll(self.frameStack, 1, axis = 0)
-        self.lastFrame = imgResize(frame, size = self.frameSize)
-        self.frameStack[0] = self.lastFrame
-        self.lastFrame = {"frame":self.lastFrame, "position":pos, "time":tm}
+        self.prevFrame = imgResize(frame, size = self.frameSize)
+        self.frameStack[0] = self.prevFrame
+        self.prevFrame = {"frame":self.prevFrame, "position":pos, "time":tm}
         newObs = torch.from_numpy(self.frameStack).to(self.device).unsqueeze(0).float().div(255)
         Tpos = torch.as_tensor(pos).to(self.device).float().unsqueeze(0)
         Ttm = torch.as_tensor([tm]).to(self.device).float().unsqueeze(0)

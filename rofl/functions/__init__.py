@@ -1,4 +1,4 @@
-from .vars import linearSchedule, runningStat
+from .vars import linearSchedule, runningStat, updateVar
 from .torch import getDevice
-from .stop import initResultDict, testEvaluation
-from .dicts import obsDict, mergeDicts
+from .stop import testEvaluation
+from .dicts import obsDict, mergeDicts, initResultDict

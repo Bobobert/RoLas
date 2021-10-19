@@ -1,5 +1,5 @@
 from rofl.functions.functions import *
-from rofl.utils.dqn import decomposeLHistv1
+from rofl.utils.dqn import decomposeLHistv0
 from .base import QValue, construcConv, construcLinear, forwardConv, forwardLinear, layersFromConfig
 
 class dqnAtari(QValue):
@@ -61,7 +61,7 @@ class dqnCA(QValue):
         construcLinear(self, self.features + 2, actions, *layers['linear'])
 
     def forward(self, observation):
-        frame, position, time = decomposeLHistv1(observation, self.frameShape)
+        frame, position, time = decomposeLHistv0(observation, self.frameShape)
         x = forwardConv(self, frame)
         x = Tcat([x.flatten(1), position, time], dim = 1)
         return forwardLinear(self, x)

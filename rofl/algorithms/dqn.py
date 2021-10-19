@@ -1,7 +1,6 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
-from rofl.functions.stop import testEvaluation, initResultDict
-from rofl.functions.vars import updateVar
+from rofl.functions import testEvaluation, initResultDict, updateVar
 from rofl.utils import Saver
 from tqdm import tqdm
 
@@ -45,13 +44,13 @@ def fillRandomMemoryReplay(config:dict, agent:Agent):
 def fillFixedTrajectory(config:dict, agent:Agent, device):
     # Generate fixed trajectory
     sizeTrajectory = config['train']['fixed_q_trajectory']
+    agent.memory.reset()
     trajectory = agent.getBatch(sizeTrajectory, random = True, progBar = True, device = device)
     agent.fixedTrajectory = trajectory['observation']
     agent.memory.reset()
     agent.reset()
 
 def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
-    agent.memory.reset()
     policy.test = True
     fillFixedTrajectory(config, agent, policy.device)
     fillRandomMemoryReplay(config, agent)

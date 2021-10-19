@@ -15,6 +15,7 @@ from typing import Tuple
 from numpy import dtype
 from .functions import combDeviations, torch
 from .const import *
+import time
 
 def obsDict(obs, nextObs, action, reward, step, done, info = {}, **kwargs) -> dict:
     
@@ -31,6 +32,20 @@ def obsDict(obs, nextObs, action, reward, step, done, info = {}, **kwargs) -> di
         dict_[k] = kwargs[k]
 
     return dict_
+
+def initResultDict():
+    return {"mean_return": [],
+            "mean_steps": [],
+            "std_return": [],
+            "std_steps": [],
+            "custom": [],
+            "time_start": time.time(),
+            "time_elapsed": 0.0,
+            "time_execution": [],
+            "max_return": [],
+            "min_return": [],
+            "tot_tests": []
+            }
 
 def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT, keys = None):
     """
@@ -96,11 +111,11 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT, keys = None):
                     ref[m:m+n] = target
                 elif isinstance(target, TENSOR):
                     ref[m:m+n] = target.to(zeroDevice) if not allSameDev else target
+                elif isinstance(target, list):
+                    ref += target
                 elif isinstance(target, List):
                     for i in target:
                         ref.append(i)
-                elif isinstance(target, list):
-                    ref += target
                 else:
                     try:
                         ref.append(target)

@@ -1,7 +1,6 @@
 from rofl import Agent, Policy
 from rofl.functions.const import *
-from rofl.functions.stop import testEvaluation, initResultDict
-from rofl.functions.vars import updateVar
+from rofl.functions import testEvaluation, initResultDict, updateVar
 from rofl.utils import Saver
 from tqdm import tqdm
 

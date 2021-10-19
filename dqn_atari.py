@@ -2,7 +2,7 @@ from rofl import setUpExperiment
 
 envConfig = {
     'envMaker' : 'atariEnvMaker',
-    'name': 'breakout',
+    'name': 'seaquest',
     'atari': True,
     'obs_shape': (84,84),
     'frameskip': 4,
@@ -13,16 +13,16 @@ envConfig = {
 agentConfig = {
     'agentClass' : 'dqnAtariAgent',
     'lhist' : 4,
-    'memory_size' : 5 * 10**5, # around 22GB of ram using CUDA
+    'memory_size' : 10**6,
     }
 
 policyConfig = {
     'policyClass' : 'dqnPolicy',
-    'n_actions' : 4,
+    'n_actions' : 6,
     'epsilon_life' : 25 * 10**4,
     'double' : True,
     'network' : {
-        'networkClass' : 'dqnAtariDueling',
+        'networkClass' : 'dqnAtari',
         'conv2d_1' : (32, 8, 4),
         'conv2d_2' : (64, 4, 2),
         'conv2d_3' : (64, 3, 1),
@@ -47,7 +47,7 @@ expConfig = {
 }
 
 if __name__ == '__main__':
-    config, agent, policy, train, manager = setUpExperiment('dqn', expConfig, dummyManager = True)
+    config, agent, policy, train, manager = setUpExperiment('dqn', expConfig, dummyManager = False)
     results = train(config, agent, policy, saver = manager.startSaver())
     agent.close()
     manager.close()

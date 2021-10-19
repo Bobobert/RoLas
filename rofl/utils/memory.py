@@ -1,3 +1,4 @@
+from copy import deepcopy
 from rofl.functions.const import *
 from rofl.functions.functions import rnd
 from rofl.functions.dicts import mergeDicts
@@ -55,7 +56,7 @@ class simpleMemory():
     
     def add(self, infoDict):
         self._mem_[self._i_] = infoDict
-        self._i_ = self._i_ + 1 % self.size
+        self._i_ = (self._i_ + 1 )% self.size
         if self._i_ == 0:
             self.fillOnce = True
 
@@ -77,7 +78,7 @@ class simpleMemory():
         if size > memSize:
             raise ValueError("Not enough data to generate sample")
         if size == memSize or size < 0:
-            return self.createSample(self.gatherMem(), device)
+            return self.createSample(self.gatherMem(), device, keys)
         return self.createSample(self.gatherSample(size), device, keys)
 
     def gatherMem(self):
@@ -151,15 +152,15 @@ class simpleMemory():
         """
         self._assertSize_(memory)
         lTarget = len(memory)
-        if lTarget + self._i_ > self.size:
+        if (lTarget + self._i_) > self.size:
             underThat = self.size - self._i_
-            overThis = lTarget + self._i_ % self.size
+            overThis = (lTarget + self._i_) % self.size
             self._mem_[self._i_:] = memory._mem_[:underThat]
             self._mem_[:overThis] = memory._mem_[underThat:]
             self._i_, self.fillOnce = overThis, True
         else:
             self._mem_[self._i_:self._i_ + lTarget] = memory._mem_
-            self._i_ = self._i_ + lTarget % self.size
+            self._i_ = (self._i_ + lTarget) % self.size
             if self._i_ == 0:
                 self.fillOnce = True
 
@@ -270,29 +271,45 @@ class multiMemory:
         return samples
             
 class dqnMemory(simpleMemory):
+    """
+        Works like simpleMemory but expects the agent to use the
+        dqnStepv0 decorator while using lHistObsProcess to process
+        the observations. As this memory composes the observations in a
+        similar manner.
+
+        Sacrifices time complexity instead of space complexity.
+
+        Use simpleMemory instead when not composing an lhist observation
+        from saved frames. Incurring in a greater memory cost but less 
+        time to generate a sample.
+    """
     memType = 'dqn v0'
 
     def __init__(self, config, *additionalKeys):
         super().__init__(config, *additionalKeys)
-        self.lhist = config["agent"]["lhist"]
-        assert self.lhist > 0, "Lhist needs to be at least 1"
+        channels = config['agent'].get('channels', 1)
+        self.lhist = config['agent']['lhist'] * channels
+        assert self.lhist > 0, 'Lhist needs to be at least 1'
     
-    @staticmethod
-    def lHistMem(memory, i, lHist): #Not in use, saving all the frames in this version :c
-        item = memory[i]
-        obs = item["observation"]
-        newObs = torch.zeros((1, lHist, *obs.shape[1:]), dtype = F_TDTYPE_DEFT)
-        newObs[0,0] = obs.squeeze()
+    def __getitem__(self, i):
+        lHist = self.lhist
+        item = super().__getitem__(i).copy() # shallow, the original will keep the ndarray references
+        obs, nObs = item['observation'], item['next_observation']
+
+        newObs = np.zeros_like(obs, shape = (lHist, *obs.shape))
+        newNObs = np.zeros_like(newObs)
+        newObs[0], newNObs[0] = obs, nObs
+
         for j in range(1, lHist):
-            item = memory[i - j]
-            if item["done"]:
+            prevItem = super().__getitem__(i - j)
+            newNObs[j] = obs
+            if prevItem is None or prevItem["done"]:
                 break
-            newObs[0, j] = item["observation"].squeeze()
-        item["observation"] = newObs
+            newObs[j] = obs = prevItem['observation']
+        item['observation'], item['next_observation'] = newObs, newNObs
         return item
 
     def gatherSample(self, size):
         if self.fillOnce:
             return itemsRnd(0, self.size - 1, size)
         return itemsRnd(1, self._i_ - 1, size)
-

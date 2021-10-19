@@ -1,18 +1,5 @@
-from rofl.utils.utils import timeToStop, time
-
-def initResultDict():
-    return {"mean_return": [],
-            "mean_steps": [],
-            "std_return": [],
-            "std_steps": [],
-            "custom": [],
-            "time_start": time.time(),
-            "time_elapsed": 0.0,
-            "time_execution": [],
-            "max_return": [],
-            "min_return": [],
-            "tot_tests": []
-            }
+from rofl.utils.utils import timeToStop
+from rofl.functions.dicts import initResultDict
 
 def testEvaluation(config, agent, trainResults = None):
     """

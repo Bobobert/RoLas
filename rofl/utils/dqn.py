@@ -6,7 +6,8 @@ from rofl.functions import runningStat
 from rofl.functions.torch import array2Tensor
 
 def genFrameStack(config):
-    return np.zeros((config['agent']['lhist'], *config['env']['obs_shape']), dtype = np.uint8)
+    lhist, channels = config['agent']['lhist'], config['agent'].get('channels', 1)
+    return np.zeros((lhist * channels, *config['env']['obs_shape']), dtype = np.uint8)
 
 def lHistObsProcess(agent, obs, reset):
     """
@@ -18,75 +19,78 @@ def lHistObsProcess(agent, obs, reset):
         framestack = agent.frameStack
     except AttributeError:
         agent.frameStack = framestack = genFrameStack(agent.config)
-        print("Warning: obs invalid, agent didn't had frameStack declared") # TODO: add debuger level
+        #print("Warning: Agent didn't had frameStack declared") # TODO: add debuger level
 
     if reset:
-        agent.lastFrameStack = newZero(framestack)
-        framestack = newZero(framestack)
+        framestack.fill(0)
     else:
-        agent.lastFrameStack = framestack
-        framestack = np.roll(framestack, 1, axis = 0) # generates new array
+        framestack = np.roll(framestack, 1, axis = 0)
+
     framestack[0] = obs
     agent.frameStack = framestack
 
-    return array2Tensor(framestack, agent.device).div(255)
+    return array2Tensor(framestack, agent.device).div(255.0)
 
-def prepare4Ratio(obj):
-    obj.ratioTree = runningStat()
+def prepare4Ratio(agent):
+    agent.ratioTree = runningStat()
 
-def calRatio(obj, env):
+def calRatio(agent, env):
     # Calculate ratio from environment
     cc = env.cell_counts
     tot = env.n_col * env.n_row
-    obj.ratioTree += cc[env.tree] / tot
+    agent.ratioTree += cc[env.tree] / tot
 
-def reportQmean(obj):
-    if obj.fixedTrajectory is None:
+def reportQmean(agent):
+    if agent.fixedTrajectory is None:
         return 0.0
     with no_grad():
-        model_out = obj.policy.dqnOnline(obj.fixedTrajectory)
+        model_out = agent.policy.actor(agent.fixedTrajectory)
         mean = Tmean(model_out.max(1).values).item()
-    if obj.tbw != None:
-        obj.tbw.add_scalar("test/mean max Q", mean, obj.testCalls)
+    if agent.tbw != None:
+        agent.tbw.add_scalar("test/mean max Q", mean, agent.testCalls)
     return mean
 
-def reportRatio(obj):
-    meanQ = reportQmean(obj)
-    if obj.tbw != None:
-        obj.tbw.add_scalar("test/mean tree ratio", obj.ratioTree.mean, obj.testCalls)
-        obj.tbw.add_scalar("test/std tree ratio", obj.ratioTree.std, obj.testCalls)
+def reportRatio(agent):
+    meanQ = reportQmean(agent)
+    if agent.tbw != None:
+        agent.tbw.add_scalar("test/mean tree ratio", agent.ratioTree.mean, agent.testCalls)
+        agent.tbw.add_scalar("test/std tree ratio", agent.ratioTree.std, agent.testCalls)
     return {"mean_q": meanQ, 
-            "mean tree ratio": obj.ratioTree.mean, 
-            "std tree ratio":obj.ratioTree.std}
+            "mean tree ratio": agent.ratioTree.mean, 
+            "std tree ratio":agent.ratioTree.std}
 
-def dqnStep(fun):
+def dqnStepv0(fun):
     def step(*args, **kwargs):
         obsDict = fun(*args, **kwargs)
         agent = args[0]
-        obsDict['observation'] = agent.lastFrameStack # omits the Tensor
-        obsDict['next_observation'] = agent.frameStack
+        prevFrame, lastFrame = agent.prevFrame, agent.lastFrame
+        if prevFrame is None: # just needed once
+            prevFrame = agent.prevFrame = agent.zeroFrame = newZero(lastFrame)
+        # sligth mod to the obsDict from DQN memory
+        obsDict['observation'] = prevFrame
+        obsDict['next_observation'] = lastFrame
         obsDict['device'] = DEVICE_DEFT
         return obsDict
     return step
 
-def processBatchv0(infoDict: dict, device) -> dict:
-    infoDict['observation'] = infoDict['observation'].div(255).detach_()
-    infoDict['next_observation'] = infoDict['next_observation'].div(255).detach_()
+def processBatchv0(infoDict: dict) -> dict:
+    infoDict['observation'] = infoDict['observation'].div(255.0).detach_()
+    infoDict['next_observation'] = infoDict['next_observation'].div(255.0).detach_()
     return infoDict
 
-def composeLHistv1(frame: TENSOR, position: Tuple[int,int], time: float):
+def composeLHistv0(frame: TENSOR, position: Tuple[int,int], time: float):
     frame = frame.flatten(1)
     extra = torch.tensor([*position, time], dtype = F_TDTYPE_DEFT, device = frame.device).unsqueeze_(1)
     return Tcat([frame, extra], dim = 1).detach_()
 
-def decomposeLHistv1(observation, frameShape) -> Tuple[TENSOR, TENSOR]:
+def decomposeLHistv0(observation, frameShape) -> Tuple[TENSOR, TENSOR]:
     """
         returns
         -------
         frames: Tensor
         pos: Tensor
     """
-    position = observation[:,-3:-1]
     time = observation[:,-1]
+    position = observation[:,-3:-1]
     frames = observation[:,:-3].reshape(-1, frameShape)
-    return frames, position
+    return frames, position, time

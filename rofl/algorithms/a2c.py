@@ -1,9 +1,8 @@
 from typing import Union
 from rofl import AgentMaster, Agent, Policy
 from rofl.functions.const import *
-from rofl.functions.stop import testEvaluation, initResultDict
+from rofl.functions import testEvaluation, initResultDict, updateVar
 from rofl.functions.torch import zeroGrad
-from rofl.functions.vars import updateVar
 from rofl.utils import Saver
 from tqdm import tqdm
 
@@ -40,7 +39,7 @@ algConfig = {
         'minibatch_size' : MINIBATCH_SIZE,
         'loss_policy_const' : LOSS_POLICY_CONST,
         'loss_value_const' : LOSS_VALUES_CONST,
-        'evaluate_tb_freq' : 10**3,
+        'evaluate_tb_freq' : 10,
         'baseline' : baselineConf,
     }
 }
