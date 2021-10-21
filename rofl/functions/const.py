@@ -10,6 +10,7 @@ from numba.typed import List
 DEVICE_DEFT = torch.device("cpu")
 F_TDTYPE_DEFT = torch.float32
 I_TDTYPE_DEFT = torch.int64
+UI_NDTYPE_DEFT = np.uint8
 F_NDTYPE_DEFT = np.float32
 I_NDTYPE_DEFT = np.int32
 B_TDTYPE_DEFT = torch.bool

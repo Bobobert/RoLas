@@ -34,7 +34,6 @@ class dqnPolicy(Policy):
         self.prioritized = config["agent"]["memory_prioritized"]
 
         self.updateTarget = config["policy"]["freq_update_target"]
-        #self.nActions = config["policy"]["n_actions"]
         self.double = config['policy'].get("double", False)
 
         self.optimizer = getOptimizer(config, self.dqnOnline)

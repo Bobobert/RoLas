@@ -287,25 +287,27 @@ class dqnMemory(simpleMemory):
 
     def __init__(self, config, *additionalKeys):
         super().__init__(config, *additionalKeys)
-        channels = config['agent'].get('channels', 1)
-        self.lhist = config['agent']['lhist'] * channels
+        self.channels = config['agent'].get('channels', 1)
+        self.lhist = config['agent']['lhist']
         assert self.lhist > 0, 'Lhist needs to be at least 1'
     
     def __getitem__(self, i):
-        lHist = self.lhist
+        lHist, channels = self.lhist, self.channels
         item = super().__getitem__(i).copy() # shallow, the original will keep the ndarray references
         obs, nObs = item['observation'], item['next_observation']
 
         newObs = np.zeros_like(obs, shape = (lHist, *obs.shape))
         newNObs = np.zeros_like(newObs)
-        newObs[0], newNObs[0] = obs, nObs
+        newObs[0:channels], newNObs[0:channels] = obs, nObs
 
         for j in range(1, lHist):
             prevItem = super().__getitem__(i - j)
-            newNObs[j] = obs
+            jL = j * channels
+            jU = jL + channels
+            newNObs[jL:jU] = obs
             if prevItem is None or prevItem["done"]:
                 break
-            newObs[j] = obs = prevItem['observation']
+            newObs[jL:jU] = obs = prevItem['observation']
         item['observation'], item['next_observation'] = newObs, newNObs
         return item
 

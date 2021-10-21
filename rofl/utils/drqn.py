@@ -121,9 +121,9 @@ class MemoryReplayRecurrentFF(): # TODO: erase and change it to memory, with new
                  capacity:int = MEMORY_SIZE,
                  state_shape:list = FRAME_SIZE,
                  recurrent_boot:int = RNN_BOOT_DEFT,
-                 state_dtype_in:np.dtype = np.uint8,
+                 state_dtype_in:np.dtype = UI_NDTYPE_DEFT,
                  pos_dtype_in:np.dtype = F_NDTYPE_DEFT,
-                 action_dtype_in:np.dtype = np.uint8,
+                 action_dtype_in:np.dtype = UI_NDTYPE_DEFT,
                  reward_dtype_in:np.dtype = F_NDTYPE_DEFT,
                  nCol:int = 1, nRow:int = 1,
                  ):

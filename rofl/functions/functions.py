@@ -140,3 +140,10 @@ def newZero(t, grad: bool = False):
         return t.new_zeros(t.shape, requires_grad = grad)
     elif isinstance(t, np.ndarray):
         return np.zeros_like(t)
+    elif isinstance(t, tuple):
+        zeros = []
+        for i in t:
+            zeros.append(newZero(i, grad))
+        return tuple(zeros)
+    else:
+        raise NotImplementedError('t is %s which is not expected' % type(t))

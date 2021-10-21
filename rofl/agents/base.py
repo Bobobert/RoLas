@@ -86,6 +86,7 @@ class Agent(ABC):
         self.env, self.trainSeed = envMaker(config["env"]["seedTrain"])
         self.envTest, self.testSeed = envMaker(config["env"]["seedTest"])
         self.noOp = noOpSample(self.env)
+        self.actionSpace = self.env.action_space
 
         try:
             self.envName = self.env.name
@@ -122,7 +123,9 @@ class Agent(ABC):
     def initAgent(self, **kwargs):
         """
             If needed, write additional initialization for 
-            parameters and functions setup.
+            parameters and functions setup. Usually this is done just once
+            per agent, agents should live as long as the experiment, so the
+            cost should not matter.
 
             returns
             -------
@@ -373,17 +376,15 @@ class Agent(ABC):
         if self._reseted:
             self._reseted = False
         
-        env = self.env
         processObs, processReward, processTerminal = self.processObs, self.processReward, self.isTerminal
 
-        # TODO create a function that process actions for the policy
         # Process action from a batch
         for i, d in enumerate(kwargs.get("ids", [])):
             if d == self.workerID:
                 action = action[i]
                 break
 
-        obs, reward, done, info = env.step(action)
+        obs, reward, done, info = self.env.step(action)
 
         # Process the outputs
         pastObs = self.lastObs
@@ -489,7 +490,7 @@ class Agent(ABC):
         """
             Returns a random action from the gym space
         """
-        return self.env.action_space.sample()
+        return self.actionSpace.sample()
 
     def getBatch(self, size: int, proportion: float = 1.0, random = False,
                         device = DEVICE_DEFT, progBar: bool = False):

@@ -17,7 +17,6 @@ agentConfig = {
     }
 
 policyConfig = {
-    'policyClass' : 'dqnPolicy',
     'n_actions' : 6,
     'epsilon_life' : 25 * 10**4,
     'double' : True,
@@ -47,7 +46,7 @@ expConfig = {
 }
 
 if __name__ == '__main__':
-    config, agent, policy, train, manager = setUpExperiment('dqn', expConfig, dummyManager = False)
+    config, agent, policy, train, manager = setUpExperiment('dqn', expConfig, dummyManager = True)
     results = train(config, agent, policy, saver = manager.startSaver())
     agent.close()
     manager.close()

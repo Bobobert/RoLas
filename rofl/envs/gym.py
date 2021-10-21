@@ -1,6 +1,8 @@
 from gym import make
-from gym.spaces import Discrete
+from gym.spaces import Discrete, MultiDiscrete
 import gym_cellular_automata as gymca
+
+from rofl.functions.functions import multiplyIter
 
 try:
     from gym.envs.atari import AtariEnv
@@ -24,7 +26,7 @@ def gymEnvMaker(config):
         seeds = env.seed(seed)
         return env, seeds
 
-     # Register action_space on config
+    # Register action_space on config
     env, _ = ENV()
     config["env"]["action_space"] = env.action_space
     config['env']['observation_space'] = env.observation_space
@@ -76,6 +78,7 @@ def gymcaEnvMaker(config):
         - n_row
         - n_col
         - wind_speed
+        - wind_direction
         - wind_constant
         
     returns a envMaker function
@@ -88,12 +91,12 @@ def gymcaEnvMaker(config):
 
     DEFAULT_WIND_IMPORTANCE = 10
     # Config variables
-    col, row = config["env"].get("n_col", 50), config["env"].get("n_row", 50)
+    col, row = config["env"].get("n_cols", 50), config["env"].get("n_rows", 50)
     wind_params = (config["env"].get("wind_direction", 45),
                     config["env"].get("wind_speed", 10),
                     config["env"].get("wind_constat", DEFAULT_WIND_IMPORTANCE))
-    # init function
-    from .bulldozerUtils import initWindKernel
+    
+    from rofl.utils.bulldozer import initWindKernel
 
     def ENV(seed = None, wind_params = wind_params):
         env = make("gym_cellular_automata:" + name)
@@ -106,7 +109,14 @@ def gymcaEnvMaker(config):
 
     # Register action_space on config
     env, _ = ENV()
-    config["env"]["action_space"] = env.action_space
+    config["env"]["action_space"] = actionSpace = env.action_space
+    if isinstance(actionSpace, Discrete):
+        actions = actionSpace.n
+    elif isinstance(actionSpace, MultiDiscrete):
+        actions = multiplyIter(actionSpace.nvec)
+    else:
+        print('Action space of %s is not well defined in the loop, please change after policy.n_actions from config' % name)
+    config['policy']['n_actions'] = actions
     del env
 
     return ENV

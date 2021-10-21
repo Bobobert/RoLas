@@ -5,9 +5,13 @@ from rofl.utils import Saver
 from tqdm import tqdm
 
 algConfig = {
+    'env':{
+        'reward_function' : None,
+    },
     'agent':{
         'lhist' : LHIST,
         'channels' : 1,
+        'use_context' : True,
         'memory_size' : MEMORY_SIZE,
         'max_steps_test' : 10**4,
         'steps_per_epoch' : 4,
@@ -23,6 +27,7 @@ algConfig = {
 
     },
     'policy':{
+        'policyClass' : 'dqnPolicy',
         'epsilon_start': 1.0,
         'epsilon_end' : 0.1,
         'epsilon_life' : 25 * 10**4,

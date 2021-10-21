@@ -1,5 +1,5 @@
 from .base import Agent
-from rofl.functions.const import DEVICE_DEFT, F_TDTYPE_DEFT, I_TDTYPE_DEFT
+from rofl.functions.const import DEVICE_DEFT, F_TDTYPE_DEFT, I_TDTYPE_DEFT, UI_NDTYPE_DEFT
 from rofl.functions.functions import clipReward, np, torch, rnd, no_grad, ceil
 from rofl.functions.torch import array2Tensor
 from rofl.functions.coach import singlePathRollout
@@ -44,7 +44,7 @@ class pgFFAgent(pgAgent):
         #self.memory = MemoryFF(config)
         self.obsShape = (lhist, *obsShape)
         self.frameSize = obsShape
-        self.frameStack, self.lastObs, self.prevFrame = np.zeros(self.obsShape, dtype = np.uint8), None, None
+        self.frameStack, self.lastObs, self.prevFrame = np.zeros(self.obsShape, dtype = UI_NDTYPE_DEFT), None, None
         
     def processObs(self, obs, reset: bool = False): # TODO: pass this to a function that uses lHistObsProcess
         # with reward type, compose the outputs as a tensor alone always.

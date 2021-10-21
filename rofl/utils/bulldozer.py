@@ -1,5 +1,4 @@
 from rofl.envs.forestFire.helicopter import EMPTY
-from numpy import empty
 from rofl.functions.const import *
 from rofl.functions.functions import nb, floor, ceil
 
@@ -70,7 +69,7 @@ def quickGrid(grid:ARRAY, shape,
     ------
     img: np.ndarray
     """
-    img = np.zeros(shape, dtype=np.uint8)
+    img = np.zeros(shape, dtype=UI_NDTYPE_DEFT)
     i = offsetRow
     for row in range(lRow, hRow):
         j = offsetCol
@@ -100,25 +99,31 @@ def quickGridC(grid:ARRAY, shape,
     """
     Hard coded values for the cell type in gridImg
 
+    Channels boolean representation for:
+    - 0: Fire
+    - 1: Tree
+    - 2: Burnt units
+    - 3: Agent 
+
     return
     ------
-    img: np.ndarray with 4 channels
-        One for fire, tree, burnt, agent
+    img: np.ndarray
+    
     """
-    img = np.zeros((shape[0], shape[1], 4), dtype=np.bool_)
+    img = np.zeros((4, shape[0], shape[1]), dtype=B_NDTYPE_DEFT)
     i = offsetRow
     for row in range(lRow, hRow):
         j = offsetCol
         for col in range(lCol, hCol):
             currentCell = grid[row,col]
             if currentCell == fire:
-                img[i, j, 0] = 1
+                img[0, i, j] = 1
             elif currentCell == tree:
-                img[i, j, 1] = 1
+                img[1, i, j] = 1
             elif currentCell == burnt:
-                img[i, j, 2] = 1
+                img[2, i, j] = 1
             if (row == posRow) and (col == posCol):
-                img[i, j, 3] = 1
+                img[3, i, j] = 1
             j += 1
         i += 1
     return img
@@ -134,7 +139,7 @@ def grid2ImgFollow(env, grid, context, obsShape,
                 displayAgent: bool = True) -> ARRAY:
     """
     Makes a window of size obsShape to display the agent in two
-    ways, img and channels. The first is a grey scale image np.uint8,
+    ways, img and channels. The first is a grey scale image UI_NDTYPE_DEFT,
     and the latter a np.bool_ type with 4 channels.
 
     The window always try to center the agent. if the original image
@@ -222,4 +227,9 @@ def grid2Img(env, grid, context, obsShape,
                         rMin, rMax, cMin, cMax,
                         posRow, posCol, displayAgent,
                         offsetRow, offsetCol), t
-                    
+
+def assertChannels(config):
+    channels = config['agent'].get('channels', 1)
+    if channels == 1 or channels == 4:
+        return True
+    raise ValueError('Channels must be either 1 or 4, %d was given' % channels)
