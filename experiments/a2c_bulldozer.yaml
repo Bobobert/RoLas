@@ -1,0 +1,47 @@
+agent:
+  agentClass: agentMultiEnv
+  channels: 4
+  lhist: 4
+  memory_size: 100
+  nstep: 20
+  workerClass: caPgAgent
+  workers: 2
+
+env:
+  envMaker: gymcaEnvMaker
+  max_length: 500
+  n_cols: 100
+  n_rows: 120
+  name: ForestFireBulldozer-v1
+  obs_shape:
+  - 36
+  - 36
+  reward_function: null
+  wind_direction: 290
+  wind_speed: 20
+
+policy:
+  entropy_bonus: 0.5
+  network:
+    conv2d_1:
+    - 32
+    - 6
+    - 4
+    conv2d_2:
+    - 64
+    - 4
+    - 2
+    conv2d_3:
+    - 64
+    - 3
+    - 1
+    learning_rate: 5.0e-05
+    linear_1: 512
+    networkClass: ffActorCritic
+    
+train:
+  epochs: 1000000
+  expected_performance: 100
+  max_time: 30
+  modeGrad: false
+  test_freq: 5000

@@ -1,7 +1,7 @@
 """
     Utils for misc stuff about manipulating data, time, etc.
 """
-import sys, time, json, pickle, re
+import sys, time, json, pickle, re, yaml
 from pathlib import Path
 from torch import save, load, device
 from rofl.functions.vars import Variable
@@ -493,3 +493,18 @@ class Saver():
         for obj in self._objRefs_:
             s += ' - ' + obj.__repr__() + '\n'
         return s
+
+def retrieveConfigYaml(name: str, defPath: str = None):
+    if defPath is None:
+        path = Path.cwd() / 'experiments'
+    else:
+        path = Path(defPath)
+    
+    pathFile = path / (name.strip() + '.yaml')
+
+    if not pathFile.exists() or not pathFile.is_file():
+        raise ValueError('Path either does not exists or is not a file!')
+
+    config = yaml.safe_load(pathFile.open('r'))
+
+    return config
