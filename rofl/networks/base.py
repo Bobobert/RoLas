@@ -106,7 +106,7 @@ class QValue(BaseNet):
         if not batch:
             assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
             return action
-        return simpleActionUnProc(action, self.device)
+        return simpleActionUnProc(action, self.device).unsqueeze_(1)
 
     @no_grad()
     def getAction(self, observation):
