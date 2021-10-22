@@ -1,10 +1,9 @@
-from rofl.utils.bulldozer import composeMultiDiscrete, composeObsWContextv0, decomposeObsWContextv0
 from .base import Actor, Value, ActorCritic, construcConv, construcLinear,\
     forwardConv, forwardLinear, layersFromConfig
 from rofl.functions.const import *
-from rofl.functions.functions import Texp, Tcat, Tsum, nn, F,\
-    outputFromGymSpace, sqrConvDim, inputFromGymSpace
+from rofl.functions.functions import Texp, Tcat, F, outputFromGymSpace, inputFromGymSpace
 from rofl.functions.distributions import Categorical, Normal
+from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete, decomposeObsWContextv0
 
 class gymActor(Actor):
     name = "simple gym actor"
@@ -116,6 +115,9 @@ class ffActorCritic(ActorCritic):
 
     def processAction(self, action):
         return composeMultiDiscrete(action, self.actionSpace)
+
+    def unprocessAction(self, action, batch: bool):
+        return decomposeMultiDiscrete(action, self.actionSpace, batch, self.device).squeeze_()
 
     def getDist(self, params):
         return Categorical(logits=params)

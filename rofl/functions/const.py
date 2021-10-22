@@ -34,7 +34,7 @@ if PLATFORM == "win32":
 TRAIN_SEED, TEST_SEED = 117, 404
 DEFT_MEMORY_SIZE = 5*10**3
 EPSILON_OP = 1e-5
-DEFT_KEYS = ['observation', 'next_observation' 'action', 'done', 'reward']
+DEFT_KEYS = ['observation', 'next_observation', 'action', 'done', 'reward']
 
 ### DQN ###
 MEMORY_SIZE = 10**5

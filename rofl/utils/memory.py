@@ -275,7 +275,7 @@ class multiMemory:
 class dqnMemory(simpleMemory):
     """
         Works like simpleMemory but expects the agent to use the
-        dqnStepv0 decorator while using lHistObsProcess to process
+        dqnStepv0 while using lHistObsProcess to process
         the observations. As this memory composes the observations in a
         similar manner.
 

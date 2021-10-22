@@ -1,7 +1,8 @@
 from typing import Tuple
 from rofl.envs.forestFire.helicopter import EMPTY
 from rofl.functions.const import *
-from rofl.functions.functions import nb, floor, ceil, Tsum, Tmul, Tcat, isBatch, newZero
+from rofl.functions.functions import Tdiv, nb, floor, ceil, Tsum, Tmul, Tcat, isBatch, newZero
+from rofl.functions import runningStat
 
 def initWindKernel(direction, speed, c1):
     """
@@ -235,6 +236,15 @@ def assertChannels(config):
         return True
     raise ValueError('Channels must be either 1 or 4, %d was given' % channels)
 
+def prepare4Ratio(agent):
+    agent.ratioTree = runningStat()
+
+def calRatio(agent, env):
+    # Calculate ratio from environment
+    cc = env.count_cells(env.grid)
+    tot = env._col * env._row
+    agent.ratioTree += cc[env._tree] / tot
+
 def composeMultiDiscrete(actions: TENSOR, actionSpace) -> ARRAY:
     """
         To process an action from a NN head with all combinations
@@ -246,15 +256,22 @@ def composeMultiDiscrete(actions: TENSOR, actionSpace) -> ARRAY:
         Inverse function is decomposeMultiDiscrete.
     """
     nvec = actionSpace.nvec
-    template = newZero(nvec)
 
     if isBatch(actions):
         # BURN! just in case, this is not required, yet
-        newActions = np.zeros((actions.shape[0], *template.shape), dtype = UI_NDTYPE_DEFT)
-        for n, action in enumerate(actions):
-            newActions[n] = composeMultiDiscrete(action, actionSpace)
+        #newActions = np.zeros((actions.shape[0], *template.shape), dtype = UI_NDTYPE_DEFT)
+        #for n, action in enumerate(actions):
+        #    newActions[n] = composeMultiDiscrete(action, actionSpace)
+        actions = actions.cpu().numpy()
+        newActions = np.zeros((actions.shape[0], *nvec.shape), dtype = I_NDTYPE_DEFT)
+        run = np.ones((actions.shape[0],), dtype = I_NDTYPE_DEFT)
+
+        for n, i in enumerate(nvec):
+            run = run * i
+            actions, newActions[:,n] = np.divmod(actions, run)
         return newActions
 
+    template = newZero(nvec)
     action = actions.cpu().item()
     if action == 0:
         return template
@@ -266,7 +283,7 @@ def composeMultiDiscrete(actions: TENSOR, actionSpace) -> ARRAY:
         action = action // run
     return template
 
-def decomposeMultiDiscrete(actions: Tuple[TENSOR, ARRAY], actionSpace, batch: bool = False) -> int:
+def decomposeMultiDiscrete(actions: Tuple[TENSOR, ARRAY], actionSpace, batch: bool, device) -> Tuple[int, TENSOR]:
     """
     From a multi discrete sample returns the integer that represents the combination
     from the sample.
@@ -274,7 +291,12 @@ def decomposeMultiDiscrete(actions: Tuple[TENSOR, ARRAY], actionSpace, batch: bo
     nvec = actionSpace.nvec
 
     if batch:
-        template, run = torch.zeros(nvec.shape, dtype = I_TDTYPE_DEFT, device = actions.device), 1
+        if isinstance(actions, TENSOR):
+            actions = actions.to(device)
+        else:
+            actions = torch.from_numpy(actions).to(device)
+        template = torch.zeros(nvec.shape, dtype = I_TDTYPE_DEFT, device = device)
+        run = 1
         for n, i in enumerate(nvec):
             template[n] = run
             run *= i
@@ -311,3 +333,17 @@ def decomposeObsWContextv0(observation, frameShape) -> Tuple[TENSOR, TENSOR]:
     context = observation[:,-3:]
     frames = observation[:,:-3].reshape(-1, *frameShape)
     return frames, context
+
+def processBatchv1(infoDict: dict, useChannels: bool, actionSpace) -> dict:
+    observations, nObservations = infoDict['observation'], infoDict['next_observation']
+
+    if not useChannels:
+        observations = observations.div(255.0)
+        nObservations = nObservations.div(255.0)
+
+    contexts = (None, infoDict['context_pos'], infoDict['context_time'])
+    nContext = (None, infoDict['next_context_pos'], infoDict['next_context_time'])
+
+    infoDict['observation'] = composeObsWContextv0(observations, contexts, True)
+    infoDict['next_observation'] = composeObsWContextv0(nObservations, nContext, True)
+    return infoDict

@@ -55,9 +55,10 @@ def isItem(T):
     return False
 
 def isBatch(T):
-    if T.shape[0] > 1:
-        return True
-    return False
+    shape = T.shape
+    if shape == () or shape[0] <= 1:
+        return False
+    return True
 
 def runningMean(xt, y, t):
     """

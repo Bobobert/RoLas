@@ -76,6 +76,8 @@ class QValue(BaseNet):
         what the problems needs, as this could be a great order of difference
         is up to the network to output a proper action, instead of a env wrapper
         to translate it.
+    - unprocessAction:
+        The inverse of processAction to interact again with tensor objects
     - getAction:
         From a single observation outputs a single action corresponding to the 
         maximum q_value given the observation. Uses no_grad.
@@ -87,15 +89,24 @@ class QValue(BaseNet):
     
     @no_grad()
     def getValue(self, observation, action):
-        assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
-        if isBatch(observation):
+        isbatch = isBatch(observation)
+        action = self.unprocessAction(action, isbatch)
+
+        if isbatch:
             Qvalues = self.forward(observation)
-            values = Qvalues.gather(1, torch.tensor(action, dtype = I_TDTYPE_DEFT).unsqueeze_(1))
+            values = Qvalues.gather(1, action)
             return values.cpu().numpy()
+
         return self.forward(observation)[action].item()
         
     def processAction(self, action):
         return simpleActionProc(action, self.discrete)
+
+    def unprocessAction(self, action, batch: bool):
+        if not batch:
+            assert isinstance(action, (int, list, tuple)), "action must be a int, list or tuple type"
+            return action
+        return simpleActionUnProc(action, self.device)
 
     @no_grad()
     def getAction(self, observation):
@@ -124,6 +135,8 @@ class Actor(BaseNet):
         what the problems needs, as this could be a great order of difference
         is up to the network to output a proper action, instead of a env wrapper
         to translate it.
+    - unprocessAction:
+        Inverse of processAction to interact again with tensor objects.
     - getAction:
         From a single observation outputs a single action. Uses no_grad.
     """
@@ -174,8 +187,7 @@ class Actor(BaseNet):
         - log_probs: Tensor
         - entropies: Tensor
         """
-        if self.discrete:
-            actions = actions.squeeze()
+        actions = self.unprocessAction(actions, isBatch(params))
         dist = self.getDist(params)
 
         log_probs = dist.log_prob(actions)
@@ -189,6 +201,16 @@ class Actor(BaseNet):
             accordingly
         """
         return simpleActionProc(action, self.discrete)
+
+    def unprocessAction(self, action, batch: bool):
+        """
+            Should be the inverse of processAction, from which the
+            actions can be utilize in distributions or to gather values.
+        """
+        actions = simpleActionUnProc(action, self.device)
+        if self.discrete:
+            actions = actions.squeeze()
+        return actions
 
     @no_grad()
     def getAction(self, observation):
@@ -440,7 +462,7 @@ def simpleActionProc(action, discrete: bool):
     if discrete and isItem(action):
         action = action.item()
     else:
-        action = action.to(DEVICE_DEFT).squeeze(0).numpy()
+        action = action.cpu().squeeze(0).numpy()
     return action
 
 def simpleActionProcBatch(action, discrete: bool):
@@ -451,3 +473,16 @@ def simpleActionProcBatch(action, discrete: bool):
     else:
         actions = action.cpu().numpy()
     return actions
+
+def simpleActionUnProc(action, device):
+
+    if isinstance(action, TENSOR):
+        pass
+    elif isinstance(action, ARRAY):
+        action = torch.from_numpy(action)
+    elif isinstance(action, (int, float, list)):
+        action = torch.tensor(action)
+    else:
+        raise NotImplementedError
+
+    return action.to(device)

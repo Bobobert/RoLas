@@ -11,12 +11,12 @@ def getDevice(cudaTry:bool = True):
 def array2Tensor(arr: ARRAY, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False, batch: bool = False):
     arr = arr if batch else np.squeeze(arr)
     tensor = torch.from_numpy(arr).to(device).to(dtype).requires_grad_(grad)
-    tensor = tensor if batch else tensor.unsqueeze(0)
+    tensor = tensor if batch else tensor.unsqueeze_(0)
     return tensor
 
 def list2Tensor(arr:list, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False):
     # expecting simple lists with single items (int, float, bool)
-    return torch.tensor(arr, dtype = dtype, device = device).unsqueeze(1).requires_grad_(grad)
+    return torch.tensor(arr, dtype = dtype, device = device).unsqueeze_(-1).requires_grad_(grad)
 
 def copyDictState(net, grad:bool = True):
     newSD = dict()

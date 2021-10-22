@@ -1,6 +1,6 @@
 from rofl.functions.const import *
 from rofl.functions.torch import *
-from rofl.functions.functions import no_grad, Tmul, nprnd, F
+from rofl.functions.functions import isBatch, no_grad, Tmul, nprnd, F
 from rofl.functions.exploratory import EpsilonGreedy
 from .base import Policy
 
@@ -55,6 +55,8 @@ class dqnPolicy(Policy):
         st1, st2, rewards = infoDict['observation'], infoDict['next_observation'], infoDict['reward']
         actions, dones = infoDict['action'], infoDict['done']
         IS = None # TODO: add this part for sampling importance
+
+        actions = self.actor.unprocessAction(actions, isBatch(st1))
         qValues = self.dqnOnline(st1).gather(1, actions)
         qTargets = dqnTarget(self.dqnOnline, self.dqnTarget, 
                                 st2, rewards, dones, self.gamma, self.double)

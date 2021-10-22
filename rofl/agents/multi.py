@@ -302,7 +302,7 @@ class agentSync(AgentMaster):
 
     def envStep(self, actions, **kwargs):
         wrks = []
-        #actions = ray.put(actions)
+        actions = ray.put(actions)
         for w in self.workers:
             w.ref = w().envStep.remote(actions, **kwargs)
             wrks.append(w)
@@ -477,6 +477,4 @@ class agentMultiEnv(agentSync):
 
         self.lastObs, self.lastDones, self.lastIds = composeObs(*observations, device = self.device) # compose to have a state to process actions with
         return observations
-        self.memory.add(*observations) # the rest of the info goes to the memories in raw
-
         

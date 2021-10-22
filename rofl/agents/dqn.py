@@ -2,11 +2,11 @@ from .base import Agent
 from rofl.functions.const import *
 from rofl.functions.functions import clipReward, nprnd, isTerminalAtari
 from rofl.utils.memory import dqnMemory
-from rofl.utils.dqn import dqnStepv0, dqnStepv1, lHistObsProcess, processBatchv0, processBatchv1, reportQmean
-from rofl.utils.bulldozer import assertChannels, grid2ImgFollow, composeObsWContextv0
+from rofl.utils.dqn import dqnStepv0, dqnStepv1, lHistObsProcess, processBatchv0, reportQmean, reportRatio, extraKeysForBatches
+from rofl.utils.bulldozer import assertChannels, calRatio, grid2ImgFollow, composeObsWContextv0, prepare4Ratio, processBatchv1
 from rofl.utils.openCV import imgResize, YChannelResize
 
-memKeys = [('action', I_TDTYPE_DEFT), ('observation', F_TDTYPE_DEFT), ('next_observation', F_TDTYPE_DEFT)]
+memKeys = [('observation', F_TDTYPE_DEFT), ('next_observation', F_TDTYPE_DEFT)]
 
 class dqnAtariAgent(Agent):
     name = 'dqn agent v1'
@@ -42,9 +42,9 @@ class dqnAtariAgent(Agent):
     def processReward(self, reward, **kwargs):
         return clipReward(self, reward)
     
-    @dqnStepv0
     def envStep(self, action, **kwargs):
-        return super().envStep(action, **kwargs)
+        obsDict = super().envStep(action, **kwargs)
+        return dqnStepv0(self, obsDict)
     
     def reportCustomMetric(self):
         return reportQmean(self)
@@ -84,6 +84,8 @@ class dqnCaAgent(Agent):
         self.lastContext, self.prevContext, self.zeroContext = None, None, None
         self.envActions = self.config['policy']['n_actions']
         self.fixedTrajectory = None
+        if self.keysForBatches is not None:
+            self.keysForBatches = self.keysForBatches.copy() + extraKeysForBatches
 
     def processObs(self, obs, reset: bool = False):
         self.prevFrame = self.lastFrame if not reset else self.zeroFrame
@@ -109,9 +111,9 @@ class dqnCaAgent(Agent):
 
         return clipReward(self, reward)
 
-    @dqnStepv1
     def envStep(self, action, **kwargs):
-        return super().envStep(action, **kwargs)
+        obsDict =  super().envStep(action, **kwargs)
+        return dqnStepv1(self, obsDict)
     
     def reportCustomMetric(self):
         return reportQmean(self)
@@ -120,3 +122,12 @@ class dqnCaAgent(Agent):
         batch = super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
         processBatchv1(batch, self.useChannels, self.actionSpace)
         return batch
+
+    def prepareTest(self):
+        prepare4Ratio(self)
+
+    def calculateCustomMetric(self, env, reward, done):
+        calRatio(self, env)
+
+    def reportCustomMetric(self):
+        return reportRatio(self)

@@ -1,5 +1,5 @@
 from rofl.functions.functions import *
-from rofl.utils.bulldozer import composeMultiDiscrete, decomposeObsWContextv0
+from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete, decomposeObsWContextv0
 from .base import QValue, construcConv, construcLinear, forwardConv, forwardLinear, layersFromConfig
 
 class dqnAtari(QValue):
@@ -70,6 +70,9 @@ class dqnCA(QValue):
     
     def processAction(self, action):
         return composeMultiDiscrete(action, self.actionSpace)
+
+    def unprocessAction(self, action, batch: bool):
+        return decomposeMultiDiscrete(action, self.actionSpace, batch, self.device)
 
 class dqnCADueling(dqnCA):
     name = 'dqn CA dueling w/ support channels'

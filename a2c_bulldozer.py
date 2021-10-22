@@ -15,6 +15,7 @@ envConfig = {
 agentConfig = {
     'agentClass' : 'agentMultiEnv',
     'workerClass' : 'caPgAgent',
+    'workers' : 2,
     'lhist' : 4,
     'channels' : 4,
     'memory_size' : 10**2,
@@ -38,6 +39,7 @@ trainConfig = {
     'test_freq' : 5 * 10**3,
     'expected_performance': 100,
     'max_time' : 30,
+    'modeGrad' : False,
     }
 
 expConfig = {
