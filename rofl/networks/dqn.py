@@ -1,5 +1,5 @@
 from rofl.functions.functions import *
-from rofl.utils.dqn import composeMultiDiscrete, decomposeObsWContextv0
+from rofl.utils.bulldozer import composeMultiDiscrete, decomposeObsWContextv0
 from .base import QValue, construcConv, construcLinear, forwardConv, forwardLinear, layersFromConfig
 
 class dqnAtari(QValue):

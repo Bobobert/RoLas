@@ -1,4 +1,3 @@
-from copy import deepcopy
 from rofl.functions.const import *
 from rofl.functions.functions import rnd
 from rofl.functions.dicts import mergeDicts
@@ -209,7 +208,7 @@ class episodicMemory(simpleMemory):
         if isinstance(lastReturn, TENSOR):
             lastReturn = lastReturn.cpu().item()
         for i in range(last, lastEpsisode, - 1):
-            lastDict = self[i]
+            lastDict = super().__getitem__(i)
             lastReturn = lastDict['return'] = lastDict["reward"] + gamma * lastReturn 
 
     def getEpisode(self, device = DEVICE_DEFT, keys = None):
@@ -218,7 +217,7 @@ class episodicMemory(simpleMemory):
         return self.createSample(self.gatherMem(), device, keys)
 
 class multiMemory:
-    name = 'multi episodic'
+    memType = 'multi episodic'
 
     def __init__(self, config, *additionalKeys):
         self.n = config['agent']['workers']
@@ -226,6 +225,9 @@ class multiMemory:
         self._addKeys = additionalKeys
         self._hasInit = False
         self._memories, self._memList = {}, []
+
+        import rofl.utils.memory as memories
+        self.unitMemType = getattr(memories, config['agent'].get('memory_type', ''), episodicMemory)
 
     def reset(self):
         for mem in self._memList:
@@ -237,7 +239,7 @@ class multiMemory:
         if mem is not None:
             return mem
         elif mem is None and len(memories) < self.n:
-            new = episodicMemory(self.config, *self._addKeys)
+            new = self.unitMemType(self.config, *self._addKeys)
             new.reset()
             self._memList.append(new)
             memories[i] = new
@@ -296,7 +298,7 @@ class dqnMemory(simpleMemory):
         item = super().__getitem__(i).copy() # shallow, the original will keep the ndarray references
         obs, nObs = item['observation'], item['next_observation']
 
-        newObs = np.zeros_like(obs, shape = (lHist, *obs.shape))
+        newObs = np.zeros_like(obs, shape = (lHist, *obs.shape)) # (4,4,36,36) when using channels
         newNObs = np.zeros_like(newObs)
         newObs[0:channels], newNObs[0:channels] = obs, nObs
 
@@ -315,3 +317,6 @@ class dqnMemory(simpleMemory):
         if self.fillOnce:
             return itemsRnd(0, self.size - 1, size)
         return itemsRnd(1, self._i_ - 1, size)
+
+class episodicMemoryFrames(dqnMemory, episodicMemory):
+    pass

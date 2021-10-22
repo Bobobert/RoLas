@@ -99,9 +99,11 @@ class pgPolicy(Policy):
 
         tbw = self.tbw
         if tbw != None and (self.epoch % self.tbwFreq == 0) and self.newEpoch:
-            tbw.add_scalar('train/Actor loss', -1 * lossPolicy.item(), self.epoch)
-            tbw.add_scalar('train/Baseline loss', lossBaseline.item(), self.epoch)
-            tbw.add_scalar('train/Total loss', loss.item(), self.epoch)
+            epoch = self.epoch
+            tbw.add_scalar('train/Actor loss', -1 * lossPolicy.cpu().item(), epoch)
+            tbw.add_scalar('train/Baseline loss', lossBaseline.cpu().item(), epoch)
+            tbw.add_scalar('train/Entropy distribution', lossEntropy.cpu().item(), epoch)
+            tbw.add_scalar('train/Total loss', loss.cpu().item(), epoch)
             self._evalTBWActor_()
         self.newEpoch = False
 

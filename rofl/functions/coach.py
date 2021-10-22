@@ -8,12 +8,12 @@ from rofl.functions.functions import Tmul, no_grad
 from rofl.utils.memory import episodicMemory
 
 @no_grad()
-def calcBootstrap(agent, obsDict):
+def calcBootstrap(agent):
     """
         Calculates the current value if able of the ongoing agent state.
 
     """
-    obs, action = obsDict['observation'], obsDict['action']
+    obs, action = agent.lastObs, agent.lastAction
     return agent.processReward(agent.policy.getValue(obs, action))
 
 def prepareBootstrapping(agent, obsDict):
@@ -27,7 +27,7 @@ def prepareBootstrapping(agent, obsDict):
     if obsDict['done'] == True:
         return obsDict
 
-    obsDict['bootstrapping'] = bootstrap = calcBootstrap(agent, obsDict)
+    obsDict['bootstrapping'] = bootstrap = calcBootstrap(agent)
     obsDict['acuumulate_reward'] = obsDict['accumulate_reward'] + bootstrap
     obsDict['done'] = True
     return obsDict

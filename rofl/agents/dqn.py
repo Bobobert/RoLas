@@ -2,8 +2,8 @@ from .base import Agent
 from rofl.functions.const import *
 from rofl.functions.functions import clipReward, nprnd, isTerminalAtari
 from rofl.utils.memory import dqnMemory
-from rofl.utils.dqn import composeObsWContextv0, dqnStepv0, dqnStepv1, lHistObsProcess, processBatchv0, processBatchv1, reportQmean
-from rofl.utils.bulldozer import assertChannels, grid2ImgFollow
+from rofl.utils.dqn import dqnStepv0, dqnStepv1, lHistObsProcess, processBatchv0, processBatchv1, reportQmean
+from rofl.utils.bulldozer import assertChannels, grid2ImgFollow, composeObsWContextv0
 from rofl.utils.openCV import imgResize, YChannelResize
 
 memKeys = [('action', I_TDTYPE_DEFT), ('observation', F_TDTYPE_DEFT), ('next_observation', F_TDTYPE_DEFT)]
@@ -52,11 +52,6 @@ class dqnAtariAgent(Agent):
     def rndAction(self):
         return nprnd.randint(self.envActions)
 
-    def getEpisode(self, random=False, device=None):
-        episode = super().getEpisode(random=random, device=device)
-        processBatchv0(episode)
-        return episode
-
     def getBatch(self, size: int, proportion: float = 1, random=False, device=DEVICE_DEFT, progBar: bool = False):
         batch = super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
         processBatchv0(batch)
@@ -73,7 +68,7 @@ class dqnCaAgent(Agent):
         self.useChannels, self.displayAgent = False, True
         if self.channels == 4:
             self.useChannels = True
-        self.useContext = config['agent']['use_context']
+        self.useContext = config['agent'].get('use_context', True)
 
         import rofl.envs.rewards as rewards
         rewardFunTarget = config['env']['reward_function']
@@ -120,11 +115,6 @@ class dqnCaAgent(Agent):
     
     def reportCustomMetric(self):
         return reportQmean(self)
-
-    def getEpisode(self, random=False, device=None):
-        episode = super().getEpisode(random=random, device=device)
-        processBatchv1(episode, self.useChannels, self.actionSpace)
-        return episode
 
     def getBatch(self, size: int, proportion: float = 1, random=False, device=DEVICE_DEFT, progBar: bool = False):
         batch = super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)

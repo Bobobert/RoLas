@@ -1,8 +1,9 @@
 from typing import Tuple
 from rofl.functions.const import *
-from rofl.functions.functions import Tcat, Tmul, Tsum, isBatch, newZero, no_grad, Tmean
+from rofl.functions.functions import newZero, no_grad, Tmean
 from rofl.functions import runningStat
 from rofl.functions.torch import array2Tensor
+from rofl.utils.bulldozer import composeObsWContextv0, decomposeMultiDiscrete
 
 def genFrameStack(config):
     lhist, channels = config['agent']['lhist'], config['agent'].get('channels', 1)
@@ -122,32 +123,6 @@ def dqnStepv1(fun):
         return obsDict
     return step
 
-def composeObsWContextv0(frame: TENSOR, context: tuple, batch: bool = False):
-    frame = frame.flatten(1)
-
-    kernel, position, time = context
-    dtype, device = F_TDTYPE_DEFT, frame.device
-    position = torch.as_tensor(position, dtype = dtype, device = device)
-    time = torch.as_tensor(time, dtype = dtype, device = device).unsqueeze_(-1)
-
-    if not batch:
-        position.unsqueeze_(0)
-        time.unsqueeze_(0)
-
-    return Tcat([frame, position, time], dim = 1).detach_()
-
-def decomposeObsWContextv0(observation, frameShape) -> Tuple[TENSOR, TENSOR]:
-    """
-        returns
-        -------
-        frames: Tensor
-        context: Tensor
-    """
-    #time, position = observation[:,-1], observation[:,-3:-1]
-    context = observation[:,-3:]
-    frames = observation[:,:-3].reshape(-1, *frameShape)
-    return frames, context
-
 def processBatchv1(infoDict: dict, useChannels: bool, actionSpace) -> dict:
     observations, nObservations = infoDict['observation'], infoDict['next_observation']
 
@@ -162,54 +137,3 @@ def processBatchv1(infoDict: dict, useChannels: bool, actionSpace) -> dict:
     infoDict['next_observation'] = composeObsWContextv0(nObservations, nContext, True)
     infoDict['action'] = decomposeMultiDiscrete(infoDict['action'], actionSpace, True)
     return infoDict
-
-def composeMultiDiscrete(actions: TENSOR, actionSpace) -> ARRAY:
-    """
-        To process an action from a NN head with all combinations
-        of a discrete space. Eg, from a Discrete[9,2] the network
-        will output 18 values for all the actions.
-
-        This functions composes a MultiDiscrete ndarray from that arg max.
-
-        Inverse function is decomposeMultiDiscrete.
-    """
-    nvec = actionSpace.nvec
-    template = newZero(nvec)
-
-    if isBatch(actions):
-        # BURN! just in case, this is not required, yet
-        newActions = np.zeros((actions.shape[0], *template.shape), dtype = UI_NDTYPE_DEFT)
-        for n, action in enumerate(actions):
-            newActions[n] = composeMultiDiscrete(action, actionSpace)
-        return newActions
-
-    action = actions.cpu().item()
-    if action == 0:
-        return template
-
-    run = 1
-    for n, i in enumerate(nvec):
-        run *= i
-        template[n] = action % run
-        action = action // run
-    return template
-
-def decomposeMultiDiscrete(actions: Tuple[TENSOR, ARRAY], actionSpace, batch: bool = False) -> int:
-    """
-    From a multi discrete sample returns the integer that represents the combination
-    from the sample.
-    """
-    nvec = actionSpace.nvec
-
-    if batch:
-        template, run = torch.zeros(nvec.shape, dtype = I_TDTYPE_DEFT, device = actions.device), 1
-        for n, i in enumerate(nvec):
-            template[n] = run
-            run *= i
-        return Tsum(Tmul(actions, template), dim = 1, keepdim = True).detach_()
-
-    n, run = 0, 1
-    for i, j in zip(actions, nvec):
-        n += run * i
-        run *= j
-    return n

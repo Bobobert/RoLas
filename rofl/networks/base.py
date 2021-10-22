@@ -174,7 +174,14 @@ class Actor(BaseNet):
         - log_probs: Tensor
         - entropies: Tensor
         """
-        raise NotImplemented
+        if self.discrete:
+            actions = actions.squeeze()
+        dist = self.getDist(params)
+
+        log_probs = dist.log_prob(actions)
+        entropies = dist.entropy()
+
+        return log_probs, entropies
 
     def processAction(self, action):
         """

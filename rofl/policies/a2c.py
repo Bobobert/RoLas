@@ -9,10 +9,6 @@ class a2cPolicy(pgPolicy):
     name = 'a2c v0'
 
     def gradUpdate(self, *grads):
-        #piGrad, blGrad = [], []
-        #for grad in grads:
-        #    piGrad.append(grad[0])
-        #    blGrad.append(grad[1])
 
         for piGrad, _ in grads:
             self.optimizer.zero_grad()

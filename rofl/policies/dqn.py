@@ -30,6 +30,7 @@ class dqnPolicy(Policy):
         self.dqnOnline = self.actor
         self.dqnTarget = cloneNet(self.actor)
 
+        self.keysForUpdate = DEFT_KEYS
         self.epsilon = EpsilonGreedy(config)
         self.prioritized = config["agent"]["memory_prioritized"]
 
