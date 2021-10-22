@@ -1,17 +1,5 @@
-from rofl.utils.utils import timeToStop, time
-
-def initResultDict():
-    return {"mean_return": [],
-            "mean_steps": [],
-            "std_return": [],
-            "std_steps": [],
-            "custom": [],
-            "time_start": time.time(),
-            "time_elapsed": 0.0,
-            "time_execution": [],
-            "max_return": [],
-            "min_return": [],
-            }
+from rofl.utils.utils import timeToStop
+from rofl.functions.dicts import initResultDict
 
 def testEvaluation(config, agent, trainResults = None):
     """
@@ -30,7 +18,7 @@ def testEvaluation(config, agent, trainResults = None):
             From the config dict, if available evaluates
             if the train should stop or not.
     """
-    results = agent.test(iters = config["train"]["iters_test"])
+    results = agent.test(iters = config["train"]["test_iters"])
     if trainResults is None:
         trainResults = initResultDict()
     # Appending results
@@ -51,4 +39,13 @@ def testEvaluation(config, agent, trainResults = None):
     maxPerformance = config["train"].get("max_performance", None)
     if maxPerformance is not None:
         stopPerM = True if results["max_return"] >= maxPerformance else False
-    return results, trainResults, (stopTime or stopPerE or stopPerM)
+
+    stopTxt = ''
+    endTxt = ' reached after test. Ending the loop . . . '
+    if stopTime:
+        stopTxt += 'Max time%s' % endTxt
+    if stopPerE:
+        stopTxt += 'Expected performance%s' % endTxt
+    if stopPerM:
+        stopTxt += 'Maximum performance%s' % endTxt
+    return results, trainResults, stopTxt

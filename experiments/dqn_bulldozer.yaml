@@ -1,0 +1,35 @@
+env:
+    envMaker  :  gymcaEnvMaker
+    name :  ForestFireBulldozer-v1
+    n_rows  : 100
+    n_cols  : 100
+    wind_speed  : 20
+    wind_constant  : 10
+    wind_direction  : 290
+    obs_shape  : [36, 36]
+    max_length  : 500
+    warmup : null
+
+agent:
+    agentClass  :  dqnCaAgent
+    lhist  : 4
+    channels  : 4
+    memory_size  : 1000000
+
+policy:
+    epsilon_life  : 250000
+    double  : false
+    network  : 
+        networkClass  :  dqnCA
+        conv2d_1  : [32, 6, 4]
+        conv2d_2  : [64, 4, 2]
+        conv2d_3  : [64, 3, 1]
+        linear_1  : 512
+        learning_rate  : 5.0e-5
+
+train:
+    epochs  : 2000000
+    fill_memory  : 100000
+    test_freq  : 50000
+    max_steps_per_test  : 10000
+    max_time  : null

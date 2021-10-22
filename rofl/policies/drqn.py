@@ -3,6 +3,7 @@ from rofl.functions.torch import *
 from rofl.policies.dqn import dqnPolicy
 from rofl.utils.drqn import recurrentArguments, unpackBatch, newZero
 
+# TODO: change and review this code for obsDicts, validation still missing
 def procState(state):
     if isinstance(state, dict):
         states = []
@@ -72,12 +73,12 @@ class drqnPolicy(dqnPolicy):
         self.zeroHidden = recurrentArguments(config)
 
     def getAction(self, state):
-        throw = np.random.uniform()
+        throw = nprnd.uniform()
         eps = self.epsilon.test(state) if self.test else self.epsilon.train(state)
         with no_grad(): # Always accumulates the hidden state
             outValue = self.dqnOnline(state, self.recurrentState)
         if throw <= eps:
-            return self.getRandom()
+            return self.getRndAction()
         else:
             return outValue.argmax(1).item()
 
@@ -109,7 +110,7 @@ class drqnPolicy(dqnPolicy):
 
         if self.tbw != None:
             self.tbw.add_scalar('train/Loss', np.mean(losses), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
+            max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
         if self.epochs % self.updateTarget == 0:
@@ -145,7 +146,7 @@ class drqnPolicy(dqnPolicy):
 
         if self.tbw != None:
             self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline, self.eva_meang, self.eva_maxg)
+            max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)
             self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
             self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
         if self.epochs % self.updateTarget == 0:

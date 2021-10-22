@@ -1,4 +1,8 @@
-from .gym import gymEnvMaker, atariEnvMaker
-from .forestFire.helicopter import EnvMakerForestFire
-from .gym_cellular_automata.envs.bulldozer import BulldozerEnv
-#from .gym_cellular_automata.envs.forest_fire import ForestFireEnv
+"""
+    EnvMakers are functions that return a function which creates
+    and environment in a set of environments. These should return
+    the (environment, [seed:int]) 
+"""
+
+from .gym import gymEnvMaker, atariEnvMaker, gymcaEnvMaker
+from .CA import forestFireEnvMaker

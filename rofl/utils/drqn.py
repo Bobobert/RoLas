@@ -1,5 +1,5 @@
 from rofl.functions.const import *
-from rofl.utils.dqn import MemoryReplayFF
+from rofl.functions.functions import assertIntPos, torch, np
 
 def newZeroFromT(T):
     return T.new_zeros(T.shape).to(T.device).requires_grad_(T.requires_grad)
@@ -106,7 +106,7 @@ class recurrentArguments:
             u.reset()
         self.obs = None
     
-class MemoryReplayRecurrentFF(MemoryReplayFF):
+class MemoryReplayRecurrentFF(): # TODO: erase and change it to memory, with new mem structure ? (heavy memory use)
     """
     Main Storage for the transitions experienced by the actors.
 
@@ -121,9 +121,9 @@ class MemoryReplayRecurrentFF(MemoryReplayFF):
                  capacity:int = MEMORY_SIZE,
                  state_shape:list = FRAME_SIZE,
                  recurrent_boot:int = RNN_BOOT_DEFT,
-                 state_dtype_in:np.dtype = np.uint8,
+                 state_dtype_in:np.dtype = UI_NDTYPE_DEFT,
                  pos_dtype_in:np.dtype = F_NDTYPE_DEFT,
-                 action_dtype_in:np.dtype = np.uint8,
+                 action_dtype_in:np.dtype = UI_NDTYPE_DEFT,
                  reward_dtype_in:np.dtype = F_NDTYPE_DEFT,
                  nCol:int = 1, nRow:int = 1,
                  ):
@@ -182,34 +182,3 @@ class MemoryReplayRecurrentFF(MemoryReplayFF):
                     "IS":ps}
         else:
             raise IndexError("The memory does not contains enough transitions to generate the sample")
-
-def unpackBatch(*dicts, device = DEVICE_DEFT):
-    if len(dicts) > 1:
-        actions, rewards, dones, IS  = [], [], [], []
-        bootS, bootP = [],[]
-        for trajectory in dicts:
-            actions += [trajectory["action"]]
-            rewards += [trajectory["reward"]]
-            dones += [trajectory["done"]]
-            bootS += [trajectory["frame"]]
-            bootP += [trajectory["position"]]
-            IS += [trajectory["IS"]]
-        actions = Tcat(actions)
-        rewards = Tcat(rewards)
-        dones = Tcat(dones)
-        bootS, bootP = Tcat(bootS), Tcat(bootP)
-        IS = Tcat(IS)
-    else:
-        trajectory = dicts[0]
-        actions = trajectory["action"]
-        rewards = trajectory["reward"]
-        dones = trajectory["done"]
-        bootS = trajectory["frame"]
-        bootP = trajectory["position"]
-        IS = trajectory["IS"]
-    bootS, bootP = bootS.to(device), bootP.to(device).float()
-    rewards = rewards.to(device)
-    dones = dones.to(device)
-    actions = actions.to(device).long()
-    IS.to(device)
-    return {"frame":bootS, "position":bootP}, rewards, actions, dones, IS

@@ -96,23 +96,21 @@ def updateVar(config):
         v.step()
 
 class linearSchedule(Variable):
-    def __init__(self, initValue, life:int, minValue = None, maxValue = None):
-        assert (minValue is not None) or (maxValue is not None), \
-            "At least one of these must be not None to describe behavior"
-        if minValue is not None:
-            assert initValue >= minValue, "Initial value is less than minimal"
-            self._last_ = minValue
-            self._F = max
-        elif maxValue is not None:
-            assert initValue <= maxValue, "Initial value is more than maximum"
-            self._last_ = maxValue
+    def __init__(self, initValue, lastValue, life:int):
+        assert initValue != lastValue, "Values need to be different!"
+        assert life > 0, "Life of the variable must be positive. Live Chill"
+
+        if initValue < lastValue:
             self._F = min
-        self._opvalue_ = initValue
+        else:
+            self._F = max
+
+        self._opvalue_, self._last_ = initValue,lastValue
         self._value_ = initValue
         self._diff_ = self._last_ - self._opvalue_
         self._i_ = 0
-        assert life > 0, "Life of the variable must be positive. Live Chill"
         self._life_ = life
+        self.step()
     
     def step(self):
         xm = self._diff_ * self._i_ / self._life_
@@ -121,7 +119,7 @@ class linearSchedule(Variable):
         self._value_ = self._F(self._last_, y)
 
     def __repr__(self):
-        s = "{} linearSchedule: init {}, last {}, life {}".format(self._value_, self._opvalue_, self._last_, self._life_)
+        s = "linearSchedule: value {} init {}, last {}, life {}".format(self._value_, self._opvalue_, self._last_, self._life_)
         return s
 
 class runningStat():
@@ -177,4 +175,4 @@ class runningStat():
         self.__init__()
 
     def __repr__(self):
-        return "mean {:.4f} std {:.4f}".format(*self())
+        return "runningStat: mean {:.4f} std {:.4f}".format(*self())

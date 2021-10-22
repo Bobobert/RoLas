@@ -1,0 +1,35 @@
+env:
+    envMaker  :  atariEnvMaker
+    name :  seaquest
+    atari : true
+    obs_shape : [84, 84]
+    frameskip : 4
+    max_length : -1
+    warmup  :  noop
+      
+
+agent: 
+    agentClass  :  dqnAtariAgent
+    lhist  : 4
+    memory_size  : 1000000
+      
+
+policy: 
+    n_actions  : 6
+    epsilon_life  : 250000
+    double  : true
+    network  :   
+        networkClass  :  dqnAtari
+        conv2d_1  : [32, 8, 4]
+        conv2d_2  : [64, 4, 2]
+        conv2d_3  : [64, 3, 1]
+        linear_1  : 512
+        learning_rate  : 5.0e-5
+
+train: 
+    epochs  : 1000000
+    fill_memory  : 100000
+    test_freq  : 50000
+    max_steps_per_test  : 10000
+    max_time  : 100
+  

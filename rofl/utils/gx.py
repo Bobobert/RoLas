@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rofl.functions.functions import nprnd
 import matplotlib.pyplot as plt
 from rofl.utils.utils import timeFormated
 
@@ -30,3 +31,27 @@ def graphResults(accRewards, var, meanRand:int, varRand:int, iters:int, testFreq
     plt.legend()
     plt.savefig("mean_acc_reward_"+ name +"_"+timeFormated(), dpi=dpi)
     if show: plt.show()
+
+def showBuffer(memory, samples:int = 20, Wait:int = 3):
+    """
+        Meant to be used with dqnMemory, as prints contents 
+        from the 'frame' contents of each experience
+    """
+    # Drawing samples
+    for i in nprnd.randint(memory._li_, memory._i_, size=samples):
+        plt.ion()
+        fig = plt.figure(figsize=(10,3))
+        item = memory[i]
+        plt.title('Non-terminal' if item['done'] else 'Terminal')
+        plt.axis('off')
+        for n, j in enumerate(range(memory.lhist)):
+            fig.add_subplot(1, memory.lhist, n + 1)
+            plt.imshow(item['frame'][j])
+            plt.axis('off')
+        plt.pause(Wait)
+        plt.close(fig)
+
+def showFrameFromTensor(obs, i = 0):
+    obsClone = obs.clone().detach().cpu().squeeze().numpy()
+    plt.imshow(obsClone[i])
+    plt.show(block = False)

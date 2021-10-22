@@ -1,4 +1,5 @@
 from rofl.functions.const import *
+from rolf.functions.functions import nn, F, torch
 from .base import QValue
 
 class forestFireDRQNlstm(QValue):

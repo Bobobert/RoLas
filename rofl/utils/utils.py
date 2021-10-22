@@ -1,11 +1,11 @@
-import os
-import sys
-import time
+"""
+    Utils for misc stuff about manipulating data, time, etc.
+"""
+import sys, time, json, pickle, re, yaml
+from pathlib import Path
 from torch import save, load, device
-import pickle
-import json
 from rofl.functions.vars import Variable
-import re
+from .strucs import Stack, minHeap, maxHeap
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -32,30 +32,7 @@ def timeDiffFormated(start):
         s = "< 0s"
     return s, tock
 
-def goToDir(path):
-    home = os.getenv('HOME')
-    try:
-        os.chdir(os.path.join(home, path))
-    except:
-        os.chdir(home)
-        os.makedirs(path)
-        os.chdir(path)
-    return os.getcwd()
-
-def createFolder(path:str, mod:str): # Deprecated
-    start = mod + '_' + timeFormated()
-    new_dir = os.path.join(path, start)
-    new_dir = goToDir(new_dir)
-    return start, new_dir
-
-def tbDir(expName:str) -> str:
-    """
-        Returns the default tensorboard direction
-        given the experiment key.
-    """
-    return genDir(expName, "tensorboard")
-
-def expDir(expName:str, envName:str) -> (str, str):
+def expDir(expName:str, envName:str):
     """
         Returns the default folders for the experiment
         with the environment name description.
@@ -67,20 +44,47 @@ def expDir(expName:str, envName:str) -> (str, str):
     t = timeFormatedS()
     return genDir(expName, envName, t), genDir(expName, envName, "tensorboard", t)
 
-def genDir(*args) -> str:
-    dr = os.getenv('HOME')
-    adds = ["rl_results", *args]
-    for s in adds:
-        dr = os.path.join(dr, s)
-    os.makedirs(dr, exist_ok=True)
+def genDir(*args) -> Path:
+    dr = getDir(*args)
+    dr.mkdir(parents = True, exist_ok = True)
     return dr
 
-def saveConfig(config:dict, expDir:str):
+def getDir(*args):
+    """
+        Returns a Path from $HOME/rl_results/ and the extra
+        folders given as args.
+    """
+    dr = Path.home()
+    adds = ["rl_results", *args]
+    for s in adds:
+        dr /= s
+    return dr
+
+def getExpDir(expName:str, envName:str) -> Path:
+    expDir = getDir(expName, envName)
+    folders = []
+    for folder in expDir.iterdir():
+        stem = folder.stem
+        if stem != 'tensorboard' and folder.is_dir():
+            print('{}: {}'.format(len(folders), stem))
+            folders.append(folder)
+    while True:
+        select = input('Insert number corresponding to folder: ')
+        select = int(select)
+        if select >= 0 and select < len(folders):
+            break
+        print('Error: {} is not a valid option, please try again'.format(select))
+    return folders[select]
+
+def configPath(path: Path) -> Path:
+    return (path / "config.json")
+
+def saveConfig(config:dict, expDir:Path):
     """
         Dumps the config dictionary into a 
         json file.
     """
-    fh = open(expDir + "/config.json", "w")
+    fh = configPath(expDir).open("w")
 
     def default(o):
         if isinstance(o, Variable):
@@ -89,21 +93,179 @@ def saveConfig(config:dict, expDir:str):
     json.dump(config, fh, indent=4, default = default)
     fh.close()
 
-def loadConfig(expDir):
-    fh = open(expDir + "/config.json", "r")
+def loadConfig(expDir: Path) -> dict:
+    fh = configPath(expDir).open("r")
     config = json.load(fh)
     fh.close()
     return config
 
 def timeToStop(results, expected = None):
-    tock = time.time()
+    tock, stop = time.time(), False
     diff = tock - results["time_start"]
     results["time_elapsed"] = diff
     results["time_execution"] += [timeFormatedS()]
-    stop = False
     if expected is not None:
         stop = True if (diff // 60) >= expected else False
     return results, stop
+
+class dummyTBW:
+    egg = "You talked to the DUMMY beside the chalkboard. . ."
+    egg2 = "You encountered the Dummy\nA cotton heart and a button eye"
+    def __init__(self, *args):
+        None
+    def __call__(self, *args):
+        return None
+    def __eq__(self, x):
+        if x is None:
+            return True
+        return False
+    def __repr__(self):
+        return self.egg
+    def close(self):
+        pass
+
+class dummySaver():
+    egg = 'This dummy smells like flowers, someone stored a bunch inside it'
+    def start(self):
+        pass
+    def check(self, results = None):
+        pass
+    def addObj(self, *args, **kwargs):
+        pass
+    def saveAll(self, results = None):
+        pass
+    def load(self):
+        print(self.egg)
+    def __repr__(self) -> str:
+        return self.egg
+
+
+class pathManager():
+    """
+        Creates and keeps the path for a given experiment.
+        Packs all the useful functions related to save and load
+        from said path.
+
+        The experiments can be found in $HOME/rl_results/
+
+        Parameters
+        ----------
+        config: configuration dictionary from createConfig
+        dummy: bool
+            Default False. Does not create anything, and works by doing the
+            best a dummy can do, nothing.
+        load : bool
+            Default False. If true, tries to load the a config file from the algorithm
+            and environment name of the given config. An input from console is expected.
+            Else, does a normal initialization from the given config file.
+        
+        Methods
+        -------
+        - saveConfig(config)
+        - loadConfig()
+        - startSaver(**optionals)
+            If not a dummy will create a proper Saver class, else will return 
+            a dummySaver.
+        - startTBW()
+            Starts a SummaryWriter for tensorboard loggin. If dummy this will be
+            a dummyTBW
+        - close()
+            To properly close everything
+
+        Properties
+        ----------
+        - path: main path of the experiment
+        - tensorboard: a previously started SummaryWriter for tensorboard
+        - saver: a previously started saver
+
+    """
+    egg = 'Dummy managed to stare blankly back to you'
+    dummy, _saver, _tbw = False, None, None
+    def __init__(self, config, dummy: bool = False, load: bool = False) -> None:
+        self.config = config
+        if dummy:
+            self.dummy = True
+            return
+        self.expName = expName = config['algorithm']
+        self.envName = envName = config['env']['name']
+        if load:
+            self.__initLoad__(expName, envName)
+        else:
+            self.__initNew__(expName, envName)
+
+    def __initLoad__(self, expName, envName):
+        print('Select one from the available options:')
+        path = getExpDir(expName, envName)
+        self.timeID = path.stem
+        self.config = loadConfig(path)
+
+    def __initNew__(self, expName, envName):
+        self.timeID = t = timeFormatedS()
+        if expName == 'unknown':
+            print("Warning!!! algorithm in config has default name. Please consider setting a different name.")
+        self._path = genDir(expName, envName, t)
+
+    def __dumm__(self):
+        print(self.egg)
+        return
+
+    @property
+    def path(self):
+        if self.dummy: return self.__dumm__()
+        return self._path
+    
+    @property
+    def tensorboard(self):
+        if self._tbw is None:
+            raise AttributeError("TBW must be first created with the startTBW() method.")
+        if self.dummy: self.__dumm__()
+        return self.tbw
+
+    @property
+    def saver(self):
+        if self._saver is None:
+            raise AttributeError("Saver must be first created with the startSaver() method.")
+        return self._saver
+
+    def saveConfig(self):
+        if self.dummy: return self.__dumm__()
+        saveConfig(self.config, self.path)
+    
+    def startSaver(self, limitTimes:int = 10, saveFreq:int = 30):
+        """
+            If not a dummy will create a proper Saver class, else will return 
+            a dummySaver.
+
+            parameters
+            -----------
+            limitTimes: int
+                How many version a reference can have in disc at any time.
+            saveFreq: int
+                In minutes, how often an auto save is done.
+        """
+        if self.dummy:
+            self._saver =  dummySaver()
+        else:
+            self._saver = Saver(self.path, limitTimes, saveFreq)
+        return self._saver
+
+    def startTBW(self):
+        if self.dummy:
+            self._tbw = dummyTBW()
+        else:
+            try:
+                from torch.utils.tensorboard import SummaryWriter
+                self.tbPath = genDir(self.expName, self.envName, "tensorboard", self.timeID)
+                self._tbw = SummaryWriter(self.tbPath)
+            except ImportError:
+                self._tbw = dummyTBW()
+                print('Tensorboard installation within pytorch was not found. DummyTBW created')
+        return self._tbw
+    
+    def close(self):
+        if self.dummy: return self.__dumm__()
+        if self._tbw != None:
+            self._tbw.close()
 
 class Tocker:
     def __init__(self):
@@ -128,26 +290,7 @@ class Tocker:
         remaind = tHz - remaind
         if remaind > 0:
             time.sleep(remaind)
-            return True
-
-class Stack:
-    """
-    Dict stack working in a FIFO manner
-    """
-    def __init__(self):
-        self.stack = dict()
-        self.min = 0
-        self.actual = 0
-    def add(self, obj):
-        self.stack[self.actual] = obj
-        self.actual += 1
-    def pop(self):
-        poped = self.stack[self.min]
-        self.stack.pop(self.min)
-        self.min += 1
-        return poped
-    def __len__(self):
-        return len(self.stack)
+            return True        
 
 class Reference:
     _loaded_ = False
@@ -156,51 +299,66 @@ class Reference:
                         limit:int,
                         torchType:bool = False,
                         device = device("cpu"),
-                        loadOnly:bool = True):
+                        loadOnly:bool = True,
+                        key = '', discardMin = True):
         self.torchType = torchType
         self.name = name
         self.ref = obj
-        self.prevVersions = Stack()
+        f = minHeap if discardMin else maxHeap
+        self.prevVersions = Stack() if key == '' else f()
         self.limit = limit
         self.device = device
         self._version = 0
         self._LO_ = loadOnly
+        self.key, self._discardMin = key, discardMin
     
-    def save(self, path):
-        if self._LO_:
-            None
+    def save(self, path, results):
+        value = None if self.key == '' else results[self.key]
+        if self._LO_ or not self.keepIt(value):
+            return
         if self.torchType:
-            self.saveTorch(path)
+            self.saveTorch(path, value)
         else:
-            self.savePy(path)
+            self.savePy(path, value)
         self.clean(path)
 
     def clean(self, path):
-        if len(self.prevVersions) >= self.limit:
-            target = self.prevVersions.pop()
-            #target = os.path.join(path, target)
-            os.remove(target)
+        if len(self.prevVersions) > self.limit:
+            self.prevVersions.pop().unlink(missing_ok = True)
+
+    def keepIt(self, value):
+        if value is None:
+            return True
+        if len(self.prevVersions) <= self.limit:
+            return True
+        ans = True
+        if self._discardMin and value < self.prevVersions.rootValue():
+            ans = False
+        elif not self._discardMin and value > self.prevVersions.rootValue():
+            ans = False
+        return ans
     
     @staticmethod
-    def loaderAssist(path):
-        os.chdir(path)
-        files = os.listdir()
+    def loaderAssist(path, name = ''): #TODO, add name func
         print("Files on direction:")
-        for n, File in enumerate(files):
-            print("{} : {}".format(n, File))
-        while 1:
+        files = 0, []
+        for file in path.iterdir():
+            if file.is_file() and file.name[:len(name)] == name:
+                print("{} : {}".format(len(files), file))
+                files.append(file)
+        while True:
             choice = input("Enter the number for the file to load :")
             choice = int(choice)
-            if choice > len(files) or not isinstance(choice, int) or choice < 0:
+            if choice >= len(files) or choice < 0:
                 print("Number not valid. Please try again.")
             else:
                 break
-        return os.path.join(path, files[choice])
+        return files[choice]
 
-    def load(self, path):
+    def load(self, path, assist = True):
         self._loaded_ = True
         print("Trying to load in object {}".format(self.name))
-        target = self.loaderAssist(path)
+        target = self.loaderAssist(path, self.name) if assist else path
         self._version = int(re.findall("_v\d+", target)[0][2:]) + 1
         if self.torchType:
             self.loadTorch(target, self.device)
@@ -213,33 +371,43 @@ class Reference:
         print("Model successfully loaded from ", path)
         
     def loadObj(self, path):
-        fileHandler = open(path, 'rb')
+        fileHandler = path.open('rb')
         self.ref = pickle.load(fileHandler)
         fileHandler.close()
         print("Object successfully loaded from ", path)
 
-    def saveTorch(self, path):
-        name = self._gen_name() + ".modelst"
-        path = os.path.join(path, name)
+    def saveTorch(self, path, value):
+        name = self._gen_name(value) + ".modelst"
+        target = path / name
         try:
             stateDict = self.ref.state_dict()
-            save(stateDict, path)
-            self.prevVersions.add(path)
+            save(stateDict, target)
+            self.prevVersions.add(target, value = value)
         except:
-            None
+            print('Warning: {} couldnt be saved'.format(self))
+            pass
 
-    def savePy(self, path):
-        name = self._gen_name() + ".pyobj"
-        path = os.path.join(path, name)
+    def savePy(self, path, value):
+        name = self._gen_name(value) + ".pyobj"
+        target = path / name
         if sys.getsizeof(self.ref) < LIMIT_4G:
-            fileHandler = open(path, "wb")
+            fileHandler = target.open("wb")
             pickle.dump(self.ref, fileHandler)
             fileHandler.close()
-            self.prevVersions.add(path)
+            self.prevVersions.add(target, value = value)
 
-    def _gen_name(self):
+    def _gen_name(self, value):
+        keyAddOn = '_%s: %.3f'%(self.key, value) if self.key != '' else ''
         self._version += 1
-        return self.name + "_v{}".format(self._version) + "_" + timeFormated()
+        return self.name + "_v{}".format(self._version) + keyAddOn + "_T-" + timeFormated()
+
+    def __repr__(self) -> str:
+        s =  'Reference {}. Torch is {}. Last version is {}.'.format(self.name, self.torchType, self._version)
+        if self._LO_:
+            s += ' Load only is enabled.'
+        if self.key != '':
+            s += ' Has key {}, with minimum as {}.'.format(self.key, self._discardMin)
+        return s
 
 class Saver():
     """
@@ -250,15 +418,15 @@ class Saver():
     ----------
     envName: str
 
-    path: str
+    path: Path
         Path relative to Home to dump the saved files
     """
-    def __init__(self, path:str,
+    def __init__(self, path:Path,
                     limitTimes:int = 10,
                     saveFreq:int = 30):
         
         self.dir = path
-        self._objRefs_ = []
+        self._objRefs_, self._objRefsWkey_ = [], []
         self.names = set()
         self.limit = limitTimes
         self.time = Tocker()
@@ -267,31 +435,76 @@ class Saver():
     def start(self):
         self.time.tick
 
-    def check(self):
+    def check(self, results = None):
         if self.time.tocktock >= self.freq:
-            self.saveAll()
+            self.saveAll(results)
             self.time.tick
+        for ref in self._objRefsWkey_:
+            ref.save(self.dir, results)
 
-    def addObj(self, obj, 
-                objName:str,
-                isTorch:bool = False,
-                device = device("cpu"),
-                loadOnly:bool = False):
+    def addObj(self, obj, objName:str, isTorch:bool = False,
+                device = device("cpu"), loadOnly:bool = False,
+                key = '', discardMin: bool = True):
+        """
+            Method to add an object to the saver references.
 
+            parameters
+            -----------
+            obj: Any
+                The object or pytorch module to save.
+            objName: str
+                A name to recongnize the object in memory.
+            isTorch: bool
+                Default False. If the object is a torch module as a 
+                nn or optim type pass a True flag to save it properly.
+            device: torch.device
+                If isTorch the pass the device in which this module is working
+            loadOnly: bool
+                Skips saveing into memory this object. Crucial when just reading.
+            key: str
+                Default '', keeps only the newer versions. 
+                When using saveAll() or check(), if pass a non-empty string will
+                keep versions on memory with the maximum or minimum values. This could lead
+                to not add the newest versions if the values associated are less or greater;
+                respectevely.
+            discardMin: bool
+                Default True, keeps the versions with greater value.
+                If using key do tell if want to discard the minimum or
+                maximum value saves when the limit of versions is reached.
+        """
         if objName in self.names:
-            raise KeyError
+            raise KeyError('{} already declared in this saver!'.format(objName))
         self.names.add(objName)
-        self._objRefs_ += [Reference(obj, 
-                                    objName, 
-                                    self.limit,
-                                    isTorch,
-                                    device,
-                                    loadOnly)]
+        self._objRefs_ += [Reference(obj, objName, self.limit, isTorch, device, loadOnly,
+                                        key, discardMin)]
+        if key != '':
+            self._objRefsWkey_.append(self._objRefs_[-1])
     
-    def saveAll(self):
+    def saveAll(self, results = None):
         for ref in self._objRefs_:
-            ref.save(self.dir)
+            ref.save(self.dir, results)
 
     def load(self, path):
         for ref in self._objRefs_:
             ref.load(path)
+
+    def __repr__(self) -> str:
+        s = 'Saver in path: {} with {} objects:\n'.format(self.path, len(self._objRefs_))
+        for obj in self._objRefs_:
+            s += ' - ' + obj.__repr__() + '\n'
+        return s
+
+def retrieveConfigYaml(name: str, defPath: str = None):
+    if defPath is None:
+        path = Path.cwd() / 'experiments'
+    else:
+        path = Path(defPath)
+    
+    pathFile = path / (name.strip() + '.yaml')
+
+    if not pathFile.exists() or not pathFile.is_file():
+        raise ValueError('Path either does not exists or is not a file!')
+
+    config = yaml.safe_load(pathFile.open('r'))
+
+    return config

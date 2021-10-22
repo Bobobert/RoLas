@@ -1,0 +1,29 @@
+agent:
+  agentClass: agentMultiEnv
+  gamma: 0.99
+  memory_size: 100
+  nstep: 30
+  workers: 16
+
+env:
+  atari: false
+  envMaker: gymEnvMaker
+  max_length: 500
+  name: LunarLander-v2
+  warmup: null
+
+policy:
+  continuos: false
+  entropy_bonus: 0.5
+  epochs: 10
+  
+  network:
+    learning_rate: 0.0001
+    linear_1: 32
+    networkClass: gymAC
+
+train:
+  epochs: 10000
+  expected_performance: 100
+  max_time: 30
+  test_freq: 100

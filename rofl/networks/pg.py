@@ -1,93 +1,123 @@
-from .base import Actor, Value
+from .base import Actor, Value, ActorCritic, construcConv, construcLinear,\
+    forwardConv, forwardLinear, layersFromConfig
 from rofl.functions.const import *
-from rofl.functions.distributions import Categorical
+from rofl.functions.functions import Texp, Tcat, F, outputFromGymSpace, inputFromGymSpace
+from rofl.functions.distributions import Categorical, Normal
+from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete, decomposeObsWContextv0
 
-class dcontrolActorPG(Actor):
-    name = "classic_control_pg_net"
-    h0 = 30
+class gymActor(Actor):
+    name = "simple gym actor"
+
     def __init__(self, config):
-        super(dcontrolActorPG, self).__init__()
-        self.config = config
+        super().__init__(config)
+        continuos = config['policy']['continuos']
+        self.discrete = not continuos
+        self.noLinear = F.relu
 
-        inputs = config["policy"]["n_inputs"]
+        inputs = inputFromGymSpace(config)
         outs = config["policy"]["n_actions"]
-        h0 = self.h0
-        self.rectifier = F.relu
-        self.fc1 = nn.Linear(inputs, h0)
-        self.fc2 = nn.Linear(h0, outs)
+        outs = outputFromGymSpace(config) if outs is None else outs
+        outs *= 2 if continuos else 1
+        hidden = layersFromConfig(config)
+        construcLinear(self, inputs, outs, *hidden['linear'])
 
     def forward(self, obs):
-        noLinear = self.rectifier
-        x = noLinear(self.fc1(obs))
-        return self.fc2(x)
+        return forwardLinear(self, obs)
 
     def getDist(self, params):
-        return Categorical(logits = params)
+        if self.discrete:
+            return Categorical(logits = params)
+        else:
+            n = params.shape[-1] // 2
+            return Normal(params[:,:n], Texp(params[:,n:]))
 
-    def new(self):
-        return dcontrolActorPG(self.config)
+class gymBaseline(Value):
+    name = "simple baseline"
 
-class forestFireActorPG(Actor):
-    name = "forestFire_pg_actor"
-    discrete = True
     def __init__(self, config):
-        # Same as forestFireDQNv2, but son of Actor, not qValue
-        super(forestFireActorPG, self).__init__()
-        self.config = config
+        super().__init__(config)
+        self.noLinear = F.relu
 
-        lHist = config["agent"]["lhist"]
+        inputs = inputFromGymSpace(config)
+        hiddens = layersFromConfig(config, 'baseline')
+        construcLinear(self, inputs, 1, *hiddens['linear'])
+
+    def forward(self, obs):
+        return forwardLinear(self, obs)
+
+class gymAC(ActorCritic):
+    name = 'simple gym actor critic'
+    def __init__(self, config):
+        super().__init__(config)
+        continuos = config['policy']['continuos']
+        self.discrete = not continuos
+        self.noLinear = F.relu
+
+        inputs = inputFromGymSpace(config)
+        outs = config["policy"]["n_actions"]
+        outs = outputFromGymSpace(config) if outs is None else outs
+        outs *= 2 if continuos else 1
+        hidden = layersFromConfig(config)['linear']
+        lastHidden, self._lLayers = hidden[-1], len(hidden)
+        construcLinear(self, inputs, lastHidden, *hidden[:-1])
+        [self.actLayer] = construcLinear(self, lastHidden, outs, offset = len(hidden))
+        [self.valLayer] = construcLinear(self, lastHidden, 1, offset = len(hidden) + 1)
+
+    def sharedForward(self, x):
+        return self.noLinear(forwardLinear(self, x, offsetEnd = 2))
+
+    def valueForward(self, x):
+        return self.valLayer(x)
+
+    def actorForward(self, x):
+        return self.actLayer(x)
+
+    def getDist(self, params):
+        if self.discrete:
+            return Categorical(logits = params)
+        else:
+            n = params.shape[-1] // 2
+            return Normal(params[:,:n], Texp(params[:,n:]))
+
+class ffActorCritic(ActorCritic):
+    name = "ff actor"
+    def __init__(self, config):
+        super().__init__(config)
+        self.discrete = True
+        self.noLinear = F.relu
+
+        self.actionSpace = actionSpace = config['env']['action_space']
         actions = config["policy"]["n_actions"]
+        lHist = config["agent"]["lhist"]
+        channels = config['agent'].get('channels', 1)
         obsShape = config["env"]["obs_shape"]
+        self.frameShape = (lHist * channels, *obsShape)
 
-        self.rectifier = F.relu
+        layers = layersFromConfig(config)
+        features, _ = construcConv(self, obsShape, lHist * channels, *layers['conv2d'])
+        
+        linearLayers = layers['linear']
+        self.actorLayers = construcLinear(self, features + 3, actions, *linearLayers)
+        self.offset = len(linearLayers) + 1
+        self.valueLayers = construcLinear(self, features + 3, 1, *linearLayers, offset = self.offset)
 
-        self.cv1 = nn.Conv2d(lHist, lHist * 6, 5, 2)
-        dim = sqrConvDim(obsShape[0], 5, 2)
-        self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
-        dim = sqrConvDim(dim, 3, 1)
-        self.fc1 = nn.Linear(lHist * 12 * dim**2 + 2, 328)
-        self.fc2 = nn.Linear(328, actions) # from V1
-    
-    def forward(self, obs):
-        frame, pos = obs["frame"], obs["position"]
-        x = self.rectifier(self.cv1(frame))
-        x = self.rectifier(self.cv2(x))
-        x = Tcat([x.flatten(1), pos], dim=1)
-        x = self.rectifier(self.fc1(x))
-        return self.fc2(x)
+    def sharedForward(self, observation):
+        frame, context = decomposeObsWContextv0(observation, self.frameShape)
+        x = forwardConv(self, frame)
+        x = self.noLinear(x)
+        return Tcat([x.flatten(1), context], dim = 1)
 
-    def new(self):
-        return forestFireActorPG(self.config)
+    def actorForward(self, observation):
+        return forwardLinear(self, observation, offsetEnd=self.offset)
+
+    def valueForward(self, observation):
+        return forwardLinear(self, observation, self.offset)
+
+    def processAction(self, action):
+        return composeMultiDiscrete(action, self.actionSpace)
+
+    def unprocessAction(self, action, batch: bool):
+        return decomposeMultiDiscrete(action, self.actionSpace, batch, self.device).squeeze_()
 
     def getDist(self, params):
-        return Categorical(logits = params)
-
-class forestFireBaseline(Value):
-    name = "forestFire_baseline"
-    def __init__(self, config):
-        # Same as forestFireDQNv2, but son of Actor, not qValue
-        super(forestFireBaseline, self).__init__()
-        self.config = config
-
-        lHist = config["agent"]["lhist"]
-        obsShape = config["env"]["obs_shape"]
-
-        self.rectifier = F.relu
-
-        self.cv1 = nn.Conv2d(lHist, lHist * 6, 5, 2)
-        dim = sqrConvDim(obsShape[0], 5, 2)
-        self.cv2 = nn.Conv2d(lHist * 6, lHist * 12, 3, 1)
-        dim = sqrConvDim(dim, 3, 1)
-        self.fc1 = nn.Linear(lHist * 12 * dim**2 + 2, 328)
-        self.fc2 = nn.Linear(328, 1) # from V1
-    
-    def forward(self, obs):
-        frame, pos = obs["frame"], obs["position"]
-        x = self.rectifier(self.cv1(frame))
-        x = self.rectifier(self.cv2(x))
-        x = Tcat([x.flatten(1), pos], dim=1)
-        x = self.rectifier(self.fc1(x))
-        return self.fc2(x)
-
-    def new(self):
-        return forestFireBaseline(self.config)
+        return Categorical(logits=params)

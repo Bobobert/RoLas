@@ -1,7 +1,6 @@
-from .forestFire.helicopter import EnvMakerForestFire
-from .gym_cellular_automata.envs.bulldozer import BulldozerEnv
-from .gym_cellular_automata.envs.forest_fire import ForestFireEnv
-import numpy as np
+from .forestFire.helicopter import EnvMakerForestFire # TODO; perhaps to be deleted from here. Although it has many modifications from emmanuel's
+from gym.spaces import Discrete
+from rofl.functions.functions import np, nprnd
 
 def forestFireEnvMaker(config):
     config = config["env"]
@@ -17,16 +16,10 @@ def forestFireEnvMaker(config):
         reward_move= config.get("reward_move", -0.001), reward_hit=config.get("reward_hit",0.01),
         reward_tree = config.get("reward_tree", 1.0), reward_fire = config.get("reward_fire", -1.0),
         reward_empty=0.0)
-        env.rg = np.random.Generator(np.random.SFC64(seed))
+        env.rg = nprnd.Generator(nprnd.SFC64(seed))
         return env, [seed]
 
-    return ENV
+    # Register action_space on config
+    config["env"]["action_space"] = Discrete(config["policy"].get("n_actions", 18))
 
-def bulldozerEnvMaker(config):
-    def ENV(seed = None):
-        env = BulldozerEnv()
-        env.seed(seed)
-        return env, [seed]
-        
     return ENV
-    

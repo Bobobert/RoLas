@@ -1,5 +1,4 @@
-from .exploratory import EpsilonGreedy
-from .vars import linearSchedule, runningStat
-from .const import SummaryWriter
+from .vars import linearSchedule, runningStat, updateVar
 from .torch import getDevice
-from .stop import initResultDict, testEvaluation
+from .stop import testEvaluation
+from .dicts import obsDict, mergeDicts, initResultDict

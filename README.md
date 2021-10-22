@@ -1,9 +1,12 @@
 # RoLas
-Welcome to this DRL implementation using Pytorch, Numba and Ray.
+Welcome to this DRL implementation using Pytorch and Ray.
 
 ## Algorithms Working
 - DQN
-- Vanilla Policy Gradient
+- REINFORCE
+- A2C
+- PPO
 
-## Packages
+## Packages' versions
 - 0.1 released as part of my dissertation experiments
+- 0.2 New setup for experiments and design agents, policies and networks
