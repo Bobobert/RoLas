@@ -1,10 +1,11 @@
 from torch.autograd.grad_mode import no_grad
 from .base import Policy
 from rofl.networks.base import ActorCritic
-from rofl.functions.functions import Tmean, Tmul, Tsum, F, torch, reduceBatch, no_grad
+from rofl.functions.functions import Tmean, Tmul, F, torch, reduceBatch, no_grad
 from rofl.functions.const import DEVICE_DEFT, ENTROPY_LOSS
 from rofl.functions.torch import clipGrads, getOptimizer
-from rofl.utils.policies import genMiniBatchLin, getActionWProb, getActionWValProb, getBaselines, getParamsBaseline
+from rofl.utils.policies import genMiniBatchLin, getActionWProb, getActionWValProb,\
+    getBaselines, getParamsBaseline, trainBaseline
 from rofl.config.config import createNetwork
 
 class pgPolicy(Policy):
@@ -90,12 +91,7 @@ class pgPolicy(Policy):
         self.optimizer.step()
 
         if self.doBaseline:
-            lossBaseline = _FBl(baselines, returns)
-            self.optimizerBl.zero_grad()
-            if self.clipGrad > 0:
-                clipGrads(self.baseline, self.clipGrad)
-            lossBaseline.backward()
-            self.optimizerBl.step()
+            lossBaseline = trainBaseline(self, baselines, returns, _FBl)
 
         tbw = self.tbw
         if tbw != None and (self.epoch % self.tbwFreq == 0) and self.newEpoch:

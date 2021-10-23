@@ -1,3 +1,4 @@
+from numpy import ndarray
 from .const import *
 from .functions import Tdiv, Tmean, Tcat, Tstd, multiplyIter, nn, optim, deepcopy
 
@@ -64,8 +65,10 @@ def updateNet(net, targetLoad):
     elif isinstance(targetLoad, list):
         for p, pt in zip(targetLoad, net.parameters()):
             pt.requires_grad_(False) # This is a must to change the values properly
-            p = np.copy(p) # TODO, check this. Works better(in time) using a copy (weird!?!)
-            pt.data = torch.from_numpy(p).to(pt.device)
+            if isinstance(p, ndarray):
+                p = np.copy(p) # TODO, check this. Works better(in time) using a copy (weird!?!)
+                p = torch.from_numpy(p).to(pt.device)
+            pt.data = p
             pt.requires_grad_(True)
     else:
         raise ValueError('Should be either a state_dict or a list of ndarrays')
@@ -153,7 +156,7 @@ def cloneState(states, grad: bool = True, ids = None):
     else:
         raise TypeError("State type {} not supported".format(type(states)))
 
-def convert2flat(x):
+def tensors2Flat(x: list):
     shapes = []
     flat = []
     for p in x:
@@ -161,7 +164,7 @@ def convert2flat(x):
         flat.append(p.flatten())
     return Tcat(flat, dim=0), shapes
 
-def convertFromFlat(x, shapes):
+def flat2Tensors(x: TENSOR, shapes: list):
     newX, iL, iS = [], 0, 0
     for s in shapes:
         iS = iL + multiplyIter(s)
@@ -172,11 +175,35 @@ def convertFromFlat(x, shapes):
 def getNGradients(net):
     '''
         Returns a list of ARRAYS for the gradients
-        in the networks parameters
+        in the network's parameters
     '''
     grads = []
     for p in net.parameters():
         grads.append(p.grad.cpu().numpy())
+    return grads
+
+def getGradients(net, clone: bool = False):
+    '''
+        Returns a list of tensors for the gradients
+        in the network's parameters
+
+        parameters
+        ----------
+        - net: nn.Module or BaseNet
+        - clone: bool
+            If true, the grads are cloned, (no copy incurred),
+            for which operations can propagate through the original
+            graph if still exists.
+        
+    '''
+    grads = []
+    for p in net.parameters():
+        grad = p.grad
+        if clone:
+            grad = grad.clone()
+        else:
+            grad = grad.detach()
+        grads.append(grad)
     return grads
 
 def accumulateGrad(net, *grads):

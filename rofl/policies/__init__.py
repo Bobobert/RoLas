@@ -4,5 +4,6 @@ from rofl.policies.pg import pgPolicy
 from rofl.policies.dqnrollout import dqnRollPolicy
 from rofl.policies.a2c import a2cPolicy, a2cWorkerPolicy
 from rofl.policies.ppo import ppoPolicy, ppoWorkerPolicy
+from rofl.policies.trpo import trpoPolicy
 
 # TODO, include all policies in here

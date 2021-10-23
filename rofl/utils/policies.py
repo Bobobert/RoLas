@@ -1,7 +1,7 @@
-from math import gamma
 from typing import Union
 from rofl.functions.const import ARRAY, F_TDTYPE_DEFT, TENSOR
-from rofl.functions.functions import Tmul, newZero, torch, no_grad
+from rofl.functions.functions import Tmul, isBatch, newZero, torch, no_grad
+from rofl.functions.torch import clipGrads
 
 def getParamsBaseline(policy, observations):
     if policy.baseline is None:
@@ -55,6 +55,7 @@ def logProb4Action(policy, observation:TENSOR, action:Union[TENSOR, ARRAY, int, 
     actor = policy.actor
     params = actor.onlyActor(observation)
     dist = actor.getDist(params)
+    action = actor.unprocessAction(action, isBatch(observation))
     log_prob = dist.log_prob(action)
     return log_prob
 
@@ -109,4 +110,20 @@ def calculateGAE(policy,  valuesST, nextObservations, dones, rewards, gamma, lmb
     gaes.detach_()
 
     return gaes
-        
+
+def trainBaseline(policy, baselines, returns, f) -> TENSOR:
+    '''
+        Policies with baseline atribute (which should be different 
+        from Actor w Critic) can do a single step of train with this
+        piece fo code. Design mainly for inheritance from pgPolicy
+
+    '''
+    lossBaseline = f(baselines, returns)
+    optimizer = policy.optimizerBl
+    optimizer.zero_grad()
+    if policy.clipGrad > 0:
+        clipGrads(policy.baseline, policy.clipGrad)
+    lossBaseline.backward()
+    optimizer.step()
+    
+    return lossBaseline

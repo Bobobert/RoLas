@@ -42,6 +42,7 @@ def setUpExperiment(algorithm: str, *configs : dict, dummyManager : bool = False
     manager = pathManager(config, dummy = dummyManager)
     experiment = startExperiment(config, manager, device)
     manager.saveConfig()
+    print('The experiment is ready, time for %s algorithm in %s environment' % (algorithm, config['env']['name']))
     return experiment
 
 def startExperiment(config, manager, device):

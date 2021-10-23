@@ -1,15 +1,17 @@
-from rofl.functions import dicts
-from rofl.functions.functions import torch, Texp, reduceBatch, Tmean, Tmul, F, no_grad
-from rofl.functions.torch import clipGrads, normMean
+from rofl.functions.functions import torch, Texp, reduceBatch, Tmean, Tmul, F
+from rofl.functions.torch import clipGrads
 from rofl.policies.a2c import a2cPolicy
-from rofl.utils.policies import getParamsBaseline, setEmptyOpt, calculateGAE
+from rofl.utils.policies import getParamsBaseline, setEmptyOpt, calculateGAE, trainBaseline
 
 def putVariables(policy):
     config = policy.config
+
     policy.epsSurrogate = config['policy']['epsilon_surrogate']
     policy.epochsPerBatch = config['policy']['epochs']
     policy.maxKLDiff = config['policy']['max_diff_kl']
-    policy.keysForUpdate = ['observation', 'next_observation', 'return', 'reward', 'action', 'done', 'log_prob']
+    policy.keysForUpdate = ['observation', 'return', 'action', 'log_prob']
+    if policy.gae:
+        policy.keysForUpdate += ['reward', 'next_observation', 'done']
 
 class ppoPolicy(a2cPolicy):
     name = 'ppo v0'
@@ -26,15 +28,13 @@ class ppoPolicy(a2cPolicy):
         self.epoch += 1
 
     def batchUpdate(self, batchDict):
-        observations, nObservations = batchDict['observation'], batchDict['next_observation']
-        actions, rewards, returns = batchDict['action'], batchDict['reward'], batchDict['return']
-        dones = batchDict['done']
-
+        observations, actions, returns = batchDict['observation'], batchDict['action'], batchDict['return']
         log_probs_old = reduceBatch(batchDict['log_prob'])
-
+        
         params, baselines = getParamsBaseline(self, observations)
         if self.gae:
-            advantages = calculateGAE(self, baselines, nObservations, dones, rewards, self.gamma, self.lmbd)
+            advantages = calculateGAE(self, baselines, batchDict['next_observation'],\
+                batchDict['done'], batchDict['reward'], self.gamma, self.lmbd)
         else:
             advantages = returns - baselines.detach()
         
@@ -72,12 +72,7 @@ class ppoPolicy(a2cPolicy):
             self.optimizer.step()
 
             if self.doBaseline:
-                lossBaseline = _FBl(baselines, returns)
-                self.optimizerBl.zero_grad()
-                if self.clipGrad > 0:
-                    clipGrads(self.baseline, self.clipGrad)
-                lossBaseline.backward()
-                self.optimizerBl.step()
+                lossBaseline = trainBaseline(self, baselines, returns, _FBl)
 
         tbw = self.tbw
         if tbw != None and (self.epoch % self.tbwFreq == 0) and self.newEpoch:

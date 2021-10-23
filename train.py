@@ -9,18 +9,18 @@ def argParser(args):
         epilog="python train.py -a dqn -c dqn_bulldozer")
 
     parser.add_argument(
-        '--alg', '-a', type=str,
+        '--alg', '-a', type=str, required = True,
         help= 'Name of the algorithm to run')
     parser.add_argument(
-        '--config', '-c', type=str,
-        help = 'Name of the yaml config file on the scripts folder'
+        '--config', '-c', type=str, required= True,
+        help = 'Name of the yaml config file on the scripts folder',
     )
     parser.add_argument(
-        '--dm', type=bool, default=True,
-        help= 'If the experiment should have a dummy manager, this will incur in not saving anyhing'
+        '--dm', action='store_false',
+        help= 'Enable a data manager, otherwise will incur in not saving anyhing'
     )
     parser.add_argument(
-        '--cuda', type=bool, default=True,
+        '--cuda', action='store_true',
         help= 'Enable trying to use any available CUDA devices'
     )
 

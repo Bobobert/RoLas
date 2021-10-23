@@ -1,5 +1,5 @@
 from .const import *
-from rofl.functions.functions import no_grad, Tlog, Tdiv, Tsum, Tmul, Tmean, Tpow
+from rofl.functions.functions import Tlog, Tdiv, Tsum, Tmul, Tpow
 from torch.distributions.kl import register_kl, kl_divergence
 from torch.distributions import Categorical, Normal
 
@@ -15,9 +15,3 @@ def kl_normals(dist1, dist2):
 def kl_cats(dist1, dist2):
     ax1 = Tdiv(dist1.logits, dist2.logits)
     return Tsum(Tmul(dist1.probs, ax1))
-
-def klDiff(net, states, actions, oldLogprobs):
-    with no_grad():
-        dist = net.getDist(net(states))
-        logprobs = dist.log_prob(actions)
-    return Tmean(oldLogprobs - logprobs).item()

@@ -1,0 +1,29 @@
+agent:
+  gamma: 0.99
+  memory_size: 1000
+  nstep: 25
+  
+env:
+  atari: false
+  envMaker: gymEnvMaker
+  max_length: 500
+  name: LunarLanderContinuous-v2
+  warmup: null
+
+policy:
+  baseline:
+    learning_rate: 1.0e-05
+    linear_1: 56
+    linear_2: 32
+    networkClass: gymBaseline
+  continuos: true
+  entropy_bonus: 0.5
+  network:
+    linear_1: 56
+    networkClass: gymActor
+
+train:
+  epochs: 10000
+  expected_performance: 100
+  max_time: 30
+  test_freq: 200
