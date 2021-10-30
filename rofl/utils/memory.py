@@ -193,6 +193,7 @@ class episodicMemory(simpleMemory):
     def reset(self):
         super().reset()
         self._lastEpisode_ = -1
+        self._episodeReady_ = False
 
     def add(self, infoDict):
         super().add(infoDict)
@@ -202,17 +203,21 @@ class episodicMemory(simpleMemory):
     def resolveReturns(self):
         lastEpsisode = self._lastEpisode_
         self._lastEpisode_ = last = self.last
+        self._episodeReady_ = True
         gamma = self.gamma
 
         lastReturn = self[last].get('bootstrapping', 0.0)
         if isinstance(lastReturn, TENSOR):
             lastReturn = lastReturn.cpu().item()
+
+        if last < 0 and self.fillOnce: # to prevent skipping loop when last = -1
+            last = self.size + last
         for i in range(last, lastEpsisode, - 1):
             lastDict = super().__getitem__(i)
             lastReturn = lastDict['return'] = lastDict["reward"] + gamma * lastReturn 
 
     def getEpisode(self, device = DEVICE_DEFT, keys = None):
-        if self._lastEpisode_ == -1:
+        if not self._episodeReady_:
             raise AttributeError("Memory does not have an episode ready!")
         return self.createSample(self.gatherMem(), device, keys)
 

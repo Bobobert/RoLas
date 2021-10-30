@@ -1,6 +1,6 @@
 from typing import Union
 from rofl.functions.const import ARRAY, F_TDTYPE_DEFT, TENSOR
-from rofl.functions.functions import Tmul, isBatch, newZero, torch, no_grad
+from rofl.functions.functions import Tmul, isBatch, newZero, torch, no_grad, rnd
 from rofl.functions.torch import clipGrads
 
 def getParamsBaseline(policy, observations):
@@ -80,13 +80,26 @@ def calculateReturn(policy, nextObsevation, dones, rewards):
     return returns
 
 def genMiniBatchLin(miniBatchSize, batchSize, *targets):
+    if batchSize <= miniBatchSize:
+        miniBatchSize = batchSize
     for lower in range(0, batchSize, miniBatchSize):
         newYield = []
+        upper = lower + miniBatchSize
+        if upper > batchSize:
+            upper = batchSize
         for t in targets:
-            upper = lower + miniBatchSize
-            if upper > batchSize:
-                upper = batchSize
             newYield.append(t[lower:upper])
+        yield newYield
+
+def genMiniBatchRnd(miniBatchSize, batchSize, batches, *targets):
+    batchSize -= 1
+    if batchSize <= miniBatchSize:
+        batches, miniBatchSize = 1, batchSize
+    for iBatch in range(batches):
+        newYield = []
+        randoms = [rnd.randint(0, batchSize) for _ in range(miniBatchSize)]
+        for t in targets:
+            newYield.append(t[randoms])
         yield newYield
 
 def calculateGAE(policy,  valuesST, nextObservations, dones, rewards, gamma, lmbda) -> TENSOR:

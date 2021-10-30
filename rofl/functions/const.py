@@ -46,6 +46,7 @@ RNN_BOOT_DEFT = 10
 
 ### TRPO ###
 MAX_DKL = 1e-2
+CG_DAMPING = 1e-3
 
 ### PPO ###
 ENTROPY_LOSS = 1e-2
