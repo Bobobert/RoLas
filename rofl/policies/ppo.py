@@ -37,6 +37,7 @@ class ppoPolicy(a2cPolicy):
                 batchDict['done'], batchDict['reward'], self.gamma, self.lmbd)
         else:
             advantages = returns - baselines.detach()
+        advantages.squeeze_()
         
         eps = self.epsSurrogate
         _F, _FBl = Tmean, F.mse_loss
@@ -50,8 +51,8 @@ class ppoPolicy(a2cPolicy):
             log_probs = reduceBatch(log_probs)
 
             ratio = Texp(log_probs - log_probs_old)            
-            clipped = Tmul(ratio.clamp(min = 1.0 - eps, max = 1.0 + eps), advantages.squeeze())
-            unclipped = Tmul(ratio, advantages.squeeze())
+            clipped = Tmul(ratio.clamp(min = 1.0 - eps, max = 1.0 + eps), advantages)
+            unclipped = Tmul(ratio, advantages)
             lossPolicy = torch.fmin(unclipped, clipped)
 
             lossPolicy = _F(lossPolicy) # average falls flat first iters??

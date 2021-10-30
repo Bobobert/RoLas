@@ -1,6 +1,6 @@
 from rofl.functions.const import TENSOR
-from rofl.functions.functions import F, no_grad, Tcat, Tsum, np, Tdot, Tsqrt, torch, Texp, reduceBatch, Tmean, Tmul
-from rofl.functions.torch import cloneNet, getListTParams, tensors2Flat, flat2Tensors, getGradients, noneGrad, updateNet, zeroGrad
+from rofl.functions.functions import F, no_grad, np, Tdot, Tsqrt, torch, Texp, reduceBatch, Tmean, Tmul
+from rofl.functions.torch import cloneNet, getListTParams, tensors2Flat, flat2Tensors, getGradients, noneGrad, updateNet
 from rofl.policies.pg import pgPolicy
 from rofl.policies.ppo import putVariables
 from rofl.utils.policies import getBaselines, setEmptyOpt, calculateGAE, trainBaseline
@@ -18,28 +18,36 @@ class trpoPolicy(pgPolicy):
 
     def initPolicy(self, **kwargs):
         super().initPolicy(**kwargs)
-        self.actorOld = cloneNet(self.actor)
+        self.actorOther = cloneNet(self.actor)
         
         config = self.config
-        self.cgDamping = config['policy']['cg_damping']
         self.cgIters = config['policy']['cg_iterations']
         self.lsIters = config['policy']['ls_iterations']
         putVariables(self)
 
     def update(self, *batchDict):
+        oldDistributions, actor = [], self.actor
+
         for dict_ in batchDict:
-            self.batchUpdate(dict_)
+            with no_grad():
+                params = actor.onlyActor(dict_['observation'])
+                dist = actor.getDist(params)
+            oldDistributions.append(dist)
+        
+        for dict_, dist in zip(batchDict, oldDistributions):
+            self.batchUpdate(dict_, dist)
 
         self.newEpoch = True
         self.epoch += 1
 
-    def batchUpdate(self, batchDict):
+    def batchUpdate(self, batchDict, distFix):
         # unpack from batch
         observations, actions, returns = batchDict['observation'], batchDict['action'], batchDict['return']
         logProbOld = reduceBatch(batchDict['log_prob'])
         NInv = 1.0 / observations.shape[0]
-
+        
         # calculate advantages
+        actor = self.actor
         baselines = getBaselines(self, observations)
 
         if self.gae:
@@ -47,6 +55,7 @@ class trpoPolicy(pgPolicy):
                 batchDict['done'], batchDict['reward'], self.gamma, self.lmbd)
         else:
             advantages = returns - baselines.detach()
+        advantages.squeeze_()
         
         # define functions
         actor = self.actor
@@ -55,7 +64,7 @@ class trpoPolicy(pgPolicy):
         def calculateSurrogate(stateDict=None):
 
             if stateDict is not None:
-                pi = self.actorOld
+                pi = self.actorOther
                 updateNet(pi, stateDict)
                 with no_grad():
                     params = pi.onlyActor(observations)
@@ -65,57 +74,53 @@ class trpoPolicy(pgPolicy):
 
             logProbs, _ = pi.processDist(params, actions)
             logProbs = reduceBatch(logProbs)
+            ratio = Texp(logProbs - logProbOld)
+            surrogate = Tmul(ratio, advantages)
 
-            probsDiff = Texp(logProbs - logProbOld)
-            ratio = Tmul(probsDiff, advantages)
-            surrogate = _F(ratio)
-
-            return surrogate
+            return _F(surrogate)
         
         def grads4Loss(loss: TENSOR, retainGraph:bool = False):
             loss.backward(create_graph=retainGraph, retain_graph=retainGraph)
             return getGradients(self.actor, retainGraph)
-        
-        def fisherVectorP(flatX, shapes):
-            # setting actor
-            pi = actor
-            noneGrad(pi)
-            # This has to be done to keep a free issues double grad
-            params = pi.onlyActor(observations)
-            dist = pi.getDist(params)
-            distFix = pi.getDist(params.detach())
 
-            klDiv = kl_divergence(distFix, dist) * NInv
-            klGrads = grads4Loss(klDiv, retainGraph = True) 
-            # retained for the following fisherVector
-
-            xList = flat2Tensors(flatX, shapes)
-            grads4VectorP = [Tsum(Tmul(u,v)).unsqueeze_(0) for u,v in zip(klGrads, xList)]
-            gradVectorP = Tsum(Tcat(grads4VectorP))
-            fisherVectorP, _ = tensors2Flat(grads4Loss(gradVectorP))
+        Grad = torch.autograd.grad
+        def fisherVectorP(v, shapes):
+            # hvp adhoc - based on the pytorch hvp function
+            noneGrad(actor)
+            params = actor.onlyActor(observations)
+            dist = actor.getDist(params)
+            klDiv = (kl_divergence(distFix, dist) * NInv,)
             
-            # free the graph from the klDiv backprop operation
-            klDiv.detach_()
+            params = tuple(getListTParams(actor, detach = False))
+            gradOutputs = (None,) * len(klDiv)
+            jacobian = Grad(klDiv, params, gradOutputs, create_graph = True)
 
-            return fisherVectorP
+            gradJac = tuple(torch.zeros_like(par, requires_grad = True) for par in params)
+            doubleBack = Grad(jacobian, params, gradJac, create_graph = True)
 
-        # Setting none grad into actor for later functions
-        zeroGrad(actor)
-        params = getListTParams(actor)
+            v = tuple(flat2Tensors(v, shapes))
+            hvp = Grad(doubleBack, gradJac, v)
+            hvp, _ = tensors2Flat(hvp)
+
+            return hvp
+
+        # Copy of actual params for later, perhaps not necesary
+        actorParams = getListTParams(actor)
         # Calculate gradient respect to L(Theta)
         surrogate = calculateSurrogate()
         policyGradient = grads4Loss(surrogate)
+
         # solve search direction s~A^-1g with conjugate gradient
-        stepDir, stepDirShapes = conjugateGrad(fisherVectorP, policyGradient, self.cgIters, self.cgDamping)
+        stepDir, stepDirShapes = conjugateGrad(fisherVectorP, policyGradient, self.cgIters)
         fvp = fisherVectorP(stepDir, stepDirShapes)
         sHs = Tdot(stepDir, fvp)
-        betaInv = Tsqrt(sHs * 0.5 / self.maxKLDiff) # inverse of step length = 1 / B
-        fullStep = stepDir / betaInv # Bs, this will be added to the parameters through a linea search
+        beta = Tsqrt(2 * self.maxKLDiff / sHs) # step length B
+        fullStep = stepDir * beta # Bs, this will be added to the parameters through a linea search
 
         flatPG, _ = tensors2Flat(policyGradient)
         GStepDir = Tdot(flatPG, fullStep)
         
-        success, theta = lineSearch(calculateSurrogate, params, fullStep, GStepDir, self.lsIters)
+        success, theta = lineSearch(calculateSurrogate, actorParams, fullStep, GStepDir, self.lsIters)
         if success: updateNet(actor, theta)
 
         if self.doBaseline:
@@ -127,11 +132,11 @@ class trpoPolicy(pgPolicy):
         if tbw != None and (epoch % self.tbwFreq == 0) and self.newEpoch:
             tbw.add_scalar('train/Actor loss', surrogate.cpu().item(), epoch)
             tbw.add_scalar('train/Baseline loss', lossBaseline.cpu().item(), epoch)
-            tbw.add_scalar('train/LS success', success, epoch)
+            tbw.add_scalar('train/LineSearch success', success, epoch)
             #self._evalTBWActor_()
         self.newEpoch = False
 
-def conjugateGrad(mvp, b, iters: int = 10, damping: float = 0, epsilon: float = 1e-10):
+def conjugateGrad(mvp, b, iters: int = 10, epsilon: float = 1e-10):
     """
     Conjugated gradietns in pytorch
 
@@ -149,33 +154,31 @@ def conjugateGrad(mvp, b, iters: int = 10, damping: float = 0, epsilon: float = 
     epsilon: float
         The threshold to finish early the algorithm when
         sqrt(rho_{k-1}) \leq \epsilon * |b|
-
+    doMax: bool
+        Default True if the problem is to maximize on b.
     """
     # Init
     b, shapes = tensors2Flat(b)
     x = b.new_zeros(b.shape)
     r = b.detach()
-    rho = Tdot(r, r) # Default to the Frobenius norm or L2 for vector type
-
-    epsilon = epsilon * torch.norm(b, 2).item()
+    rho = Tdot(r, r) 
 
     # Iterations
     for k in range(iters):
-        if Tsqrt(rho) <= epsilon:
+        if rho < epsilon:
             break
         oldRho = rho
         
         if k == 0:
             p = r
         else:
-            p = r + (rhoRatio) * p
+            p = r + rhoRatio * p
 
-        w = mvp(r, shapes)
-        if damping != 0:
-            w += r * damping
-        alpha = oldRho / Tdot(p, w)
-        x = x + alpha * p
-        r = r - alpha * w
+        Ap = mvp(p, shapes)
+        pAp = Tdot(p, Ap)
+        alpha = rho / pAp
+        x += alpha * p
+        r -= alpha * Ap
         rho = Tdot(r, r)
         rhoRatio = rho / oldRho
 
@@ -184,8 +187,7 @@ def conjugateGrad(mvp, b, iters: int = 10, damping: float = 0, epsilon: float = 
 def lineSearch(f, x, direction, 
                 expectedImproveRate,
                 maxBacktracks: int = 10,
-                acceptRatio:float = 0.1,
-                Min:bool = False):
+                acceptRatio:float = 0.1):
     """
     Backtracking Line search algorithm with Armijo condition,
 
@@ -211,8 +213,7 @@ def lineSearch(f, x, direction,
     for stepFrac in 0.5 ** np.arange(maxBacktracks):
         newX =  x + stepFrac * direction
         newfx = f(flat2Tensors(newX, xShapes))
-        improvement = newfx - fx # In max mode, expected improvement when positive
-        improvement *= -1.0 if Min else 1.0 
+        improvement = fx - newfx
         expectedImprovement = expectedImproveRate * stepFrac
         r = improvement / expectedImprovement
         if r > acceptRatio and improvement > 0:

@@ -92,14 +92,16 @@ def getDictState(net, cpu:bool = True):
             stateDict[key] = stateDict[key].to(DEVICE_DEFT)
     return stateDict
 
-def getListTParams(net, device = None):
+def getListTParams(net, device = None, detach: bool = True):
     '''
         Ordered list of TENSORS for a network's parameters.
         These are detached and can be directed to a device.
     '''
     params = []
+    if not detach and device is not None:
+        raise AttributeError('Unexpected behavior')
     for p in net.parameters():
-        p = p.detach()
+        p = p.detach() if detach else p
         if device is not None:
             p.to(device)
         params.append(p)
@@ -128,10 +130,12 @@ def zeroGradParams(parameters):
             p.grad = p.new_zeros(p.shape)
         else:
             p.grad.fill_(0)
+            p.detach_()
 
 def noneGrad(net):
-    for p in net.parameters():
-        p.grad = None
+    net.zero_grad(True)
+    #for p in net.parameters():
+    #    p.grad = None
 
 def clipGrads(net, clip:float):
     nn.utils.clip_grad_value_(net.parameters(), clip)

@@ -1,7 +1,8 @@
 agent:
   gamma: 0.99
   memory_size: 1000
-  nstep: 25
+  nstep: -1
+  gae: true
   
 env:
   atari: false
