@@ -1,5 +1,5 @@
 from typing import Union
-from rofl.functions.const import ARRAY, F_TDTYPE_DEFT, TENSOR
+from rofl.functions.const import ARRAY, F_TDTYPE_DEFT, MINIBATCH_SIZE, TENSOR
 from rofl.functions.functions import Tmul, isBatch, newZero, torch, no_grad, rnd
 from rofl.functions.torch import clipGrads
 
@@ -140,3 +140,14 @@ def trainBaseline(policy, baselines, returns, f) -> TENSOR:
     optimizer.step()
     
     return lossBaseline
+
+def trainBaselineMini(policy, observations, returns, f, miniBatchSize: int = MINIBATCH_SIZE, epochs: int = 10):
+    gen = genMiniBatchRnd(miniBatchSize, observations.shape[0], epochs, observations, returns)
+    baseline = policy.baseline
+    
+    for miniObs, miniReturns in gen:
+        miniBaselines = baseline(miniObs)
+        lossBaseline = trainBaseline(policy, miniBaselines, miniReturns, f)
+
+    return lossBaseline
+        

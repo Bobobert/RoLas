@@ -1,9 +1,9 @@
-from rofl.functions.const import MINIBATCH_SIZE, TENSOR
+from rofl.functions.const import TENSOR
 from rofl.functions.functions import F, no_grad, np, Tdot, Tsqrt, torch, Texp, reduceBatch, Tmean, Tmul
 from rofl.functions.torch import getListTParams, tensors2Flat, flat2Tensors, getGradients, noneGrad, updateNet
 from rofl.policies.pg import pgPolicy
 from rofl.policies.ppo import putVariables
-from rofl.utils.policies import getBaselines, setEmptyOpt, calculateGAE, trainBaseline, genMiniBatchRnd
+from rofl.utils.policies import getBaselines, setEmptyOpt, calculateGAE, trainBaselineMini
 from rofl.functions.distributions import kl_divergence
 
 class trpoPolicy(pgPolicy):
@@ -77,10 +77,6 @@ class trpoPolicy(pgPolicy):
             surrogate = Tmul(ratio, advantages)
 
             return _F(surrogate)
-        
-        def grads4Loss(loss: TENSOR, retainGraph:bool = False):
-            loss.backward(create_graph=retainGraph, retain_graph=retainGraph)
-            return getGradients(self.actor, retainGraph)
 
         Grad, cgDamping = torch.autograd.grad, self.cgDamping
         def fisherVectorP(vFlat, shapes):
@@ -108,7 +104,9 @@ class trpoPolicy(pgPolicy):
         actorParams = getListTParams(actor)
         # Calculate gradient respect to L(Theta)
         surrogate = calculateSurrogate()
-        policyGradient = grads4Loss(surrogate)
+        noneGrad(actor)
+        surrogate.backward()
+        policyGradient = getGradients(actor)
 
         # solve search direction s~A^-1g with conjugate gradient
         stepDir, stepDirShapes = conjugateGrad(fisherVectorP, policyGradient, iters = self.cgIters)
@@ -124,11 +122,7 @@ class trpoPolicy(pgPolicy):
         updateNet(actor, theta)
 
         if self.doBaseline:
-            gen = genMiniBatchRnd(MINIBATCH_SIZE, observations.shape[0], self.epochsPerBath, observations, returns)
-            baseline = self.baseline
-            for miniObs, miniReturns in gen:
-                miniBaselines = baseline(miniObs)
-                lossBaseline = trainBaseline(self, miniBaselines, miniReturns, _FBl)
+            trainBaselineMini(self, observations, returns, _FBl, epochs = self.epochsPerBath)
         else:
             lossBaseline = torch.zeros(())
 
