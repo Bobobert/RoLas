@@ -67,11 +67,11 @@ class trpoPolicy(pgPolicy):
             if stateDict is not None:
                 updateNet(actor, stateDict)
                 with no_grad():
-                    params = actor.onlyActor(observations)
+                    paramsProb = actor.onlyActor(observations)
             else:
-                params = actor.onlyActor(observations)
+                paramsProb = actor.onlyActor(observations)
 
-            logProbs, _ = actor.processDist(params, actions)
+            logProbs, _ = actor.processDist(paramsProb, actions)
             logProbs = reduceBatch(logProbs)
             ratio = Texp(logProbs - logProbOld)
             surrogate = Tmul(ratio, advantages)
@@ -79,11 +79,29 @@ class trpoPolicy(pgPolicy):
             return _F(surrogate)
 
         Grad, cgDamping = torch.autograd.grad, self.cgDamping
-        def fisherVectorP(vFlat, shapes):
+        def fisherVectorPv1(vFlat, shapes):
+            # grad of the grad_f(Theta) * v
+            noneGrad(actor)
+            paramsProb = actor.onlyActor(observations)
+            dist = actor.getDist(paramsProb)
+            klDiv = (kl_divergence(distFix, dist),)
+            
+            params = tuple(getListTParams(actor, detach = False))
+            jacobian = Grad(klDiv, params, create_graph = True)
+            jacFlat, _ = tensors2Flat(jacobian)
+
+            gvp = Tdot(jacFlat, vFlat)
+            hvp = Grad(gvp, params)
+            hvpFlat, _ = tensors2Flat(hvp)
+            hvpFlat += cgDamping * vFlat # mod proposed by schulman in his implementation
+
+            return hvpFlat
+
+        def fisherVectorPv2(vFlat, shapes):
             # hessian vector product adhoc - based on the pytorch hvp function
             noneGrad(actor)
-            params = actor.onlyActor(observations)
-            dist = actor.getDist(params)
+            paramsProb = actor.onlyActor(observations)
+            dist = actor.getDist(paramsProb)
             klDiv = (kl_divergence(distFix, dist),)
             
             params = tuple(getListTParams(actor, detach = False))
@@ -109,8 +127,8 @@ class trpoPolicy(pgPolicy):
         policyGradient = getGradients(actor)
 
         # solve search direction s~A^-1g with conjugate gradient
-        stepDir, stepDirShapes = conjugateGrad(fisherVectorP, policyGradient, iters = self.cgIters)
-        Hs = fisherVectorP(stepDir, stepDirShapes)
+        stepDir, stepDirShapes = conjugateGrad(fisherVectorPv1, policyGradient, iters = self.cgIters)
+        Hs = fisherVectorPv1(stepDir, stepDirShapes)
         sHs = Tdot(stepDir, Hs)
         beta = Tsqrt(2.0 * self.maxKLDiff / sHs) # step length B
         fullStep = stepDir * beta # Bs, this will be added to the parameters through a linea search
@@ -122,7 +140,7 @@ class trpoPolicy(pgPolicy):
         updateNet(actor, theta)
 
         if self.doBaseline:
-            trainBaselineMini(self, observations, returns, _FBl, epochs = self.epochsPerBath)
+            lossBaseline = trainBaselineMini(self, observations, returns, _FBl, epochs = self.epochsPerBath)
         else:
             lossBaseline = torch.zeros(())
 
@@ -166,7 +184,7 @@ def conjugateGrad(mvp, b, iters: int = 10, epsilon: float = 1e-10):
             break
         oldRho = rho
         
-        if k == 0:
+        if k < 1:
             p = r
         else:
             p = r + rhoRatio * p
