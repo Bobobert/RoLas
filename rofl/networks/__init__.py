@@ -1,2 +1,2 @@
-from rofl.networks.dqn import dqnAtari, dqnAtariDueling, dqnCA, dqnCADueling
-from rofl.networks.pg import gymActor, gymBaseline, gymAC, ffActorCritic
+from rofl.networks.dqn import DqnAtari, DqnAtariDueling, DqnCA, DqnCADueling
+from rofl.networks.pg import GymActor, GymBaseline, GymAC, FFActorCritic

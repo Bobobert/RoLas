@@ -1,11 +1,11 @@
 from typing import Union
 from rofl.functions.const import ARRAY, F_TDTYPE_DEFT, MINIBATCH_SIZE, TENSOR
-from rofl.functions.functions import Tmul, isBatch, newZero, torch, no_grad, rnd
+from rofl.functions.functions import Tmul, isBatch, newZero, torch, noGrad, rnd
 from rofl.functions.torch import clipGrads
 
 def getParamsBaseline(policy, observations):
     if policy.baseline is None:
-        baselines = torch.zeros((observations.shape[0], 1), device = observations.device, dtype = F_TDTYPE_DEFT)
+        baselines = torch.zeros((observations.shape[0], 1), device=observations.device, dtype=F_TDTYPE_DEFT)
     elif not policy.actorHasCritic:
         baselines = policy.baseline(observations)
         params = policy.actor.onlyActor(observations)
@@ -16,7 +16,7 @@ def getParamsBaseline(policy, observations):
 
 def getBaselines(policy, observations):
     if policy.baseline is None:
-        baselines = torch.zeros((observations.shape[0], 1), device = observations.device, dtype = F_TDTYPE_DEFT)
+        baselines = torch.zeros((observations.shape[0], 1), device=observations.device, dtype=F_TDTYPE_DEFT)
     elif not policy.actorHasCritic:
         baselines = policy.baseline(observations)
     else:
@@ -51,7 +51,7 @@ def logProb4Action(policy, observation:TENSOR, action:Union[TENSOR, ARRAY, int, 
     if isinstance(action, ARRAY):
         action = torch.from_numpy(action).unsqueeze(0)
     elif isinstance(action, (int, float)):
-        action = torch.tensor([action], device = observation.device)
+        action = torch.tensor([action], device=observation.device)
     actor = policy.actor
     params = actor.onlyActor(observation)
     dist = actor.getDist(params)
@@ -68,7 +68,7 @@ def setEmptyOpt(policy):
         config['policy']['baseline']['optimizer'] = 'dummy'
 
 def calculateReturn(policy, nextObsevation, dones, rewards):
-    with no_grad():
+    with noGrad():
         valueST1 = getBaselines(policy, nextObsevation[-1].unsqueeze(0))
     returns = newZero(rewards).cpu()
     lastReturn = valueST1[0]
@@ -103,7 +103,7 @@ def genMiniBatchRnd(miniBatchSize, batchSize, batches, *targets):
         yield newYield
 
 def calculateGAE(policy,  valuesST, nextObservations, dones, rewards, gamma, lmbda) -> TENSOR:
-    with no_grad():
+    with noGrad():
         valuesST1 = getBaselines(policy, nextObservations)
     # calculate TDs
     notDones = dones.bitwise_not()
@@ -125,12 +125,12 @@ def calculateGAE(policy,  valuesST, nextObservations, dones, rewards, gamma, lmb
     return gaes
 
 def trainBaseline(policy, baselines, returns, f) -> TENSOR:
-    '''
+    """
         Policies with baseline atribute (which should be different 
         from Actor w Critic) can do a single step of train with this
         piece fo code. Design mainly for inheritance from pgPolicy
 
-    '''
+    """
     lossBaseline = f(baselines, returns)
     optimizer = policy.optimizerBl
     optimizer.zero_grad()

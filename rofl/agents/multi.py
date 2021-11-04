@@ -1,12 +1,17 @@
-from torch._C import Value
+"""
+    AgentMaster and derives to creata and manage multiple
+    agents from other classes as ray remote.
+"""
+import ray
+
+from rofl.config.types import AgentType, PolicyType
 from rofl.config.config import createPolicy, createAgent
 from rofl.functions.coach import singlePathRolloutMulti
-from rofl.functions.const import *
+from rofl.functions.const import DEVICE_DEFT, NCPUS, TEST_SEED, TRAIN_SEED,\
+    TEST_N_DEFT, I_TDTYPE_DEFT, F_TDTYPE_DEFT
 from rofl.functions.functions import ceil, deepcopy
 from rofl.functions.dicts import composeObs, mergeDicts, mergeResults
-from rofl.policies.base import Policy
-from rofl.utils.memory import multiMemory
-import ray
+from rofl.utils.memory import MultiMemory
 
 # Status Flags
 READY = 1
@@ -92,7 +97,7 @@ class Worker:
             timeout = timeout / 1000
 
         try:
-            self.result = ray.get(self.ref, timeout = timeout)
+            self.result = ray.get(self.ref, timeout=timeout)
             return True
         except:
             return False
@@ -104,7 +109,7 @@ class Worker:
         s = 'Worker for Ray. ID: %d. Status: %s' %(self.id, self.status)
         return s
 
-class AgentMaster():
+class AgentMaster(AgentType):
     """
         Main class to create and manage a pool of ray workers.
 
@@ -118,7 +123,7 @@ class AgentMaster():
     """
     name = 'Agent Master v1'
 
-    def __init__(self, config: dict, policy: Policy, envMaker, **kwargs):
+    def __init__(self, config: dict, policy: PolicyType, envMaker, **kwargs):
 
         self.policy = policy
         self.config = config
@@ -150,7 +155,7 @@ class AgentMaster():
             nconfig["env"]["seedTrain"] = s1 + i + 1
             nconfig["env"]["seedTest"] = s2 + i + 1
             nconfig['policy']['policyClass'] = config['policy']['workerPolicyClass']
-            workerPolicy = createPolicy(nconfig, nActor, baseline = nBl)
+            workerPolicy = createPolicy(nconfig, nActor, baseline=nBl)
             worker = Worker(ragnt.remote(nconfig, workerPolicy, envMaker), i)
             workersD[i] = worker
             workersL.append(worker)
@@ -167,7 +172,7 @@ class AgentMaster():
         for worker in self.workers.values():
             worker.ref = worker().reset.remote()
         results = self.syncResolve()
-        self.lastObs = mergeDicts(*results, targetDevice = self.device)
+        self.lastObs = mergeDicts(*results, targetDevice=self.device)
         return results
 
     def envStep(self, actions, ids):
@@ -179,7 +184,7 @@ class AgentMaster():
         # resolve workers
         results = self.syncResolve()
         # merge infoDicts
-        return mergeDicts(*results, targetDevice = self.device)
+        return mergeDicts(*results, targetDevice=self.device)
 
     def fullStep(self):
         actions, ids = self.policy.getActions(self.lastObs)
@@ -290,7 +295,7 @@ class AgentMaster():
         s = self.name + ', with %d workers' % len(self.workers)
         return s
 
-class agentSync(AgentMaster):
+class AgentSync(AgentMaster):
     name = 'Agent master sync'
 
     def reset(self):
@@ -362,9 +367,9 @@ class agentSync(AgentMaster):
         self.syncResolve(wrks)
 
     def test(self, iters: int = TEST_N_DEFT, progBar: bool = False):
-        '''
+        """
             From Agent base test method
-        '''
+        """
         itersPerWorker = ceil(iters / self._nWorkers)
         wrks = []
         for w in self.workers:
@@ -385,7 +390,7 @@ class agentSync(AgentMaster):
 
         return results
 
-class agentMultiEnv(agentSync):
+class AgentMultiEnv(AgentSync):
     name = 'Agent multi env'
 
     def __init__(self, config, policy, envMaker, **kwargs):
@@ -394,7 +399,7 @@ class agentMultiEnv(agentSync):
 
         # More like BaseAgent, but to manage multiAgent
         keys = [('action', I_TDTYPE_DEFT)] if self.policy.discrete else [('action', F_TDTYPE_DEFT)]
-        self.memory = multiMemory(config, *keys)
+        self.memory = MultiMemory(config, *keys)
 
         nConfig = config.copy()
         nConfig['agent']['agentClass'] = config['agent']['workerClass']
@@ -436,7 +441,7 @@ class agentMultiEnv(agentSync):
 
     def reset(self):
         observations = super().reset()
-        self.lastObs, self.lastDones, self.lastIds = composeObs(*observations, device = self.device)
+        self.lastObs, self.lastDones, self.lastIds = composeObs(*observations, device=self.device)
         self.memory.reset()
         self.stepReady = True
 
@@ -475,6 +480,6 @@ class agentMultiEnv(agentSync):
                 dict_ = iDS[iD]
                 dict_['log_prob'] = prob
 
-        self.lastObs, self.lastDones, self.lastIds = composeObs(*observations, device = self.device) # compose to have a state to process actions with
+        self.lastObs, self.lastDones, self.lastIds = composeObs(*observations, device=self.device)
         return observations
         

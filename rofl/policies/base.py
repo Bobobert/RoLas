@@ -1,11 +1,12 @@
+from rofl.config.types import PolicyType
+
 from rofl.functions.torch import maxGrad, meanGrad
 from rofl.networks.base import Value, QValue, Actor, ActorCritic
-from rofl.functions.functions import nn, no_grad
+from rofl.functions.functions import nn, noGrad
 from rofl.functions.const import DEVICE_DEFT
 from rofl.utils.policies import getActionWProb, logProb4Action
-from abc import ABC
 
-class Policy(ABC):
+class BasePolicy(PolicyType):
     """
     Base class for a Policy
 
@@ -68,9 +69,9 @@ class Policy(ABC):
         self.keysForUpdate = None
 
         self.initPolicy(**kwargs)
-        self.__checkInit__()
+        self._checkInit()
 
-    def __checkInit__(self):
+    def _checkInit(self):
         # testing for valueBased, required for agent class working for any value method
         if isinstance(self.actor, (Actor)):
             self.stochastic = True
@@ -119,7 +120,7 @@ class Policy(ABC):
         """
         if not self.stochastic:
             raise AttributeError('%s does not support this operation')
-        with no_grad():
+        with noGrad():
             return getActionWProb(self.actor, observation)
 
     def getActionWVal(self, observation):
@@ -151,7 +152,7 @@ class Policy(ABC):
         """
         if not self.valueBased and not self.stochastic:
             raise AttributeError('%s does not support this operation')
-        with no_grad():
+        with noGrad():
             action, logprob = self.getActionWProb(observation)
         value = self.getValue(observation, action)
         return action, value, logprob
@@ -290,22 +291,14 @@ class Policy(ABC):
         elif self._nn and not flag:
             self.actor.train()
 
-    @property
-    def train(self):
-        return not self._test
-    
-    @train.setter
-    def train(self, flag: bool):
-        self.test = not flag
-
-    def _evalTBWActor_(self):
+    def _evalActorTB(self):
         tbw, actor, epoch = self.tbw, self.actor, self.epoch
         if self.evalMeanGrad:
             tbw.add_scalar("train/mean grad",  meanGrad(actor), epoch)
         if self.evalMaxGrad:
             tbw.add_scalar("train/max grad",  maxGrad(actor), epoch)
         
-class dummyPolicy(Policy):
+class DummyPolicy(BasePolicy):
     """
         Pilot's useless. Activate the dummy plug.
 
@@ -315,7 +308,7 @@ class dummyPolicy(Policy):
         ----------
         noOp: from a noOpSample of the target environment
     """
-    name= "DummyPlug"
+    name = "DummyPlug"
     def __init__(self, noOp):
         self.noop = noOp
         self.discrete = True
@@ -336,7 +329,7 @@ class dummyPolicy(Policy):
         return DEVICE_DEFT
 
     def new(self):
-        newDummy = dummyPolicy(self.noop)
+        newDummy = DummyPolicy(self.noop)
         newDummy.rndFunc = self.rndFunc
         return newDummy
 

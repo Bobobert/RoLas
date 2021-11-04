@@ -1,10 +1,10 @@
 """
-    Constants to use in all the files. Side effect of from .THIS import * is to 
-    have torch, numpy (as np), math, os, sys imported as well.
+    Constants and defaults data types
 """
-import os, sys
-from .functions import torch, np, math
-from numba.typed import List
+import os
+import sys
+
+from .functions import torch, nb, np, math
 
 ### DEFAULTS TYPES ###
 DEVICE_DEFT = torch.device("cpu")
@@ -18,6 +18,7 @@ B_NDTYPE_DEFT = np.bool_
 TENSOR = torch.Tensor
 TDIST = torch.distributions.distribution.Distribution
 ARRAY = np.ndarray
+List = nb.typed.List
 Tdevice = torch.device
 
 ### CONSTANTS DEFAULTS ###

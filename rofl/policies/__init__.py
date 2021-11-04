@@ -1,9 +1,8 @@
-from rofl.policies.base import Policy, dummyPolicy
-from rofl.policies.dqn import dqnPolicy
-from rofl.policies.pg import pgPolicy
-from rofl.policies.dqnrollout import dqnRollPolicy
-from rofl.policies.a2c import a2cPolicy, a2cWorkerPolicy
-from rofl.policies.ppo import ppoPolicy, ppoWorkerPolicy
-from rofl.policies.trpo import trpoPolicy
-
 # TODO, include all policies in here
+
+from rofl.policies.base import BasePolicy, DummyPolicy
+from rofl.policies.dqn import DqnPolicy
+from rofl.policies.pg import PgPolicy
+from rofl.policies.a2c import A2CPolicy, A2CWorkerPolicy
+from rofl.policies.ppo import PpoPolicy, PpoWorkerPolicy
+from rofl.policies.trpo import TrpoPolicy

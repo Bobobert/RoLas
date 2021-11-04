@@ -1,13 +1,13 @@
 from rofl.functions.const import TENSOR
-from rofl.functions.functions import F, no_grad, np, Tdot, Tsqrt, torch, Texp, reduceBatch, Tmean, Tmul
+from rofl.functions.functions import F, noGrad, np, Tdot, Tsqrt, torch, Texp, reduceBatch, Tmean, Tmul
 from rofl.functions.torch import getListTParams, tensors2Flat, flat2Tensors, getGradients, noneGrad, updateNet
-from rofl.policies.pg import pgPolicy
+from rofl.policies.pg import PgPolicy
 from rofl.policies.ppo import putVariables
 from rofl.utils.policies import getBaselines, setEmptyOpt, calculateGAE, trainBaselineMini
-from rofl.functions.distributions import kl_divergence
+from rofl.functions.distributions import klDivergence
 
-class trpoPolicy(pgPolicy):
-    '''
+class TrpoPolicy(PgPolicy):
+    """
         Basic TRPO policy
 
         Does the fisher information matrix with a double auto-grad technique.
@@ -16,7 +16,7 @@ class trpoPolicy(pgPolicy):
 
         Mostly based on Schulman's implementation on Theano
         https://github.com/joschu/modular_rl/blob/master/modular_rl/trpo.py 
-    '''
+    """
     name = 'trpo v0'
 
     def initPolicy(self, **kwargs):
@@ -32,7 +32,7 @@ class trpoPolicy(pgPolicy):
         oldDistributions, actor = [], self.actor
 
         for dict_ in batchDict:
-            with no_grad():
+            with noGrad():
                 params = actor.onlyActor(dict_['observation'])
                 dist = actor.getDist(params)
             oldDistributions.append(dist)
@@ -49,7 +49,7 @@ class trpoPolicy(pgPolicy):
         logProbOld = reduceBatch(batchDict['log_prob'])
         
         # calculate advantages
-        with no_grad():
+        with noGrad():
             baselines = getBaselines(self, observations)
 
         if self.gae:
@@ -66,7 +66,7 @@ class trpoPolicy(pgPolicy):
         def calculateSurrogate(stateDict=None):
             if stateDict is not None:
                 updateNet(actor, stateDict)
-                with no_grad():
+                with noGrad():
                     paramsProb = actor.onlyActor(observations)
             else:
                 paramsProb = actor.onlyActor(observations)
@@ -84,10 +84,10 @@ class trpoPolicy(pgPolicy):
             noneGrad(actor)
             paramsProb = actor.onlyActor(observations)
             dist = actor.getDist(paramsProb)
-            klDiv = (kl_divergence(distFix, dist),)
+            klDiv = (klDivergence(distFix, dist),)
             
-            params = tuple(getListTParams(actor, detach = False))
-            jacobian = Grad(klDiv, params, create_graph = True)
+            params = tuple(getListTParams(actor, detach=False))
+            jacobian = Grad(klDiv, params, create_graph=True)
             jacFlat, _ = tensors2Flat(jacobian)
 
             gvp = Tdot(jacFlat, vFlat)
@@ -102,14 +102,14 @@ class trpoPolicy(pgPolicy):
             noneGrad(actor)
             paramsProb = actor.onlyActor(observations)
             dist = actor.getDist(paramsProb)
-            klDiv = (kl_divergence(distFix, dist),)
+            klDiv = (klDivergence(distFix, dist),)
             
-            params = tuple(getListTParams(actor, detach = False))
+            params = tuple(getListTParams(actor, detach=False))
             gradOutputs = (None,) * len(klDiv)
-            jacobian = Grad(klDiv, params, gradOutputs, create_graph = True)
+            jacobian = Grad(klDiv, params, gradOutputs, create_graph=True)
 
-            gradJac = tuple(torch.zeros_like(par, requires_grad = True) for par in params)
-            doubleBack = Grad(jacobian, params, gradJac, create_graph = True)
+            gradJac = tuple(torch.zeros_like(par, requires_grad=True) for par in params)
+            doubleBack = Grad(jacobian, params, gradJac, create_graph=True)
 
             v = tuple(flat2Tensors(vFlat, shapes))
             hvp = Grad(doubleBack, gradJac, v)
@@ -127,7 +127,7 @@ class trpoPolicy(pgPolicy):
         policyGradient = getGradients(actor)
 
         # solve search direction s~A^-1g with conjugate gradient
-        stepDir, stepDirShapes = conjugateGrad(fisherVectorPv1, policyGradient, iters = self.cgIters)
+        stepDir, stepDirShapes = conjugateGrad(fisherVectorPv1, policyGradient, iters=self.cgIters)
         Hs = fisherVectorPv1(stepDir, stepDirShapes)
         sHs = Tdot(stepDir, Hs)
         beta = Tsqrt(2.0 * self.maxKLDiff / sHs) # step length B
@@ -136,11 +136,11 @@ class trpoPolicy(pgPolicy):
         flatPG, _ = tensors2Flat(policyGradient)
         GStepDir = Tdot(flatPG, stepDir) * beta
         
-        success, theta = lineSearch(calculateSurrogate, actorParams, fullStep, GStepDir, maxBacktracks = self.lsIters)
+        success, theta = lineSearch(calculateSurrogate, actorParams, fullStep, GStepDir, maxBacktracks=self.lsIters)
         updateNet(actor, theta)
 
         if self.doBaseline:
-            lossBaseline = trainBaselineMini(self, observations, returns, _FBl, epochs = self.epochsPerBath)
+            lossBaseline = trainBaselineMini(self, observations, returns, _FBl, epochs=self.epochsPerBath)
         else:
             lossBaseline = torch.zeros(())
 
@@ -239,7 +239,7 @@ def lineSearch(f, x, direction,
 
     return False, flat2Tensors(x, xShapes)
 
-class trpoWorkerPolicy(trpoPolicy):
+class trpoWorkerPolicy(TrpoPolicy):
     name = 'ppo v0 - worker'
 
     def initPolicy(self, **kwargs):

@@ -1,11 +1,10 @@
 from .base import Actor, Value, ActorCritic, construcConv, construcLinear,\
     forwardConv, forwardLinear, layersFromConfig
-from rofl.functions.const import *
 from rofl.functions.functions import Texp, Tcat, F, outputFromGymSpace, inputFromGymSpace
 from rofl.functions.distributions import Categorical, Normal
 from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete, decomposeObsWContextv0
 
-class gymActor(Actor):
+class GymActor(Actor):
     name = "simple gym actor"
 
     def __init__(self, config):
@@ -26,12 +25,12 @@ class gymActor(Actor):
 
     def getDist(self, params):
         if self.discrete:
-            return Categorical(logits = params)
+            return Categorical(logits=params)
         else:
             n = params.shape[-1] // 2
             return Normal(params[:,:n], Texp(params[:,n:]))
 
-class gymBaseline(Value):
+class GymBaseline(Value):
     name = "simple baseline"
 
     def __init__(self, config):
@@ -45,7 +44,7 @@ class gymBaseline(Value):
     def forward(self, obs):
         return forwardLinear(self, obs)
 
-class gymAC(ActorCritic):
+class GymAC(ActorCritic):
     name = 'simple gym actor critic'
     def __init__(self, config):
         super().__init__(config)
@@ -60,11 +59,11 @@ class gymAC(ActorCritic):
         hidden = layersFromConfig(config)['linear']
         lastHidden, self._lLayers = hidden[-1], len(hidden)
         construcLinear(self, inputs, lastHidden, *hidden[:-1])
-        [self.actLayer] = construcLinear(self, lastHidden, outs, offset = len(hidden))
-        [self.valLayer] = construcLinear(self, lastHidden, 1, offset = len(hidden) + 1)
+        [self.actLayer] = construcLinear(self, lastHidden, outs, offset=len(hidden))
+        [self.valLayer] = construcLinear(self, lastHidden, 1, offset=len(hidden) + 1)
 
     def sharedForward(self, x):
-        return self.noLinear(forwardLinear(self, x, offsetEnd = 2))
+        return self.noLinear(forwardLinear(self, x, offsetEnd=2))
 
     def valueForward(self, x):
         return self.valLayer(x)
@@ -74,12 +73,12 @@ class gymAC(ActorCritic):
 
     def getDist(self, params):
         if self.discrete:
-            return Categorical(logits = params)
+            return Categorical(logits=params)
         else:
             n = params.shape[-1] // 2
             return Normal(params[:,:n], Texp(params[:,n:]))
 
-class ffActorCritic(ActorCritic):
+class FFActorCritic(ActorCritic):
     name = "ff actor"
     def __init__(self, config):
         super().__init__(config)
@@ -99,13 +98,13 @@ class ffActorCritic(ActorCritic):
         linearLayers = layers['linear']
         self.actorLayers = construcLinear(self, features + 3, actions, *linearLayers)
         self.offset = len(linearLayers) + 1
-        self.valueLayers = construcLinear(self, features + 3, 1, *linearLayers, offset = self.offset)
+        self.valueLayers = construcLinear(self, features + 3, 1, *linearLayers, offset=self.offset)
 
     def sharedForward(self, observation):
         frame, context = decomposeObsWContextv0(observation, self.frameShape)
         x = forwardConv(self, frame)
         x = self.noLinear(x)
-        return Tcat([x.flatten(1), context], dim = 1)
+        return Tcat([x.flatten(1), context], dim=1)
 
     def actorForward(self, observation):
         return forwardLinear(self, observation, offsetEnd=self.offset)

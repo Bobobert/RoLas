@@ -1,8 +1,9 @@
-from rofl import Agent, Policy
-from rofl.functions.const import *
-from rofl.functions import testEvaluation, initResultDict, updateVar
-from rofl.utils import Saver
 from tqdm import tqdm
+
+from rofl import AgentType, PolicyType
+from rofl.functions.const import LHIST, MEMORY_SIZE
+from rofl.functions import testEvaluation, initResultDict
+from rofl.utils import Saver, updateVar
 
 algConfig = {
     'env':{
@@ -27,7 +28,7 @@ algConfig = {
 
     },
     'policy':{
-        'policyClass' : 'dqnPolicy',
+        'policyClass' : 'DqnPolicy',
         'epsilon_start': 1.0,
         'epsilon_end' : 0.1,
         'epsilon_life' : 25 * 10**4,
@@ -39,23 +40,23 @@ algConfig = {
     }
 }
 
-def fillRandomMemoryReplay(config:dict, agent:Agent):
+def fillRandomMemoryReplay(config:dict, agent:AgentType):
     # Fill memory replay
     sizeInitMemory = config['train']['fill_memory']
     I = tqdm(range(sizeInitMemory), desc='Filling memory replay', unit='envStep')
     for _ in I:
-        agent.memory.add(agent.fullStep(random = True))
+        agent.memory.add(agent.fullStep(random=True))
 
-def fillFixedTrajectory(config:dict, agent:Agent, device):
+def fillFixedTrajectory(config:dict, agent:AgentType, device):
     # Generate fixed trajectory
     sizeTrajectory = config['train']['fixed_q_trajectory']
     agent.memory.reset()
-    trajectory = agent.getBatch(sizeTrajectory, random = True, progBar = True, device = device)
+    trajectory = agent.getBatch(sizeTrajectory, random=True, progBar=True, device=device)
     agent.fixedTrajectory = trajectory['observation']
     agent.memory.reset()
     agent.reset()
 
-def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
+def train(config:dict, agent:AgentType, policy:PolicyType, saver: Saver):
     policy.test = True
     fillFixedTrajectory(config, agent, policy.device)
     fillRandomMemoryReplay(config, agent)
@@ -65,8 +66,8 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     trainResults = initResultDict()
     saver.addObj(trainResults, 'training_results')
     saver.addObj(policy.dqnOnline,'online_net',
-                isTorch = True, device = policy.device,
-                key = 'mean_return')
+                isTorch=True, device=policy.device,
+                key='mean_return')
     saver.start()
 
     miniBatchSize = config['policy']['minibatch_size']
@@ -74,13 +75,13 @@ def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
     freqTest = config['train']['test_freq']
     p = miniBatchSize / stepsPerEpoch
     epochs, stop = config['train']['epochs'], False
-    I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
+    I = tqdm(range(epochs + 1), unit='update', desc='Training Policy')
 
     try:
     ## Train loop
         for epoch in I:
             # Train step
-            miniBatch = agent.getBatch(miniBatchSize, p, device = policy.device)
+            miniBatch = agent.getBatch(miniBatchSize, p, device=policy.device)
             policy.update(miniBatch)
             updateVar(config)
             # Check for test

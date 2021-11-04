@@ -2,19 +2,18 @@
     Functions to manage actors and policies while developing or treating trajectories.
 """
 from rofl.utils.policies import getBaselines
+from rofl.utils.memory import EpisodicMemory
 from .dicts import addBootstrapArg, composeObs, solveOthers
-from rofl.functions.const import *
-from rofl.functions.functions import Tmul, no_grad
-from rofl.utils.memory import episodicMemory
+from .functions import Tmul, noGrad
 
-@no_grad()
+@noGrad()
 def calcBootstrap(agent):
     """
         Calculates the current value if able of the ongoing agent state.
 
     """
-    obs, action = agent.lastObs, agent.lastAction
-    return agent.processReward(agent.policy.getValue(obs, action))
+    value = agent.policy.getValue(agent.lastObs, agent.lastAction)
+    return agent.processReward(agent.lastRawObs, value, agent.lastInfo, agent.lastDone)
 
 def prepareBootstrapping(agent, obsDict):
     """
@@ -32,7 +31,7 @@ def prepareBootstrapping(agent, obsDict):
     obsDict['done'] = True
     return obsDict
 
-def singlePathRollout(agent, maxLength = -1, memory: episodicMemory = None,
+def singlePathRollout(agent, maxLength = -1, memory: EpisodicMemory = None,
                         reset: bool = False, random: bool = False, forceLen: bool = False):
     """
         Develops from the given state of the agent a rollout
@@ -71,12 +70,12 @@ def singlePathRollout(agent, maxLength = -1, memory: episodicMemory = None,
         agent.done = True
 
     if memory is None:
-        memory = episodicMemory(agent.config)
+        memory = EpisodicMemory(agent.config)
         memory.reset()
 
     stepsDone = 0
     while True:
-        obsDict = agent.fullStep(random = random)
+        obsDict = agent.fullStep(random=random)
         memory.add(obsDict)
         stepsDone += 1
 
@@ -97,8 +96,8 @@ def singlePathRollout(agent, maxLength = -1, memory: episodicMemory = None,
 
 def prepareBootstrappingMulti(agent, *infoDicts):
     pi = agent.policy
-    obs, dones, ids =  composeObs(*infoDicts, device = pi.device)
-    with no_grad():
+    obs, dones, ids =  composeObs(*infoDicts, device=pi.device)
+    with noGrad():
         bootstrapping = getBaselines(pi, obs)
         notDones = dones.bitwise_not().unsqueeze(1)
         bootstrapping = agent.processReward(Tmul(bootstrapping, notDones)).detach_()
@@ -124,7 +123,7 @@ def singlePathRolloutMulti(multiAgent, length, random: bool = False):
     memory, pi = multiAgent.memory, multiAgent.policy
     memory.reset()
     for i in range(length):
-        experiences = multiAgent.fullStep(random = random)
+        experiences = multiAgent.fullStep(random=random)
         if i != length - 1:
             memory.add(*experiences)
     prepareBootstrappingMulti(multiAgent.leadAgent, *experiences)

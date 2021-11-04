@@ -4,6 +4,7 @@
     or to read/write to memory.
 """
 
-from rofl.utils.utils import Saver, pathManager
+from rofl.utils.utils import Saver, PathManager
 from rofl.utils.random import seeder
 from rofl.utils.gx import graphResults
+from .vars import LinearSchedule, RunningStat, updateVar

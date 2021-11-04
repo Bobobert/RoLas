@@ -1,7 +1,9 @@
-from .const import *
-from rofl.functions.functions import Tlog, Tdiv, Tmean, Tmul, Tpow
 from torch.distributions.kl import register_kl, kl_divergence
 from torch.distributions import Categorical, Normal
+
+from rofl.functions.functions import Tlog, Tdiv, Tmean, Tmul, Tpow
+
+klDivergence = kl_divergence
 
 @register_kl(Normal, Normal)
 def kl_normals(dist1, dist2):

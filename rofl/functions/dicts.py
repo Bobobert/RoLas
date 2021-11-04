@@ -12,12 +12,12 @@
 """
 
 from typing import Tuple
-from numpy import dtype
-from .functions import combDeviations, torch
-from .const import *
 import time
+from numpy import dtype
+from .functions import combDeviations, torch, np
+from .const import DEVICE_DEFT, TENSOR, ARRAY, List, B_TDTYPE_DEFT
 
-def obsDict(obs, nextObs, action, reward, step, done, info = {}, **kwargs) -> dict:
+def ObsDict(obs, nextObs, action, reward, step, done, info = {}, **kwargs) -> dict:
     
     zeroDevice = obs.device if isinstance(obs, TENSOR) else DEVICE_DEFT
 
@@ -90,11 +90,11 @@ def mergeDicts(*batchDicts, targetDevice = DEVICE_DEFT, keys = None):
             type_ = type(zero[k])
             dtype, shape = dtypes[k], shapes[k]
             if type_ == ARRAY:
-                new = np.zeros((N, *shape), dtype = dtype)
+                new = np.zeros((N, *shape), dtype=dtype)
             elif type_ == TENSOR:
                 # TODO: check this behavior, is expecting any tensor come in batch form
                 # while array is not
-                new = torch.zeros((N, *shape[1:]), dtype = dtype, device = zeroDevice)
+                new = torch.zeros((N, *shape[1:]), dtype=dtype, device=zeroDevice)
             elif type_ == List:
                 new = List()
             else:
@@ -135,7 +135,7 @@ def dev2devDict(infoDict: dict, targetDevice):
     for k in infoDict.keys():
         target = infoDict[k]
         if isinstance(target, TENSOR):
-            infoDict[k] = target.to(device = targetDevice)
+            infoDict[k] = target.to(device=targetDevice)
     infoDict["device"] = targetDevice
     return infoDict
 
@@ -178,8 +178,8 @@ def composeObs(*infoDicts, device = DEVICE_DEFT) -> Tuple[TENSOR, TENSOR, list]:
 
         if i == 0:# init tensors
             l = len(infoDicts)
-            newObs = obs.new_zeros((l, *obs.shape[1:]), device = device)
-            dones = obs.new_zeros((l,), dtype = B_TDTYPE_DEFT, device = device)
+            newObs = obs.new_zeros((l, *obs.shape[1:]), device=device)
+            dones = obs.new_zeros((l,), dtype=B_TDTYPE_DEFT, device=device)
         
         ids.append(dict_['id'])
         newObs[i] = obs.to(device)

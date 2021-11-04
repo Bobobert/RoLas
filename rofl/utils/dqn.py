@@ -1,8 +1,6 @@
-from typing import Tuple
-from rofl.functions.const import *
-from rofl.functions.functions import newZero, no_grad, Tmean
+from rofl.functions.const import B_NDTYPE_DEFT, UI_NDTYPE_DEFT, DEVICE_DEFT
+from rofl.functions.functions import newZero, noGrad, np, Tmean
 from rofl.functions.torch import array2Tensor
-from rofl.utils.bulldozer import composeObsWContextv0
 
 def genFrameStack(config):
     lhist, channels = config['agent']['lhist'], config['agent'].get('channels', 1)
@@ -10,7 +8,7 @@ def genFrameStack(config):
         dtype = B_NDTYPE_DEFT
     else:
         dtype = UI_NDTYPE_DEFT
-    return np.zeros((lhist * channels, *config['env']['obs_shape']), dtype = dtype)
+    return np.zeros((lhist * channels, *config['env']['obs_shape']), dtype=dtype)
 
 def lHistObsProcess(agent, obs, reset):
     """
@@ -21,14 +19,14 @@ def lHistObsProcess(agent, obs, reset):
     try:
         framestack = agent.frameStack
     except AttributeError:
-        agent.frameStack = framestack = genFrameStack(agent.config)
+        agent.frameStack = framestack=genFrameStack(agent.config)
         #print("Warning: Agent didn't had frameStack declared") # TODO: add debuger level
 
     channels = agent.channels
     if reset:
         framestack.fill(0)
     else:
-        framestack = np.roll(framestack, channels, axis = 0)
+        framestack = np.roll(framestack, channels, axis=0)
 
     framestack[0:channels] = obs
     agent.frameStack = framestack
@@ -43,7 +41,7 @@ def lHistObsProcess(agent, obs, reset):
 def reportQmean(agent):
     if agent.fixedTrajectory is None:
         return 0.0
-    with no_grad():
+    with noGrad():
         model_out = agent.policy.actor(agent.fixedTrajectory)
         mean = Tmean(model_out.max(1).values).item()
     if agent.tbw != None:

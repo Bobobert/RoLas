@@ -16,12 +16,12 @@ policy:
   baseline:
     learning_rate: 5.0e-05
     linear_1: 32
-    networkClass: gymBaseline
+    networkClass: GymBaseline
   continuos: true
   entropy_bonus: 0.5
   network:
     linear_1: 32
-    networkClass: gymActor
+    networkClass: GymActor
 
 train:
   epochs: 10000

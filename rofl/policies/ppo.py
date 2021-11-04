@@ -1,6 +1,6 @@
 from rofl.functions.functions import torch, Texp, reduceBatch, Tmean, Tmul, F
 from rofl.functions.torch import clipGrads
-from rofl.policies.a2c import a2cPolicy
+from rofl.policies.a2c import A2CPolicy
 from rofl.utils.policies import getParamsBaseline, setEmptyOpt, calculateGAE, trainBaseline
 
 def putVariables(policy):
@@ -13,7 +13,7 @@ def putVariables(policy):
     if policy.gae:
         policy.keysForUpdate += ['reward', 'next_observation', 'done']
 
-class ppoPolicy(a2cPolicy):
+class PpoPolicy(A2CPolicy):
     name = 'ppo v0'
 
     def initPolicy(self, **kwargs):
@@ -51,7 +51,7 @@ class ppoPolicy(a2cPolicy):
             log_probs = reduceBatch(log_probs)
 
             ratio = Texp(log_probs - log_probs_old)            
-            clipped = Tmul(ratio.clamp(min = 1.0 - eps, max = 1.0 + eps), advantages)
+            clipped = Tmul(ratio.clamp(min=1.0 - eps, max=1.0 + eps), advantages)
             unclipped = Tmul(ratio, advantages)
             lossPolicy = torch.fmin(unclipped, clipped)
 
@@ -83,10 +83,10 @@ class ppoPolicy(a2cPolicy):
             tbw.add_scalar('train/Entropy distribution', lossEntropy.cpu().item(), epoch)
             tbw.add_scalar('train/Total loss', loss.cpu().item(), epoch)
             tbw.add_scalar('train/KL early stopping', brokeKL, epoch)
-            self._evalTBWActor_()
+            self._evalActorTB()
         self.newEpoch = False
 
-class ppoWorkerPolicy(ppoPolicy):
+class PpoWorkerPolicy(PpoPolicy):
     name = 'ppo v0 - worker'
 
     def initPolicy(self, **kwargs):

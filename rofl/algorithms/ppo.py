@@ -11,8 +11,8 @@ algConfig = {
     'policy': {
         'max_diff_kl' : MAX_DKL,
         'epsilon_surrogate' : EPS_SURROGATE,
-        'policyClass' : 'ppoPolicy',
-        'workerPolicyClass' : 'ppoWorkerPolicy',
+        'policyClass' : 'PpoPolicy',
+        'workerPolicyClass' : 'PpoWorkerPolicy',
         'epochs' : 20,
     },
     'train' : {

@@ -14,7 +14,7 @@ algConfig = {
         'cg_iterations' : 10,
         'cg_damping' : CG_DAMPING,
         'ls_iterations' : 10,
-        'policyClass' : 'trpoPolicy',
+        'policyClass' : 'TrpoPolicy',
         'epochs' : 10,
         'network' : {
             'optimizer' : 'dummy',

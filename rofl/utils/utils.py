@@ -1,11 +1,18 @@
 """
     Utils for misc stuff about manipulating data, time, etc.
 """
-import sys, time, json, pickle, re, yaml
+import sys
+import time
+import json
+import pickle
+import re
+import yaml
 from pathlib import Path
+
 from torch import save, load, device
-from rofl.functions.vars import Variable
-from .strucs import Stack, minHeap, maxHeap
+
+from .vars import Variable
+from .strucs import Stack, MinHeap, MaxHeap
 
 LIMIT_4G = 3.8 * 1024 ** 3
 
@@ -46,7 +53,7 @@ def expDir(expName:str, envName:str):
 
 def genDir(*args) -> Path:
     dr = getDir(*args)
-    dr.mkdir(parents = True, exist_ok = True)
+    dr.mkdir(parents=True, exist_ok=True)
     return dr
 
 def getDir(*args):
@@ -90,7 +97,7 @@ def saveConfig(config:dict, expDir:Path):
         if isinstance(o, Variable):
             return o.__repr__()
 
-    json.dump(config, fh, indent=4, default = default)
+    json.dump(config, fh, indent=4, default=default)
     fh.close()
 
 def loadConfig(expDir: Path) -> dict:
@@ -140,7 +147,7 @@ class dummySaver():
         return self.egg
 
 
-class pathManager():
+class PathManager():
     """
         Creates and keeps the path for a given experiment.
         Packs all the useful functions related to save and load
@@ -304,7 +311,7 @@ class Reference:
         self.torchType = torchType
         self.name = name
         self.ref = obj
-        f = minHeap if discardMin else maxHeap
+        f = MinHeap if discardMin else MaxHeap
         self.prevVersions = Stack() if key == '' else f()
         self.limit = limit
         self.device = device
@@ -324,7 +331,7 @@ class Reference:
 
     def clean(self, path):
         if len(self.prevVersions) > self.limit:
-            self.prevVersions.pop().unlink(missing_ok = True)
+            self.prevVersions.pop().unlink(missing_ok=True)
 
     def keepIt(self, value):
         if value is None:
@@ -367,7 +374,7 @@ class Reference:
     
     def loadTorch(self, path, device):
         model = load(path, map_location=device)
-        self.ref.load_state_dict(model, strict = True)
+        self.ref.load_state_dict(model, strict=True)
         print("Model successfully loaded from ", path)
         
     def loadObj(self, path):
@@ -382,7 +389,7 @@ class Reference:
         try:
             stateDict = self.ref.state_dict()
             save(stateDict, target)
-            self.prevVersions.add(target, value = value)
+            self.prevVersions.add(target, value=value)
         except:
             print('Warning: {} couldnt be saved'.format(self))
             pass
@@ -394,7 +401,7 @@ class Reference:
             fileHandler = target.open("wb")
             pickle.dump(self.ref, fileHandler)
             fileHandler.close()
-            self.prevVersions.add(target, value = value)
+            self.prevVersions.add(target, value=value)
 
     def _gen_name(self, value):
         keyAddOn = '_%s: %.3f'%(self.key, value) if self.key != '' else ''

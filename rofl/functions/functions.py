@@ -2,19 +2,18 @@
     General propuse libraries and some functions
 """
 
-### IMPORTS ###
 from typing import Union
-from numpy.core.fromnumeric import clip
+from copy import deepcopy
+import math
+
+import numpy as np
+import numpy.random as nprnd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import math
 import random as rnd
-import numpy as np
-import numpy.random as nprnd
 import numba as nb
-from copy import deepcopy
 
 ### FUNCTION FROM LIBS ###
 ceil = math.ceil
@@ -31,7 +30,7 @@ Texp = torch.exp
 Tdot = torch.dot
 Tsqrt = torch.sqrt
 Tstack = torch.stack
-no_grad = torch.no_grad
+noGrad = torch.no_grad
 
 #### LITTLE USEFUL FUNCTIONS ###
 def assertProb(sus: Union[float, int]) -> Union[float, int]:
@@ -87,7 +86,7 @@ def multiplyIter(itm):
 def clipReward(agent, reward: Union[float, int, torch.Tensor]):    
     clipTarget = agent.clipReward
     if isinstance(reward, torch.Tensor):
-        return torch.clamp(reward, min = -clipTarget, max = clipTarget)
+        return torch.clamp(reward, min=-clipTarget, max=clipTarget)
     if clipTarget > 0:
         mClipTarget = -clipTarget
         if reward > clipTarget:
@@ -122,12 +121,12 @@ def reduceBatch(batch, op = Tsum):
     if l == 2 and shape[1] == 1:
         return batch.squeeze()
     dims = [n for n, _ in enumerate(shape[1:], 1)]
-    return op(batch, dim = dims)
+    return op(batch, dim=dims)
 
 def combDeviations(m1, m2, n1, n2, s1, s2):
-    '''
+    """
         From: https://handbook-5-1.cochrane.org/chapter_7/table_7_7_a_formulae_for_combining_groups.htm
-    '''
+    """
     Ns = n1 + n2
     newMean = (m1 * n1 + m2 * n2) / Ns
     aux1 = (n1 - 1) * s1**2
@@ -138,7 +137,7 @@ def combDeviations(m1, m2, n1, n2, s1, s2):
 
 def newZero(t, grad: bool = False):
     if isinstance(t, torch.Tensor):
-        return t.new_zeros(t.shape, requires_grad = grad)
+        return t.new_zeros(t.shape, requires_grad=grad)
     elif isinstance(t, np.ndarray):
         return np.zeros_like(t)
     elif isinstance(t, tuple):

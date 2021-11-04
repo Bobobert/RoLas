@@ -1,14 +1,13 @@
-from torch.autograd.grad_mode import no_grad
-from .base import Policy
+from .base import BasePolicy
 from rofl.networks.base import ActorCritic
-from rofl.functions.functions import Tmean, Tmul, F, torch, reduceBatch, no_grad
+from rofl.functions.functions import Tmean, Tmul, F, torch, reduceBatch, noGrad
 from rofl.functions.const import DEVICE_DEFT, ENTROPY_LOSS
 from rofl.functions.torch import clipGrads, getOptimizer
 from rofl.utils.policies import genMiniBatchLin, getActionWProb, getActionWValProb,\
     getBaselines, getParamsBaseline, trainBaseline
 from rofl.config.config import createNetwork
 
-class pgPolicy(Policy):
+class PgPolicy(BasePolicy):
     """
         Vanilla REINFORCE policy gradient policy.
         Can handle and actor and a baseline.
@@ -42,8 +41,8 @@ class pgPolicy(Policy):
             return
 
         if (baseline := config['policy']['baseline']['networkClass']) is not None:
-            baseline = createNetwork(config, key = 'baseline').to(kwargs.get('device', DEVICE_DEFT))
-            self.optimizerBl = getOptimizer(config, baseline, key = 'baseline')
+            baseline = createNetwork(config, key='baseline').to(kwargs.get('device', DEVICE_DEFT))
+            self.optimizerBl = getOptimizer(config, baseline, key='baseline')
             self.valueBased = True
         self.baseline = baseline
 
@@ -100,7 +99,7 @@ class pgPolicy(Policy):
             tbw.add_scalar('train/Baseline loss', lossBaseline.cpu().item(), epoch)
             tbw.add_scalar('train/Entropy distribution', lossEntropy.cpu().item(), epoch)
             tbw.add_scalar('train/Total loss', loss.cpu().item(), epoch)
-            self._evalTBWActor_()
+            self._evalActorTB()
         self.newEpoch = False
 
     @property
@@ -109,9 +108,9 @@ class pgPolicy(Policy):
 
     def getAVP(self, observation):
         if self.actorHasCritic:
-            with no_grad():
+            with noGrad():
                 return getActionWValProb(self.actor, observation)
-        with no_grad():
+        with noGrad():
             action, logProb = getActionWProb(self.actor, observation)
             value = getBaselines(self, observation)
 

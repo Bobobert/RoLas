@@ -1,11 +1,11 @@
-from rofl.functions.const import *
-from rofl.functions.torch import *
-from rofl.functions.functions import isBatch, no_grad, Tmul, nprnd, F
+from rofl.functions.const import DEFT_KEYS
+from rofl.functions.torch import cloneNet, getOptimizer, torch, updateNet
+from rofl.functions.functions import isBatch, noGrad, Tmul, Tmean, nprnd, F
 from rofl.functions.exploratory import EpsilonGreedy
-from .base import Policy
+from .base import BasePolicy
 
 def dqnTarget(onlineNet, targetNet, s2, r, t, gamma, double:bool = True):
-    with no_grad():
+    with noGrad():
         model_out = targetNet.forward(s2)
         if double:
             On_model_out = onlineNet.forward(s2)
@@ -22,7 +22,7 @@ def importanceNorm(IS):
     maxIS = IS.max()
     return IS / maxIS
 
-class dqnPolicy(Policy):
+class DqnPolicy(BasePolicy):
     discrete = True
     name = "dqnPolicy"
     def initPolicy(self, **kwargs):
@@ -73,7 +73,7 @@ class dqnPolicy(Policy):
         if (self.tbw != None) and (self.epoch % self.tbwFreq == 0):
             self.tbw.add_scalar('train/Loss', loss.item(), self.epoch)
             self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epoch)
-            self._evalTBWActor_()
+            self._evalActorTB()
         if self.epoch % self.updateTarget == 0:
             updateNet(self.dqnTarget, self.dqnOnline.state_dict())
         self.epoch += 1

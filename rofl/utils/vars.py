@@ -1,21 +1,25 @@
 """
 Scheduled variables, this can be moved each time they are called or by a moving method
 """
-from abc import ABC
-from .const import math
+from abc import ABC, abstractmethod
+from typing import Union
+import math
 
 class Variable(ABC):
     """
     Abstract class for a variable with some schedule
     """
-    _opvalue_ = None
-    _value_ = None
+    def __init__(self) -> None:
+        self._opvalue_ = None
+        self._value_ = None
+        self._i_ = 0
+
     def __call__(self):
         self._step_()
         return self.value
         
     @property
-    def value(self):
+    def value(self) -> Union[int, float]:
         """
         Main property for the class to output its value.
         To advance one step first call the variable
@@ -24,21 +28,22 @@ class Variable(ABC):
         """
         return self._value_
 
-    def _step_(self):
+    def _step_(self) -> None:
         """
         Method to update the variable value of the object 
         each time is called. Can be passed to have a manual
         step calling
         """
         pass
-
-    def step(self):
+    
+    @abstractmethod
+    def step(self) -> None:
         """
         Method to update the variable in a manual manner.
         """
-        raise NotImplementedError
+        pass
 
-    def restore(self, step:int = -1):
+    def restore(self, step:int = -1) -> None:
         """
         Restore the intial value to the variable or if a step 
         is given restores from that step
@@ -95,7 +100,7 @@ def updateVar(config):
     for v in vrs:
         v.step()
 
-class linearSchedule(Variable):
+class LinearSchedule(Variable):
     def __init__(self, initValue, lastValue, life:int):
         assert initValue != lastValue, "Values need to be different!"
         assert life > 0, "Life of the variable must be positive. Live Chill"
@@ -122,7 +127,7 @@ class linearSchedule(Variable):
         s = "linearSchedule: value {} init {}, last {}, life {}".format(self._value_, self._opvalue_, self._last_, self._life_)
         return s
 
-class runningStat():
+class RunningStat:
     """
     Custom class to keep track of a single value running
     statistic. 

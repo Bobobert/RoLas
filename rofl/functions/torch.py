@@ -1,6 +1,9 @@
-from numpy import ndarray
-from .const import *
-from .functions import Tdiv, Tmean, Tcat, Tstd, multiplyIter, nn, optim, deepcopy
+from .const import DEVICE_DEFT, ARRAY, TENSOR, Tdevice, F_TDTYPE_DEFT,\
+    OPTIMIZER_DEF, OPTIMIZER_LR_DEF, EPSILON_OP
+from .functions import Tdiv, Tmean, Tcat, Tstd, multiplyIter, nn, optim,\
+    deepcopy, torch, np
+
+ndarray = np.ndarray
 
 def getDevice(cudaTry:bool = True):
     if torch.cuda.is_available() and cudaTry:
@@ -17,7 +20,7 @@ def array2Tensor(arr: ARRAY, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: 
 
 def list2Tensor(arr:list, device = DEVICE_DEFT, dtype = F_TDTYPE_DEFT, grad: bool = False):
     # expecting simple lists with single items (int, float, bool)
-    return torch.tensor(arr, dtype = dtype, device = device).unsqueeze_(-1).requires_grad_(grad)
+    return torch.tensor(arr, dtype=dtype, device=device).unsqueeze_(-1).requires_grad_(grad)
 
 def copyDictState(net, grad:bool = True):
     newSD = dict()
@@ -39,7 +42,7 @@ def newNet(net, config = {}):
 
 def cloneNet(net):
     new = newNet(net, net.config)
-    new.load_state_dict(copyDictState(net), strict = True)
+    new.load_state_dict(copyDictState(net), strict=True)
     return new.to(net.device)
 
 ### Meant to be used to share information between BaseNets of the same type ###
@@ -49,9 +52,9 @@ def cloneNet(net):
 # from https://docs.ray.io/en/master/serialization.html
 
 def getListNParams(net):
-    '''
+    """
         Ordered list of ARRAYS for a network's parameters
-    '''
+    """
     params = []
     for p in net.parameters():
         targetP = p.data.cpu().numpy()
@@ -93,10 +96,10 @@ def getDictState(net, cpu:bool = True):
     return stateDict
 
 def getListTParams(net, device = None, detach: bool = True):
-    '''
+    """
         Ordered list of TENSORS for a network's parameters.
         These are detached and can be directed to a device.
-    '''
+    """
     params = []
     if not detach and device is not None:
         raise AttributeError('Unexpected behavior')
@@ -177,17 +180,17 @@ def flat2Tensors(x: TENSOR, shapes: list):
     return newX
     
 def getNGradients(net):
-    '''
+    """
         Returns a list of ARRAYS for the gradients
         in the network's parameters
-    '''
+    """
     grads = []
     for p in net.parameters():
         grads.append(p.grad.cpu().numpy())
     return grads
 
 def getGradients(net, clone: bool = False):
-    '''
+    """
         Returns a list of tensors for the gradients
         in the network's parameters
 
@@ -199,7 +202,7 @@ def getGradients(net, clone: bool = False):
             for which operations can propagate through the original
             graph if still exists.
         
-    '''
+    """
     grads = []
     for p in net.parameters():
         grad = p.grad
@@ -267,7 +270,7 @@ def getOptimizer(config: dict, network, deftLR = OPTIMIZER_LR_DEF, key: str = 'n
         config['policy'][key]['optimizer_args'] = {}
         return getOptimizer(config, network)
 
-    return FOpt(network.parameters(), lr = lr, **config['policy'][key].get("optimizer_args", {}))
+    return FOpt(network.parameters(), lr=lr, **config['policy'][key].get("optimizer_args", {}))
 
 class dummyOptimizer():
     egg = 'Do nothing, receive everything (?)'

@@ -1,11 +1,14 @@
 agent:
   agentClass: AgentMultiEnv
+  gamma: 0.99
+  lambda: 0.9
+  gae: true
+  memory_size: 100
+  nstep: 30
+  workers: 16
   channels: 4
   lhist: 4
-  memory_size: 100
-  nstep: 50
   workerClass: PgCAAgent
-  workers: 10
 
 env:
   envMaker: gymcaEnvMaker
@@ -21,12 +24,14 @@ env:
   wind_speed: 20
 
 policy:
+  continuos: false
+  epochs: 10
   entropy_bonus: 0.05
   network:
     conv2d_1:
     - 32
     - 6
-    - 4
+    - 3
     conv2d_2:
     - 64
     - 4
@@ -38,10 +43,9 @@ policy:
     learning_rate: 5.0e-05
     linear_1: 512
     networkClass: FFActorCritic
-    
+
 train:
-  epochs: 100000
+  epochs: 10000
   expected_performance: null
   max_time: null
-  modeGrad: false
-  test_freq: 5000
+  test_freq: 100

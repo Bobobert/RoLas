@@ -7,7 +7,7 @@ def newZeroFromT(T):
 def newZero(batch, number, size, device = DEVICE_DEFT, lstm = False, grad = True):
     shape = [number, batch, size]
     def makeit():
-        return torch.zeros(shape, dtype = F_TDTYPE_DEFT).to(device).requires_grad_(grad)
+        return torch.zeros(shape, dtype=F_TDTYPE_DEFT).to(device).requires_grad_(grad)
     if not lstm:
         return makeit()
     return (makeit(), makeit())
@@ -154,11 +154,11 @@ class MemoryReplayRecurrentFF(): # TODO: erase and change it to memory, with new
         if self._i > mini_batch_size + 1 or self.FO:
             ids, ps = self.getIDS(mini_batch_size, prioritized)
             bootShape = [self.rnnBoot + 2, mini_batch_size]
-            bootS = np.zeros( bootShape + self.shapeHistOut, dtype = F_NDTYPE_DEFT)
-            bootP = np.zeros(bootShape + [2], dtype = F_NDTYPE_DEFT)
-            bootA = np.zeros(bootShape + [1], dtype = np.long)
-            bootR = np.zeros(bootShape + [1], dtype = F_NDTYPE_DEFT)
-            bootT = np.zeros(bootShape + [1], dtype = F_NDTYPE_DEFT)
+            bootS = np.zeros( bootShape + self.shapeHistOut, dtype=F_NDTYPE_DEFT)
+            bootP = np.zeros(bootShape + [2], dtype=F_NDTYPE_DEFT)
+            bootA = np.zeros(bootShape + [1], dtype=np.long)
+            bootR = np.zeros(bootShape + [1], dtype=F_NDTYPE_DEFT)
+            bootT = np.zeros(bootShape + [1], dtype=F_NDTYPE_DEFT)
             # make the boot
             for m, i in enumerate(ids):
                 for n, j in enumerate(range(i + 1, i - self.rnnBoot - 1, -1)):

@@ -1,16 +1,18 @@
-from rofl.functions.const import *
-from rofl.functions.functions import assertProb, newZero, np, torch, no_grad, math, ceil, deepcopy
-from rofl.functions.torch import tryCopy
-from rofl.functions.dicts import obsDict
-from rofl.functions.gym import doWarmup, noOpSample
-from rofl.functions.coach import singlePathRollout
+from typing import Union
 from gym import Env
-from abc import ABC
 from tqdm import tqdm
 
-class Agent(ABC):
+from rofl.config.types import AgentType, PolicyType
+from rofl.functions.const import TEST_N_DEFT, DEVICE_DEFT, TENSOR
+from rofl.functions.functions import assertProb, newZero, np, noGrad, ceil, deepcopy
+from rofl.functions.torch import tryCopy
+from rofl.functions.dicts import ObsDict
+from rofl.functions.gym import doWarmup, noOpSample
+from rofl.functions.coach import singlePathRollout
+
+class BaseAgent(AgentType):
     """
-    Base class for actors. 
+    Base class for agents. 
 
     Parameters
     ----------
@@ -20,7 +22,7 @@ class Agent(ABC):
         A Policy Type object (NoneType results in No-operation policy)
     - envMaker: function
         Environment maker function from the rofl.envs
-    - tbw: tensorboard writer *optional
+    - tbw (optional): tensorboard writer
     
     Main Methods
     ------------
@@ -66,12 +68,13 @@ class Agent(ABC):
     """
     name = "BaseAgent"
 
-    def __init__(self, config, policy, envMaker, **kwargs):
+    def __init__(self, config: dict, policy: PolicyType, envMaker, **kwargs):
 
         self.testCalls = 0
-        self._acR_, self._agentStep_, self._envStep_ = 0.0, 0, 0
+        self._acReward, self._agentStep, self._envStep = 0.0, 0, 0
         self.done, self._reseted = True, False
         self.lastObs, self.lastReward, self.lastAction, self.lastInfo =  None, 0.0, None, {}
+        self.lastRawObs, self.lastDone = None, None
         self.zeroObs = None
         self._totSteps, self._totEpisodes, self.memory = 0, 0, None
 
@@ -94,8 +97,8 @@ class Agent(ABC):
             self.envName = config['env']['name']
 
         if policy is None:
-            from rofl.policies.base import dummyPolicy
-            self.policy = policy = dummyPolicy(self.noOp)
+            from rofl.policies.base import DummyPolicy
+            self.policy = policy = DummyPolicy(self.noOp)
             self.needsLogProb = self.needsObsValue = needProbs = needValue = False
             print("Warning, agent working with a dummy plug policy!")
         else:
@@ -142,8 +145,8 @@ class Agent(ABC):
         return {"name": self.name, "envName": self.envName,
                 "config": self.config, "policy_state": self.policy.currentState(),
                 "env_obs": self.lastObs, "env_state":None, "env_done": self.done,
-                "env_steps": self._envStep_, "agent_step": self._agentStep_,
-                "accumulated_reward": self._acR_, "reward": self.lastReward,
+                "env_steps": self._envStep, "agent_step": self._agentStep,
+                "accumulated_reward": self._acReward, "reward": self.lastReward,
                 "env_info":self.lastInfo}
 
     def loadState(self, newState):
@@ -165,8 +168,8 @@ class Agent(ABC):
         self.lastReward = newState["reward"]
         self.lastInfo = deepcopy(newState["env_info"])
         self.done = newState["env_done"]
-        self._acR_ = newState["accumulated_reward"]
-        self._envStep_, self._agentStep_ = newState["env_steps"], newState["agent_step"]
+        self._acReward = newState["accumulated_reward"]
+        self._envStep, self._agentStep = newState["env_steps"], newState["agent_step"]
 
     def test(self, iters:int = TEST_N_DEFT, prnt:bool = False, progBar: bool = False):
         """
@@ -211,14 +214,14 @@ class Agent(ABC):
         # Iterations for the n_test
         iters = range(iters)
         if progBar:
-            iters = tqdm(iters, desc = 'Testing agent', unit = 'episode')
+            iters = tqdm(iters, desc='Testing agent', unit='episode')
         for test in iters:
             testDone, testGain, testSteps = False, 0.0, 0
             obs = env.reset()
-            obs = proc(obs, reset = True)
+            obs = proc(obs, {}, False, reset = True)
             while not testDone:
                 action = self.policy.getAction(obs)
-                nextObs, reward, done, _ = env.step(action)
+                nextObs, reward, done, info = env.step(action)
                 self.calculateCustomMetric(env, reward, done)
                 testGain += reward
                 testSteps += 1
@@ -231,11 +234,12 @@ class Agent(ABC):
                 ## Can happen only if there is at least one result score, changed
                 if testLen > 0 and totSteps >= testLen:
                     if totSteps == testSteps:
-                        print('Testing: Failed to complete an episode! Budget steps(%d) spent completely' % testLen)
+                        print('Testing: Failed to complete an episode!\
+                            Budget steps(%d) spent completely' % testLen)
                         testReg = 1
                     stepsDone = True
                     break
-                obs = proc(nextObs)
+                obs = proc(nextObs, info, done)
             # Continuation on max steps test for the main loop
             if stepsDone and (testDone != True):
                 break
@@ -294,7 +298,7 @@ class Agent(ABC):
         """
         pass
 
-    def processObs(self, obs, reset:bool = False):
+    def processObs(self, obs, info: dict, done: bool, reset:bool = False) -> TENSOR:
         """
             If the agent needs to process the observation of the
             environment. Write it here
@@ -304,56 +308,70 @@ class Agent(ABC):
             - obs
                 The observations as they come from the environment. 
                 Usually ndarray's.
-
+            -info
+                Dict from the environment step.
+            - done: bool
+                From isTerminal method
             - reset: bool
                 If needed a flag that this observation is from a new
                 trajectory. As to reset the pipeline or not effect.
             
             returns
             -------
-            torch.Tensor
+            - torch.Tensor
         """
-        print("Warning: Agent {}. processObs method not defined!")
+        print("Warning: Agent %s. processObs method not defined!" % self.name)
         return obs
 
-    def processReward(self, reward, **kwargs):
+    def processReward(self, obs, reward: float, info: dict, done: bool) -> Union[int, float]:
         """
             If the agent needs to process the reward of the
             environment. Write it here
 
             parameters
             ----------
-            reward: int, float
+            - obs:
+                The unprocessed observation from the environment step
+                method
+            - reward: int, float
+            - info: dict
+            - done: bool
+                From isTerminal method
 
             returns
             -------
-            float
+            - float
         """
         return reward
 
-    def isTerminal(self, obs, done, info, **kwargs):
+    def isTerminal(self, obs, reward: float, info: dict, done: bool) -> bool:
         """
             If the agent has special conditions to mark
             a state as terminal. Write it here.
 
             Default(super) behavior, if config-> env ->max_length 
-            is greater than 0 and self._envStep_ is equal or greater
+            is greater than 0 and self._envStep is equal or greater
             then is marked as terminal. 
             
             If the warmup adds steps to the environment those are consider
-            as well. Can use self._agentStep_ to watch the agent's steps
+            as well. Can use self._agentStep to watch the agent's steps
             in the actual episode on the environment.
 
             parameters
             ----------
-            reward: int, float
+            - obs:
+                The unprocessed observation from the environment step
+                method
+            - reward: int, float
+            - info: dict
+            - done: bool
 
             returns
             -------
-            float
+            - bool
         """
         self.done = done
-        if self.maxEpLen > 0 and self._envStep_ >= self.maxEpLen:
+        if self.maxEpLen > 0 and self._envStep >= self.maxEpLen:
             self.done = True
         return self.done
     
@@ -375,8 +393,6 @@ class Agent(ABC):
             return self.reset()
         if self._reseted:
             self._reseted = False
-        
-        processObs, processReward, processTerminal = self.processObs, self.processReward, self.isTerminal
 
         # Process action from a batch
         for i, d in enumerate(kwargs.get("ids", [])):
@@ -388,24 +404,25 @@ class Agent(ABC):
 
         # Process the outputs
         pastObs = self.lastObs
-        self.lastObs = obs = processObs(obs)
-        self.lastReward = reward = processReward(reward, **kwargs)
         self.lastInfo, self.lastAction = info, action
-        done = processTerminal(obs, done, info, **kwargs)
+        self.lastRawObs = obs
+        self.lastDone = done = self.isTerminal(obs, reward, info, done)
+        self.lastObs = nextObs = self.processObs(obs, info, done)
+        self.lastReward = reward = self.processReward(obs, reward, info, done)
 
         # Incrementals
         self._totSteps += 1
-        self._agentStep_ += 1
-        self._envStep_ += 1
-        self._acR_ += reward
+        self._agentStep += 1
+        self._envStep += 1
+        self._acReward += reward
         self._totEpisodes += 1 if done else 0
 
-        return obsDict(pastObs, obs, action, reward, 
-                        self._agentStep_, done, info, 
-                        accumulate_reward = self._acR_,
-                        id = self.workerID) 
+        return ObsDict(pastObs, nextObs, action, reward, 
+                        self._agentStep, done, info, 
+                        accumulate_reward=self._acReward,
+                        id=self.workerID) 
 
-    def fullStep(self, random = False, **kwargs):
+    def fullStep(self, random:bool = False, **kwargs):
         """
             Does a full step on the environment calling the envStep
             method with an action from the policy, or random action.
@@ -449,7 +466,7 @@ class Agent(ABC):
                 # after a reset the actor was never samppled, then the noOP or whatever
                 # 'joker' action from reset function needs to be sampled in this version
                 # to keep the calculations accurate
-                with no_grad():
+                with noGrad():
                     logProb = pi.getProb4Action(infoDict['next_observation'], infoDict['action'])
             infoDict['log_prob'] = logProb
 
@@ -470,21 +487,21 @@ class Agent(ABC):
         env = self.env
         
         if warmup is not None:
-            obs, self._envStep_, action = doWarmup(warmup, env, self.config["env"])
+            obs, self._envStep, action = doWarmup(warmup, env, self.config["env"])
         else:
-            obs, self._envStep_, action = env.reset(), 0, self.noOp
+            obs, self._envStep, action = env.reset(), 0, self.noOp
 
-        self.lastObs = obs = self.processObs(obs, True)
+        self.lastObs = obs = self.processObs(obs, {}, False, True)
         zeroObs = self.zeroObs
         if zeroObs is None:
             self.zeroObs = zeroObs = newZero(obs)
         self.lastReward, self.lastInfo, self.lastAction = 0.0, {}, action
-        self._agentStep_, self._acR_ = 0, 0.0
+        self._agentStep, self._acReward = 0, 0.0
         self._reseted, self.done = True, False
 
-        return obsDict(zeroObs, obs, action, 0.0, 0, False, 
-                        accumulate_reward = self._acR_,
-                        id = self.workerID)
+        return ObsDict(zeroObs, obs, action, 0.0, 0, False, 
+                        accumulate_reward=self._acReward,
+                        id=self.workerID)
     
     def rndAction(self):
         """
@@ -524,17 +541,17 @@ class Agent(ABC):
         if memory is None:
             if proportion > 1.0:
                 raise ValueError("Agent doesnt have a previous memory, the sample wont happen.")
-            from rofl.utils.memory import simpleMemory
-            memory = simpleMemory(self.config).reset()
+            from rofl.utils.memory import SimpleMemory
+            memory = SimpleMemory(self.config).reset()
 
         iter = range(ceil(size / proportion))
         if progBar:
-            iter = tqdm(iter, desc = 'Generating batch', unit = 'envStep')
+            iter = tqdm(iter, desc='Generating batch', unit='envStep')
         for _ in iter:
-            memory.add(self.fullStep(random = random))
+            memory.add(self.fullStep(random=random))
         return memory.sample(size, device, self.keysForBatches)
 
-    def getEpisode(self, random = False, device = None):
+    def getEpisode(self, random:bool = False, device = None):
         """
             Develops or complete an entire episode in the environment.
             Calculates the returns of the steps with a episodicMemory.
@@ -543,7 +560,7 @@ class Agent(ABC):
             -------
             obsDict
         """
-        memory = singlePathRollout(self, random = random, reset = True)
+        memory = singlePathRollout(self, random=random, reset=True)
         device = device if device is not None else self.device
         return memory.getEpisode(device, self.keysForBatches)
 

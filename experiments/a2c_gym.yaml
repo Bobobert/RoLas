@@ -24,7 +24,7 @@ policy:
   network:
     learning_rate: 5.0e-05
     linear_1: 56
-    networkClass: gymAC
+    networkClass: GymAC
 
 train:
   epochs: 100000

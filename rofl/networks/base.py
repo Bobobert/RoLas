@@ -1,6 +1,8 @@
-from rofl.functions.const import *
-from typing import Tuple
-from rofl.functions.functions import multiplyIter, nn, sqrConvDim, no_grad, isItem, isBatch
+from typing import Tuple, Union
+
+from rofl.functions.const import DEVICE_DEFT, TENSOR, ARRAY
+from rofl.functions.functions import torch, multiplyIter, nn,\
+    sqrConvDim, noGrad, isItem, isBatch
 from rofl.functions.torch import newNet
 
 class BaseNet(nn.Module):
@@ -54,8 +56,8 @@ class Value(BaseNet):
         super().__init__(config)
         self.discrete = False
     
-    @no_grad()
-    def getValue(self, observation, action):
+    @noGrad()
+    def getValue(self, observation, action) -> Union[float, TENSOR]:
         if isBatch(observation):
             return self.forward(observation).cpu().numpy()
         value = self.forward(observation)
@@ -87,8 +89,8 @@ class QValue(BaseNet):
         super().__init__(config)
         self.discrete = True
     
-    @no_grad()
-    def getValue(self, observation, action):
+    @noGrad()
+    def getValue(self, observation, action) -> Union[float, TENSOR]:
         isbatch = isBatch(observation)
         action = self.unprocessAction(action, isbatch)
 
@@ -108,7 +110,7 @@ class QValue(BaseNet):
             return action
         return simpleActionUnProc(action, self.device).unsqueeze_(1)
 
-    @no_grad()
+    @noGrad()
     def getAction(self, observation):
         """
         Returns the max action from the Q network. Actions
@@ -212,7 +214,7 @@ class Actor(BaseNet):
             actions = actions.squeeze()
         return actions
 
-    @no_grad()
+    @noGrad()
     def getAction(self, observation):
         """
         From a tensor observation returns the sampled actions.
@@ -321,7 +323,7 @@ class ActorCritic(Actor):
 
         return values, raw_actor
     
-    @no_grad()
+    @noGrad()
     def getValue(self, observation, action):
         """
         Form a tensor observation returns the value approximation 
@@ -393,12 +395,12 @@ def construcConv(net:BaseNet, shapeInput:Tuple[int, int],
     return multiplyIter(shapeOut) * outs, created
 
 def forwardLinear(net: BaseNet, x, offsetBeg: int = 0, offsetEnd: int = 0) -> TENSOR:
-    '''
+    """
         net should be constructed by construcLinear and
         any non linearity should be declared as noLinear
         This in cpu time difference is little, on gpu 
         this call is more expensive than hardcoding.
-    '''
+    """
     layers, noLinear = net._layers_, net.noLinear
     for n in range(offsetBeg, len(layers) - 1 - offsetEnd):
         x = noLinear(layers[n](x))

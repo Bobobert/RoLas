@@ -1,9 +1,8 @@
-from rofl.policies.base import Policy
 from rofl.functions.torch import getDevice
 from rofl.config.config import createConfig, getEnvMaker, getTrainFun,\
     createNetwork, createAgent, createPolicy
 from rofl.utils.random import seeder
-from rofl.utils import pathManager
+from rofl.utils import PathManager
 
 def setUpExperiment(algorithm: str, *configs : dict, dummyManager : bool = False,
                         cuda: bool = True, seed: int = 8080):
@@ -37,20 +36,20 @@ def setUpExperiment(algorithm: str, *configs : dict, dummyManager : bool = False
     device = getDevice(cudaTry = cuda)
     seeder(seed, device)
     
-    config = createConfig(*configs, expName = algorithm)
+    config = createConfig(*configs, expName=algorithm)
     config['seed'] = seed
-    manager = pathManager(config, dummy = dummyManager)
+    manager = PathManager(config, dummy=dummyManager)
     experiment = startExperiment(config, manager, device)
     manager.saveConfig()
-    print('The experiment is ready, time for %s algorithm in %s environment' % (algorithm, config['env']['name']))
+    print('The experiment is ready! Time for %s algorithm in %s environment' % (algorithm, config['env']['name']))
     return experiment
 
 def startExperiment(config, manager, device):
     writer = manager.startTBW()
     envMaker = getEnvMaker(config)
-    actor = createNetwork(config, key = 'actor').to(device) # TODO: perhaps, another options besides a network!
-    policy = createPolicy(config, actor, device = device, tbw = writer)
-    agent = createAgent(config, policy, envMaker, device = device, tbw = writer)
+    actor = createNetwork(config, key='actor').to(device) # TODO: perhaps, another options besides a network!
+    policy = createPolicy(config, actor, device=device, tbw=writer)
+    agent = createAgent(config, policy, envMaker, device=device, tbw=writer)
     train = getTrainFun(config)
     return config, agent, policy, train, manager
 
@@ -83,11 +82,11 @@ def loadExperiment(algorithm: str, environment: str,
         - train function: function
         - manager: pathManager
     """
-    device = getDevice(cudaTry = cuda)
+    device = getDevice(cudaTry=cuda)
     seeder(seed, device)
-    config = createConfig(expName = algorithm)
+    config = createConfig(expName=algorithm)
     config['env']['name'] = environment
-    manager = pathManager(config, dummy = False, load = True)
+    manager = PathManager(config, dummy=False, load=True)
     config = manager.config
     assertVerions()
     manager.dummy = True # TODO; this could change later, when getState and loadState work

@@ -1,14 +1,16 @@
-from .base import Agent
-from rofl.functions.const import *
+from .base import BaseAgent
+from rofl.functions.const import F_TDTYPE_DEFT, DEVICE_DEFT
 from rofl.functions.functions import clipReward, nprnd, isTerminalAtari
-from rofl.utils.memory import dqnMemory
-from rofl.utils.dqn import dqnStepv0, dqnStepv1, lHistObsProcess, processBatchv0, reportQmean, reportRatio, extraKeysForBatches
-from rofl.utils.bulldozer import assertChannels, calRatio, grid2ImgFollow, composeObsWContextv0, prepare4Ratio, processBatchv1
+from rofl.utils.memory import DqnMemory
+from rofl.utils.dqn import dqnStepv0, dqnStepv1, lHistObsProcess,\
+    processBatchv0, reportQmean, reportRatio, extraKeysForBatches
+from rofl.utils.bulldozer import assertChannels, calRatio,\
+    grid2ImgFollow, composeObsWContextv0, prepare4Ratio, processBatchv1
 from rofl.utils.openCV import imgResize, YChannelResize
 
 memKeys = [('observation', F_TDTYPE_DEFT), ('next_observation', F_TDTYPE_DEFT)]
 
-class dqnAtariAgent(Agent):
+class DqnAtariAgent(BaseAgent):
     name = 'dqn agent v1'
 
     def initAgent(self, **kwargs):
@@ -17,7 +19,7 @@ class dqnAtariAgent(Agent):
         self.clipReward = abs(config['agent'].get('clip_reward', 0))
 
         self.lhist, self.channels = config['agent']['lhist'], config['agent'].get('channels', 1)
-        self.memory = dqnMemory(config, *memKeys)
+        self.memory = DqnMemory(config, *memKeys)
 
         self.frameSize = tuple(config['env']['obs_shape'])
         self.lastFrame, self.prevFrame, self.zeroFrame = None, None, None
@@ -26,20 +28,20 @@ class dqnAtariAgent(Agent):
         self.envActions = config['policy']['n_actions']
         self.fixedTrajectory = None
 
-    def processObs(self, obs, reset: bool = False):
+    def processObs(self, obs, info, done, reset: bool = False):
         self.prevFrame = self.lastFrame if not reset else self.zeroFrame
         if self.isAtari:
-            obs = self.lastFrame = YChannelResize(obs, size = self.frameSize)
+            obs = self.lastFrame = YChannelResize(obs, size=self.frameSize)
         else:
-            obs = self.lastFrame = imgResize(obs, size = self.frameSize)
+            obs = self.lastFrame = imgResize(obs, size=self.frameSize)
         return lHistObsProcess(self, obs, reset)
 
-    def isTerminal(self, obs, done, info, **kwargs):
-        if super().isTerminal(obs, done, info):
+    def isTerminal(self, obs, reward, info, done):
+        if super().isTerminal(obs, reward, info, done):
             return True
         return isTerminalAtari(self, info)
             
-    def processReward(self, reward, **kwargs):
+    def processReward(self, obs, reward, info, done):
         return clipReward(self, reward)
     
     def envStep(self, action, **kwargs):
@@ -52,12 +54,12 @@ class dqnAtariAgent(Agent):
     def rndAction(self):
         return nprnd.randint(self.envActions)
 
-    def getBatch(self, size: int, proportion: float = 1, random=False, device=DEVICE_DEFT, progBar: bool = False):
+    def getBatch(self, size: int, proportion: float=1, random=False, device=DEVICE_DEFT, progBar: bool=False):
         batch = super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
         processBatchv0(batch)
         return batch
 
-class dqnCaAgent(Agent):
+class DqnCAAgent(BaseAgent):
     name = 'dqn CA v1'
 
     def initAgent(self, **kwargs):
@@ -76,7 +78,7 @@ class dqnCaAgent(Agent):
             rewardFunTarget = getattr(rewards, rewardFunTarget, None)
         self.rewardFunc = rewardFunTarget
 
-        self.memory = dqnMemory(config, *memKeys)
+        self.memory = DqnMemory(config, *memKeys)
         self.clipReward = abs(config['agent'].get('clip_reward', 0))
         self.frameSize = tuple(self.config['env']['obs_shape'])
 
@@ -87,13 +89,15 @@ class dqnCaAgent(Agent):
         if self.keysForBatches is not None:
             self.keysForBatches = self.keysForBatches.copy() + extraKeysForBatches
 
-    def processObs(self, obs, reset: bool = False):
+    def processObs(self, obs, info, done, reset: bool = False):
         self.prevFrame = self.lastFrame if not reset else self.zeroFrame
         self.prevContext = self.lastContext if not reset else self.zeroContext
         
         grid, context = obs
         self.lastContext = context
-        self.lastFrame = img = grid2ImgFollow(self.env, grid, context, self.frameSize, self.useChannels, self.displayAgent)
+        self.lastFrame = img = grid2ImgFollow(self.env, grid, context, 
+                                                self.frameSize, self.useChannels, 
+                                                self.displayAgent)
 
         tensorStack = lHistObsProcess(self, img, reset)
 
@@ -101,13 +105,13 @@ class dqnCaAgent(Agent):
             context = self.zeroContext
         return composeObsWContextv0(tensorStack, context)
 
-    def processReward(self, reward, **kwargs):
+    def processReward(self, obs, reward, info, done):
         rewardFunc = self.rewardFunc
 
         if rewardFunc is None:
             pass
         else:
-            reward = reward(self, reward, **kwargs)
+            reward = rewardFunc(self, obs, reward, info, done)
 
         return clipReward(self, reward)
 
@@ -118,8 +122,12 @@ class dqnCaAgent(Agent):
     def reportCustomMetric(self):
         return reportQmean(self)
 
-    def getBatch(self, size: int, proportion: float = 1, random=False, device=DEVICE_DEFT, progBar: bool = False):
-        batch = super().getBatch(size, proportion=proportion, random=random, device=device, progBar=progBar)
+    def getBatch(self, size: int, proportion: float = 1, 
+                    random=False, device=DEVICE_DEFT, 
+                    progBar: bool = False):
+        batch = super().getBatch(size, proportion=proportion,
+                                    random=random, device=device,
+                                    progBar=progBar)
         processBatchv1(batch, self.useChannels, self.actionSpace)
         return batch
 

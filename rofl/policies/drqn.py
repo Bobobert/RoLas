@@ -1,6 +1,6 @@
 from rofl.functions.const import *
 from rofl.functions.torch import *
-from rofl.policies.dqn import dqnPolicy
+from rofl.policies.dqn import DqnPolicy
 from rofl.utils.drqn import recurrentArguments, unpackBatch, newZero
 
 # TODO: change and review this code for obsDicts, validation still missing
@@ -62,7 +62,7 @@ def drqnGatherActions(values, actions):
     # From oldest to newest, len(targets) = len(Outs) - 1
     return gatherValues
 
-class drqnPolicy(dqnPolicy):
+class drqnPolicy(DqnPolicy):
     name = "drqnPolicy"
 
     def __init__(self, config, dqn, tbw = None):

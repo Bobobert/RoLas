@@ -1,8 +1,8 @@
 from rofl.functions.torch import accumulateGrad, getParams
 from rofl.utils.policies import setEmptyOpt
-from rofl.policies.pg import pgPolicy
+from rofl.policies.pg import PgPolicy
 
-class a2cPolicy(pgPolicy):
+class A2CPolicy(PgPolicy):
     """
         Main policy for a2C not meant for the workers
     """
@@ -22,7 +22,7 @@ class a2cPolicy(pgPolicy):
                 self.optimizerBl.step()
 
         if self.tbw != None and (self.epoch % self.tbwFreq == 0):
-            self._evalTBWActor_()
+            self._evalActorTB()
 
         self.newEpoch = True
         self.epoch += 1
@@ -38,7 +38,7 @@ class a2cPolicy(pgPolicy):
     def getParams(self):
         return getParams(self)
 
-class a2cWorkerPolicy(pgPolicy):
+class A2CWorkerPolicy(PgPolicy):
     name = 'a2c v0 - worker'
 
     def initPolicy(self, **kwargs):

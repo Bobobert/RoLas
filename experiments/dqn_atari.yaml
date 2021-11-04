@@ -9,7 +9,7 @@ env:
       
 
 agent: 
-    agentClass  :  dqnAtariAgent
+    agentClass  :  DqnAtariAgent
     lhist  : 4
     memory_size  : 1000000
       
@@ -19,7 +19,7 @@ policy:
     epsilon_life  : 250000
     double  : true
     network  :   
-        networkClass  :  dqnAtari
+        networkClass  :  DqnAtari
         conv2d_1  : [32, 8, 4]
         conv2d_2  : [64, 4, 2]
         conv2d_3  : [64, 3, 1]

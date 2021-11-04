@@ -57,6 +57,6 @@ config = {
     'train' : train,
     'variables' : [],
     'algorithm' : 'unknown',
-    'version' : 'v0.2.0',
+    'version' : 'v0.2.1',
     'seed' : 42,
 }

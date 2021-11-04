@@ -1,6 +1,7 @@
-from rofl.functions.const import *
-from rofl.functions.functions import nprnd
 import matplotlib.pyplot as plt
+
+from rofl.functions.const import LINEWDT, CLRPI, CLRRDM, ALPHA
+from rofl.functions.functions import np, nprnd
 from rofl.utils.utils import timeFormated
 
 def graphResults(accRewards, var, meanRand:int, varRand:int, iters:int, testFreq:int, 
@@ -18,9 +19,9 @@ def graphResults(accRewards, var, meanRand:int, varRand:int, iters:int, testFreq
     stdRnd = np.array(np.array([varRand for _ in x]))
     plt.plot(x, accRewards, label="TrainedPolicy", color=CLRPI)
     plt.fill_between(x, accRewards - std, accRewards + std, alpha=ALPHA,
-                        ls = "-.", lw=LINEWDT, color=CLRPI)
+                        ls="-.", lw=LINEWDT, color=CLRPI)
     
-    plt.plot(x, meanRand, ls = "-", lw=LINEWDT, color=CLRRDM, label="RandomPolicy")
+    plt.plot(x, meanRand, ls="-", lw=LINEWDT, color=CLRRDM, label="RandomPolicy")
     lMn, lMx = np.min(accRewards - std), np.max(accRewards + std)
     sMn, sMx = np.min(meanRand - stdRnd), np.max(meanRand + stdRnd)
     if (sMn >= lMn) and (sMx <= lMx):
@@ -32,7 +33,7 @@ def graphResults(accRewards, var, meanRand:int, varRand:int, iters:int, testFreq
     plt.savefig("mean_acc_reward_"+ name +"_"+timeFormated(), dpi=dpi)
     if show: plt.show()
 
-def showBuffer(memory, samples:int = 20, Wait:int = 3):
+def showBuffer(memory, samples:int=20, Wait:int=3):
     """
         Meant to be used with dqnMemory, as prints contents 
         from the 'frame' contents of each experience
@@ -54,4 +55,4 @@ def showBuffer(memory, samples:int = 20, Wait:int = 3):
 def showFrameFromTensor(obs, i = 0):
     obsClone = obs.clone().detach().cpu().squeeze().numpy()
     plt.imshow(obsClone[i])
-    plt.show(block = False)
+    plt.show(block=False)

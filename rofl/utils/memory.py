@@ -1,5 +1,6 @@
-from rofl.functions.const import *
-from rofl.functions.functions import rnd
+from rofl.functions.const import ARRAY, DEVICE_DEFT, F_TDTYPE_DEFT, B_TDTYPE_DEFT,\
+    DEFT_MEMORY_SIZE, TENSOR
+from rofl.functions.functions import np, rnd
 from rofl.functions.dicts import mergeDicts
 from rofl.functions.torch import array2Tensor, list2Tensor
 
@@ -17,7 +18,7 @@ def itemsRnd(low, high, nItems):
     for i in range(nItems):
         yield rnd.randint(low, high)
 
-class simpleMemory():
+class SimpleMemory():
     """
 
         By default always looks for observation, reward, and 
@@ -180,7 +181,7 @@ class simpleMemory():
         s = 'Memory %s with %d capacity, %d items stored'%(self.memType, self.size, len(self))
         return s
 
-class episodicMemory(simpleMemory):
+class EpisodicMemory(SimpleMemory):
     """
         Meant to store and process one episode at a time
     """
@@ -221,7 +222,7 @@ class episodicMemory(simpleMemory):
             raise AttributeError("Memory does not have an episode ready!")
         return self.createSample(self.gatherMem(), device, keys)
 
-class multiMemory:
+class MultiMemory:
     memType = 'multi episodic'
 
     def __init__(self, config, *additionalKeys):
@@ -232,7 +233,7 @@ class multiMemory:
         self._memories, self._memList = {}, []
 
         import rofl.utils.memory as memories
-        self.unitMemType = getattr(memories, config['agent'].get('memory_type', ''), episodicMemory)
+        self.unitMemType = getattr(memories, config['agent'].get('memory_type', ''), EpisodicMemory)
 
     def reset(self):
         for mem in self._memList:
@@ -277,7 +278,7 @@ class multiMemory:
             samples.append(sample)
         return samples
             
-class dqnMemory(simpleMemory):
+class DqnMemory(SimpleMemory):
     """
         Works like simpleMemory but expects the agent to use the
         dqnStepv0 while using lHistObsProcess to process
@@ -323,5 +324,5 @@ class dqnMemory(simpleMemory):
             return itemsRnd(0, self.size - 1, size)
         return itemsRnd(1, self._i_ - 1, size)
 
-class episodicMemoryFrames(dqnMemory, episodicMemory):
+class episodicMemoryFrames(DqnMemory, EpisodicMemory):
     pass

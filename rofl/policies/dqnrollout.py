@@ -1,8 +1,8 @@
-from rofl.policies import dqnPolicy, Policy
+from rofl.policies import DqnPolicy, BasePolicy
 from rofl.functions.torch import *
 from rofl.functions.const import *
 
-class simpleDQN(Policy):
+class simpleDQN(BasePolicy):
     """
         Simple DQN container
     """
@@ -24,7 +24,7 @@ class simpleDQN(Policy):
     def device(self):
         return self.dqnOnline.device
 
-class dqnRollPolicy(dqnPolicy):
+class DqnRollPolicy(DqnPolicy):
     name = "dqn rollout policy"
 
     def __init__(self, config, net, envMaker, agentClass, tbw = None):

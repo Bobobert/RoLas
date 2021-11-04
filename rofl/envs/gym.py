@@ -53,10 +53,10 @@ def atariEnvMaker(config):
         if seed is not None and seed < 0:
             seed = None
         env = AtariEnv(name, 
-                        obs_type = config["env"].get("obsType", "image"),
-                        mode = config["env"].get("mode", None),
-                        difficulty= config["env"].get("difficulty", None),
-                        frameskip = config["env"].get("frameskip", (2,5)),
+                        obs_type=config["env"].get("obsType", "image"),
+                        mode=config["env"].get("mode", None),
+                        difficulty=config["env"].get("difficulty", None),
+                        frameskip=config["env"].get("frameskip", (2,5)),
                         )
         seeds = env.seed(seed)
         return env, seeds

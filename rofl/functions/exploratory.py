@@ -1,4 +1,4 @@
-from .vars import linearSchedule
+from rofl.utils import LinearSchedule
 from .functions import math, torch
 
 class EpsilonGreedy():
@@ -13,7 +13,7 @@ class EpsilonGreedy():
         if c.get("epsilon") is not None:
             self._var_ = c["epsilon"]
         else:
-            self._var_ = eps = linearSchedule(c["epsilon_start"], c["epsilon_end"], c["epsilon_life"])
+            self._var_ = eps = LinearSchedule(c["epsilon_start"], c["epsilon_end"], c["epsilon_life"])
             config['variables'].append(eps)
         
         self._test_ = c.get("epsilon_test", 0.0)

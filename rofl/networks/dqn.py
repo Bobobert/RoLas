@@ -1,8 +1,8 @@
-from rofl.functions.functions import *
+from rofl.functions.functions import F, Tcat, Tmean, nn, sqrConvDim
 from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete, decomposeObsWContextv0
 from .base import QValue, construcConv, construcLinear, forwardConv, forwardLinear, layersFromConfig
 
-class dqnAtari(QValue):
+class DqnAtari(QValue):
     name = 'deep Qnetwork atari'
 
     def __init__(self, config):
@@ -24,26 +24,26 @@ class dqnAtari(QValue):
         x = x.flatten(1)
         return forwardLinear(self, x)
 
-class dqnAtariDueling(dqnAtari):
+class DqnAtariDueling(DqnAtari):
     def __init__(self, config):
         super().__init__(config)
         actions = config["policy"]["n_actions"]
         linearLayers = self.configLayers['linear']
         self.linearOffset = offset = len(linearLayers) + 1
-        construcLinear(self, self.features, actions, *linearLayers, offset = offset)
+        construcLinear(self, self.features, actions, *linearLayers, offset=offset)
 
     def forward(self, obs):
         x = forwardConv(self, obs)
         x = x.flatten(1)
         xVal = x.clone()
         offset = self.linearOffset
-        xA = forwardLinear(self, x, offsetEnd = offset)
-        xVal = forwardLinear(self, x, offsetBeg = offset)
+        xA = forwardLinear(self, x, offsetEnd=offset)
+        xVal = forwardLinear(self, x, offsetBeg=offset)
 
         Amean = Tmean(xA, dim=1, keepdim=True)
         return xVal + (xA - Amean)
 
-class dqnCA(QValue):
+class DqnCA(QValue):
     name = 'dqn CA w/ support channels'
     def __init__(self, config):
         super().__init__(config)
@@ -65,7 +65,7 @@ class dqnCA(QValue):
     def forward(self, observation):
         frame, context = decomposeObsWContextv0(observation, self.frameShape)
         x = forwardConv(self, frame)
-        x = Tcat([x.flatten(1), context], dim = 1)
+        x = Tcat([x.flatten(1), context], dim=1)
         return forwardLinear(self, x)
     
     def processAction(self, action):
@@ -74,7 +74,7 @@ class dqnCA(QValue):
     def unprocessAction(self, action, batch: bool):
         return decomposeMultiDiscrete(action, self.actionSpace, batch, self.device)
 
-class dqnCADueling(dqnCA):
+class DqnCADueling(DqnCA):
     name = 'dqn CA dueling w/ support channels'
     def __init__(self, config):
         super().__init__(config)
@@ -82,16 +82,16 @@ class dqnCADueling(dqnCA):
 
         linearLayers = self.configLayers['linear']
         self.linearOffset = offset = len(linearLayers) + 1
-        construcLinear(self, self.features + 3, actions, *linearLayers, offset = offset)
+        construcLinear(self, self.features + 3, actions, *linearLayers, offset=offset)
 
     def forward(self, observation):
         frame, context = decomposeObsWContextv0(observation, self.frameShape)
         x = forwardConv(self, frame)
-        x = Tcat([x.flatten(1), context], dim = 1)
+        x = Tcat([x.flatten(1), context], dim=1)
         xVal = x.clone()
         offset = self.linearOffset
-        xA = forwardLinear(self, x, offsetEnd = offset)
-        xVal = forwardLinear(self, x, offsetBeg = offset)
+        xA = forwardLinear(self, x, offsetEnd=offset)
+        xVal = forwardLinear(self, x, offsetBeg=offset)
 
         Amean = Tmean(xA, dim=1, keepdim=True)
         return xVal + (xA - Amean)

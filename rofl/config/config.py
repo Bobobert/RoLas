@@ -1,13 +1,13 @@
 """
     Template for the config dictionary to set an experiment.
 """
-from typing import List, Tuple, Type, Union
+from typing import List, Tuple, Union
 from rofl.utils import Saver
 from rofl.config.types import AgentType, PolicyType
 from rofl.networks.base import BaseNet, QValue, Value, Actor, ActorCritic
 from gym import Env
 
-def _evnMaker_(seed: int) -> Tuple[Env, List[int]]:
+def _envMaker_(seed: int) -> Tuple[Env, List[int]]:
     pass
 
 def _trainFun_(config: dict, agent: AgentType, policy:PolicyType, saver: Saver) -> dict: 
@@ -67,7 +67,7 @@ def createPolicy(config, actor, **kwargs) -> PolicyType:
     policy = policyClass(config, actor, **kwargs)
     return policy
 
-def getEnvMaker(config) -> _evnMaker_:
+def getEnvMaker(config) -> _envMaker_:
     import rofl.envs as envs
     envMaker = getattr(envs, config['env']['envMaker'])
     return envMaker(config)

@@ -8,6 +8,7 @@
         
 """
 
+from rofl.functions.const import I_NDTYPE_DEFT
 from rofl.functions.functions import nprnd, np
 
 AGENT, NORTH, SOUTH, EAST, WEST, NEAST, NWEST, SEAST, SWEST = 0, 1, 4, 3, 4, 6, 5, 8, 7
@@ -20,7 +21,7 @@ def getNeighborhoodP(env, pos_row, pos_col, radius = 3):
     ne, nw = np.zeros((radius, radius), dtype = I_NDTYPE_DEFT), np.zeros((radius, radius), dtype = I_NDTYPE_DEFT)
     se, sw = np.zeros((radius, radius), dtype = I_NDTYPE_DEFT), np.zeros((radius, radius), dtype = I_NDTYPE_DEFT)"""
 
-    neighborhood = np.zeros((9,3), dtype = I_NDTYPE_DEFT)
+    neighborhood = np.zeros((9,3), dtype=I_NDTYPE_DEFT)
 
     def add2List(typ,z):
         """

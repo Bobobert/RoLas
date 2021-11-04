@@ -20,7 +20,7 @@ class Stack:
     def __len__(self):
         return len(self.stack)
 
-class minHeap():
+class MinHeap:
     def __init__(self):
         self.heap = []
 
@@ -110,23 +110,30 @@ class minHeap():
     def pop(self):
         return self.extractMin()[1]
 
-class maxHeap(minHeap):
+class MaxHeap(MinHeap):
     egg = 'You were expecting a minHeap\nBut it was me!\nMaxHeap'
     def min(self):
         print(self.egg)
+
     def max(self):
         return self._convert(self[1])
+
     @staticmethod
     def _convert(tup):
         return (-tup[0], tup[1])
+
     @property
     def empty(self):
         return self._convert(super().empty)
-    def add(self, obj = None, value = -np.inf):
+
+    def add(self, obj=None, value=-np.inf):
         super().add(obj, -value)
+
     def extractMin(self):
         print(self.egg)
+
     def extractMax(self):
         return self._convert(super().extractMin())
+        
     def pop(self):
         return self.extractMax()[1]

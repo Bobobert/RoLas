@@ -1,4 +1,4 @@
-from rofl.functions.const import *
+from rofl.functions.const import DEVICE_DEFT
 
 config = {}
 

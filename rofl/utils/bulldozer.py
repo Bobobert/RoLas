@@ -1,8 +1,11 @@
 from typing import Tuple
+
 from rofl.envs.forestFire.helicopter import EMPTY
-from rofl.functions.const import *
-from rofl.functions.functions import Tdiv, nb, floor, ceil, Tsum, Tmul, Tcat, isBatch, newZero
-from rofl.functions import runningStat
+from rofl.functions.const import ARRAY, B_NDTYPE_DEFT, F_TDTYPE_DEFT,\
+    I_NDTYPE_DEFT, I_TDTYPE_DEFT, PI, UI_NDTYPE_DEFT, TENSOR
+from rofl.functions.functions import Tdiv, math, nb, np, floor, ceil,\
+    torch, Tsum, Tmul, Tcat, isBatch, newZero
+from rofl.utils import RunningStat
 
 def initWindKernel(direction, speed, c1):
     """
@@ -237,7 +240,7 @@ def assertChannels(config):
     raise ValueError('Channels must be either 1 or 4, %d was given' % channels)
 
 def prepare4Ratio(agent):
-    agent.ratioTree = runningStat()
+    agent.ratioTree = RunningStat()
 
 def calRatio(agent, env):
     # Calculate ratio from environment

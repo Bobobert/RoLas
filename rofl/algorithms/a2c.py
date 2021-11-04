@@ -1,20 +1,23 @@
 from typing import Union
-from rofl import AgentMaster, Agent, Policy
-from rofl.functions.const import *
-from rofl.functions import testEvaluation, initResultDict, updateVar
-from rofl.functions.torch import zeroGrad
-from rofl.utils import Saver
+
 from tqdm import tqdm
+
+from rofl import AgentMaster, AgentType, PolicyType
+from rofl.functions.const import ENTROPY_LOSS, MINIBATCH_SIZE, NCPUS,\
+    LOSS_POLICY_CONST, LOSS_VALUES_CONST
+from rofl.functions import testEvaluation, initResultDict
+from rofl.functions.torch import zeroGrad
+from rofl.utils import Saver, updateVar
 
 from rofl.config.defaults import network
 baselineConf = network.copy()
 
 algConfig = {
     'agent' :{
-        'agentClass' : 'agentSync',
+        'agentClass' : 'AgentSync',
         'memory_size' : 10**3,
         'workers' : NCPUS,
-        'workerClass' : 'a2cAgent',
+        'workerClass' : 'A2CAgent',
         'clip_reward' : 1.0,
         'nstep' : 20,
     },
@@ -30,8 +33,8 @@ algConfig = {
     },
 
     'policy' :{
-        'policyClass' : 'a2cPolicy',
-        'workerPolicyClass' : 'a2cWorkerPolicy',
+        'policyClass' : 'A2CPolicy',
+        'workerPolicyClass' : 'A2CWorkerPolicy',
         'entropy_bonus' : ENTROPY_LOSS,
         'n_actions' : None,
         'continuos' : False,
@@ -44,23 +47,23 @@ algConfig = {
     }
 }
 
-def train(config:dict, agent:Union[Agent, AgentMaster], policy:Policy, saver: Saver):
+def train(config:dict, agent:Union[AgentType, AgentMaster], policy:PolicyType, saver: Saver):
     trainResults = initResultDict()
     saver.addObj(trainResults, 'train_results')
     saver.addObj(policy.actor, 'actor_net',
-                isTorch = True, device = policy.device,
-                key = 'mean_return')
+                isTorch=True, device=policy.device,
+                key='mean_return')
     if getattr(policy, 'baseline', False) and not getattr(policy, 'actorHasCritic', False):
         if policy.baseline != None:
             saver.addObj(policy.baseline, 'baseline_net',
-                    isTorch = True, device = policy.device,
-                    key = 'mean_return')
+                    isTorch=True, device=policy.device,
+                    key='mean_return')
     saver.start()
 
     freqTest = config['train']['test_freq']
     epochs, stop = config['train']['epochs'], False
     modeGrad = config['train']['modeGrad']
-    I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
+    I = tqdm(range(epochs + 1), unit='update', desc='Training Policy')
     agentMulti, multiEnv = isinstance(agent, AgentMaster), getattr(agent, 'isMultiEnv',False)
     
     try:

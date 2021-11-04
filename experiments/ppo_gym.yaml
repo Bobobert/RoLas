@@ -1,5 +1,5 @@
 agent:
-  agentClass: agentMultiEnv
+  agentClass: AgentMultiEnv
   gamma: 0.99
   memory_size: 100
   nstep: 30
@@ -20,7 +20,7 @@ policy:
   network:
     learning_rate: 0.0001
     linear_1: 32
-    networkClass: gymAC
+    networkClass: GymAC
 
 train:
   epochs: 10000

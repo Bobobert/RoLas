@@ -2,52 +2,120 @@
     Types
 """
 
-from typing import Union
-import numpy as np
+from typing import Tuple, Union
+from abc import ABC, abstractmethod
 
-class AgentType:
-    config, policy, tbw = {}, None, None
-    def initAgent(self, **kwargs):
-        pass
+from numpy import ndarray
+from torch import Tensor, device
+
+_OBS_TYPE = Union[Tensor, ndarray]
+_ACT_TYPE = Union[int, float, list, ndarray]
+_VAL_TYPE = Union[float, Tensor]
+
+class PolicyType(ABC):
+
+    @abstractmethod
     def currentState(self) -> dict:
         pass
-    def loadState(self, state:dict):
+
+    @abstractmethod
+    def loadState(self, state: dict) -> None:
         pass
-    def getBatch(self, size: int,proportion: float = 1.0, random = False,) -> dict:
+
+    @abstractmethod
+    def update(self, *batchDict: Tuple[dict,...]):
         pass
-    def getEpisode(self, random, device = None) -> dict:
+
+    @abstractmethod
+    def getAction(self, observation: Union[Tensor, ndarray]) -> Union[int, float, list, ndarray]:
         pass
+
+    @abstractmethod
+    def getActions(self, observation: Union[Tensor, ndarray]) -> Union[list, ndarray]:
+        pass
+
+    @abstractmethod
+    def getRndAction(self) -> Union[int, float, list, ndarray]:
+        pass
+
+    @abstractmethod
+    def getValue(self, observation: Union[Tensor, ndarray], action) -> float:
+        pass
+
+    @abstractmethod
+    def getActionWVal(self, observation: Union[Tensor, ndarray]) -> tuple:
+        pass
+
+    @abstractmethod
+    def getAVP(self, observation: Union[Tensor, ndarray]) -> tuple:
+        pass
+
+    @abstractmethod
+    def getProb4Action(self, observation: Union[Tensor, ndarray]) -> tuple:
+        pass
+
+    @property
+    @abstractmethod
+    def device(self) -> device:
+        pass
+
+    @property
+    @abstractmethod
+    def test(self) -> bool:
+        pass
+    
+    @test.setter
+    @abstractmethod
+    def test(self, flag: bool):
+        pass
+
+    @property
+    def train(self) -> bool:
+        return not self.test
+
+    @train.setter
+    def train(self, flag: bool):
+        self.test = not flag
+    
+
+class AgentType(ABC):
+
+    @abstractmethod
+    def currentState(self) -> dict:
+        pass
+
+    @abstractmethod
+    def loadState(self, state: dict) -> None:
+        pass
+    
+    @abstractmethod
+    def rndAction(self) -> Union[int, float, list, ndarray]:
+        pass
+
+    @abstractmethod
+    def getBatch(self, size: int,proportion: float = 1.0, random:bool = False) -> dict:
+        pass
+
+    @abstractmethod
+    def getEpisode(self, random: bool, device = None) -> dict:
+        pass
+
+    @abstractmethod
     def fullStep(self) -> dict:
         pass
-    def envStep(self, action) -> dict:
+
+    @abstractmethod
+    def envStep(self, action: Union[int, float, list, ndarray]) -> dict:
         pass
+
+    @abstractmethod
     def test(self, iters:int) -> dict:
         pass
+
+    @abstractmethod
     def reset(self) -> dict:
         pass
 
-class PolicyType:
-    config, tbw = {}, None
-    _test = True
-    def initPolicy(self, **kwargs):
+    @abstractmethod
+    def close(self) -> None:
         pass
-    def currentState(self) -> dict:
-        pass
-    def loadState(self, state:dict):
-        pass
-    def getAction(self, observation) -> Union[int, float, list, np.ndarray]:
-        pass
-    def getActions(self, observation) -> Union[list, np.ndarray]:
-        pass
-    def getValue(self, observation, action) -> float:
-        pass
-    def update(self, batchDict: dict):
-        pass
-    @property
-    def test(self):
-        return self._test
-    @property
-    def train(self):
-        return not self._test
-
-    

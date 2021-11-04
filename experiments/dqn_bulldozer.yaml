@@ -11,7 +11,7 @@ env:
     warmup : null
 
 agent:
-    agentClass  :  dqnCaAgent
+    agentClass  :  DqnCAAgent
     lhist  : 4
     channels  : 4
     memory_size  : 1000000
@@ -20,7 +20,7 @@ policy:
     epsilon_life  : 250000
     double  : false
     network  : 
-        networkClass  :  dqnCA
+        networkClass  :  DqnCA
         conv2d_1  : [32, 6, 4]
         conv2d_2  : [64, 4, 2]
         conv2d_3  : [64, 3, 1]

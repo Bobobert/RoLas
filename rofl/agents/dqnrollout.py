@@ -1,11 +1,11 @@
 from rofl.functions.const import *
 from rofl.functions.functions import nprnd, runningMean, multiplyIter
-from rofl.agents.base import Agent
+from rofl.agents.base import BaseAgent
 from rofl.agents.multi import AgentMaster
 from rofl.functions.torch import updateNet
 from rofl.functions.exploratory import qUCBAction
 
-class dqnRolloutAgent(Agent):
+class dqnRolloutAgent(BaseAgent):
     name = "dqn-rollout agent base"
 
     def initAgent(self, heuristic = None, **kwargs):
@@ -40,8 +40,8 @@ class dqnRolloutAgent(Agent):
                 # Do the UCB actions
                 if d < self.rolloutDepth:
                     # take UCB action
-                    At = qUCBAction(self, self._envStep_, nt[self._envStep_], self.ucbC)
-                    nt[self._envStep_, At] += 1
+                    At = qUCBAction(self, self._envStep, nt[self._envStep], self.ucbC)
+                    nt[self._envStep, At] += 1
                 else:
                     # Use heuristic
                     At = self.heuristicAction()
@@ -79,8 +79,8 @@ class dqnRollFFAgent(dqnRolloutAgent):
         super().initAgent(**kwargs)
         config = self.config
 
-        from rofl.utils.memory import dqnMemory
-        self.memory = dqnMemory(config)
+        from rofl.utils.memory import DqnMemory
+        self.memory = DqnMemory(config)
 
         obsShape, lhist  = config["env"]["obs_shape"], config["agent"]["lhist"]
         self.obsShape = (lhist, multiplyIter(obsShape) + 3)

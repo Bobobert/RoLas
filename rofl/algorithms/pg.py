@@ -1,15 +1,17 @@
-from rofl import Agent, Policy
-from rofl.functions.const import *
-from rofl.functions import testEvaluation, initResultDict, updateVar
-from rofl.utils import Saver
 from tqdm import tqdm
+
+from rofl import AgentType, PolicyType
+from rofl.functions.const import ENTROPY_LOSS, MINIBATCH_SIZE,\
+    LOSS_VALUES_CONST, LOSS_POLICY_CONST
+from rofl.functions import testEvaluation, initResultDict
+from rofl.utils import Saver, updateVar
 
 from rofl.config.defaults import network
 baselineConf = network.copy()
 
 algConfig = {
     'agent' :{
-        'agentClass' : 'pgAgent',
+        'agentClass' : 'PgAgent',
         'memory_size' : 10 ** 3,
         'clip_reward' : 1.0,
         'nstep' : -1,
@@ -22,7 +24,7 @@ algConfig = {
     },
 
     'policy' :{
-        'policyClass' : 'pgPolicy',
+        'policyClass' : 'PgPolicy',
         'entropy_bonus' : ENTROPY_LOSS,
         'n_actions' : None,
         'continuos' : False,
@@ -34,25 +36,25 @@ algConfig = {
     }
 }
 
-def train(config:dict, agent:Agent, policy:Policy, saver: Saver):
+def train(config:dict, agent:AgentType, policy:PolicyType, saver: Saver):
     # Train the net
     ## Init results and saver
     trainResults = initResultDict()
     saver.addObj(trainResults, 'training_results')
     saver.addObj(policy.actor, 'actor_net',
-                isTorch = True, device = policy.device,
-                key = 'mean_return')
+                isTorch=True, device=policy.device,
+                key='mean_return')
     if getattr(policy, 'baseline', False) and not getattr(policy, 'actorHasCritic', False):
         if policy.baseline != None:
             saver.addObj(policy.baseline, 'baseline_net',
-                    isTorch = True, device = policy.device,
-                    key = 'mean_return')
+                    isTorch=True, device=policy.device,
+                    key='mean_return')
     saver.start()
 
     batchSize, p = config['train']['batch_size'], config['train']['batch_proportion']
     freqTest = config['train']['test_freq']
     epochs, stop = config['train']['epochs'], False
-    I = tqdm(range(epochs + 1), unit = 'update', desc = 'Training Policy')
+    I = tqdm(range(epochs + 1), unit='update', desc='Training Policy')
     
     try:
         ## Train loop
