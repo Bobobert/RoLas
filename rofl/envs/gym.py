@@ -113,7 +113,7 @@ def gymcaEnvMaker(config):
     if isinstance(actionSpace, Discrete):
         actions = actionSpace.n
     elif isinstance(actionSpace, MultiDiscrete):
-        actions = multiplyIter(actionSpace.nvec)
+        actions = actionSpace.nvec
     else:
         print('Action space of %s is not well defined in the loop, please change after policy.n_actions from config' % name)
     config['policy']['n_actions'] = actions

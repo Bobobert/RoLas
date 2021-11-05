@@ -1,11 +1,12 @@
 from .base import Actor, Value, ActorCritic, construcConv, construcLinear,\
     forwardConv, forwardLinear, layersFromConfig
-from rofl.functions.functions import Texp, Tcat, F, outputFromGymSpace, inputFromGymSpace
+from rofl.functions.const import ARRAY
+from rofl.functions.functions import Texp, Tcat, F, multiplyIter, outputFromGymSpace, inputFromGymSpace
 from rofl.functions.distributions import Categorical, Normal
 from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete, decomposeObsWContextv0
 
 class GymActor(Actor):
-    name = "simple gym actor"
+    name = 'simple gym actor'
 
     def __init__(self, config):
         super().__init__(config)
@@ -14,7 +15,7 @@ class GymActor(Actor):
         self.noLinear = F.relu
 
         inputs = inputFromGymSpace(config)
-        outs = config["policy"]["n_actions"]
+        outs = config['policy']['n_actions']
         outs = outputFromGymSpace(config) if outs is None else outs
         outs *= 2 if continuos else 1
         hidden = layersFromConfig(config)
@@ -31,7 +32,7 @@ class GymActor(Actor):
             return Normal(params[:,:n], Texp(params[:,n:]))
 
 class GymBaseline(Value):
-    name = "simple baseline"
+    name = 'simple baseline'
 
     def __init__(self, config):
         super().__init__(config)
@@ -53,7 +54,7 @@ class GymAC(ActorCritic):
         self.noLinear = F.relu
 
         inputs = inputFromGymSpace(config)
-        outs = config["policy"]["n_actions"]
+        outs = config['policy']['n_actions']
         outs = outputFromGymSpace(config) if outs is None else outs
         outs *= 2 if continuos else 1
         hidden = layersFromConfig(config)['linear']
@@ -79,17 +80,19 @@ class GymAC(ActorCritic):
             return Normal(params[:,:n], Texp(params[:,n:]))
 
 class FFActorCritic(ActorCritic):
-    name = "ff actor"
+    name = 'ff actor'
     def __init__(self, config):
         super().__init__(config)
         self.discrete = True
         self.noLinear = F.relu
 
-        self.actionSpace = actionSpace = config['env']['action_space']
-        actions = config["policy"]["n_actions"]
-        lHist = config["agent"]["lhist"]
+        self.actionSpace = config['env']['action_space']
+        actions = config['policy']['n_actions']
+        if isinstance(actions, (tuple, ARRAY)):
+            actions = multiplyIter(actions)
+        lHist = config['agent']['lhist']
         channels = config['agent'].get('channels', 1)
-        obsShape = config["env"]["obs_shape"]
+        obsShape = config['env']['obs_shape']
         self.frameShape = (lHist * channels, *obsShape)
 
         layers = layersFromConfig(config)
