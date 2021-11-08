@@ -119,3 +119,8 @@ class AgentType(ABC):
     @abstractmethod
     def close(self) -> None:
         pass
+    
+    @property
+    @abstractmethod
+    def device(self) -> device:
+        pass

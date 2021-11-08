@@ -261,10 +261,6 @@ def composeMultiDiscrete(actions: TENSOR, actionSpace) -> ARRAY:
     nvec = actionSpace.nvec
 
     if isBatch(actions):
-        # BURN! just in case, this is not required, yet
-        #newActions = np.zeros((actions.shape[0], *template.shape), dtype = UI_NDTYPE_DEFT)
-        #for n, action in enumerate(actions):
-        #    newActions[n] = composeMultiDiscrete(action, actionSpace)
         actions = actions.cpu().numpy()
         newActions = np.zeros((actions.shape[0], *nvec.shape), dtype = I_NDTYPE_DEFT)
         run = np.ones((actions.shape[0],), dtype = I_NDTYPE_DEFT)
@@ -272,6 +268,7 @@ def composeMultiDiscrete(actions: TENSOR, actionSpace) -> ARRAY:
         for n, i in enumerate(nvec):
             run = run * i
             actions, newActions[:,n] = np.divmod(actions, run)
+
         return newActions
 
     template = newZero(nvec)
@@ -284,6 +281,7 @@ def composeMultiDiscrete(actions: TENSOR, actionSpace) -> ARRAY:
         run *= i
         template[n] = action % run
         action = action // run
+
     return template
 
 def decomposeMultiDiscrete(actions: Tuple[TENSOR, ARRAY], actionSpace, batch: bool, device) -> Tuple[int, TENSOR]:
@@ -298,17 +296,20 @@ def decomposeMultiDiscrete(actions: Tuple[TENSOR, ARRAY], actionSpace, batch: bo
             actions = actions.to(device)
         else:
             actions = torch.from_numpy(actions).to(device)
+            
         template = torch.zeros(nvec.shape, dtype = I_TDTYPE_DEFT, device = device)
         run = 1
         for n, i in enumerate(nvec):
             template[n] = run
             run *= i
+
         return Tsum(Tmul(actions, template), dim = 1, keepdim = True).detach_()
 
     n, run = 0, 1
     for i, j in zip(actions, nvec):
         n += run * i
         run *= j
+
     return n
 
 def composeObsWContextv0(frame: TENSOR, context: tuple, batch: bool = False):

@@ -1,9 +1,11 @@
 from .base import Actor, Value, ActorCritic, construcConv, construcLinear,\
     forwardConv, forwardLinear, layersFromConfig
 from rofl.functions.const import ARRAY
-from rofl.functions.functions import Texp, Tcat, F, multiplyIter, outputFromGymSpace, inputFromGymSpace
-from rofl.functions.distributions import Categorical, Normal
-from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete, decomposeObsWContextv0
+from rofl.functions.functions import Texp, Tcat, F, torch, isBatch, multiplyIter,\
+    outputFromGymSpace, inputFromGymSpace
+from rofl.functions.distributions import Categorical, MultiCategorical, Normal
+from rofl.utils.bulldozer import composeMultiDiscrete, decomposeMultiDiscrete,\
+    decomposeObsWContextv0
 
 class GymActor(Actor):
     name = 'simple gym actor'
@@ -123,3 +125,54 @@ class FFActorCritic(ActorCritic):
 
     def getDist(self, params):
         return Categorical(logits=params)
+
+class FFActorCriticV2(ActorCritic):
+    name = 'ff actor'
+    def __init__(self, config):
+        super().__init__(config)
+        self.discrete = True
+        self.noLinear = F.relu
+
+        self.actionSpace = config['env']['action_space']
+        self.actionShape = actions = config['policy']['n_actions']
+        lHist = config['agent']['lhist']
+        channels = config['agent'].get('channels', 1)
+        obsShape = config['env']['obs_shape']
+        self.frameShape = (lHist * channels, *obsShape)
+
+        layers = layersFromConfig(config)
+        features, _ = construcConv(self, obsShape, lHist * channels, *layers['conv2d'])
+        
+        linearLayers = layers['linear']
+        self.actorLayers = construcLinear(self, features + 3, sum(actions), *linearLayers)
+        self.offset = len(linearLayers) + 1
+        self.valueLayers = construcLinear(self, features + 3, 1, *linearLayers, offset=self.offset)
+
+    def sharedForward(self, observation):
+        frame, context = decomposeObsWContextv0(observation, self.frameShape)
+        x = forwardConv(self, frame)
+        x = self.noLinear(x)
+        return Tcat([x.flatten(1), context], dim=1)
+
+    def actorForward(self, observation):
+        return forwardLinear(self, observation, offsetEnd=self.offset)
+
+    def valueForward(self, observation):
+        return forwardLinear(self, observation, self.offset)
+
+    def processAction(self, action):
+        action = action.cpu().numpy()
+        if isBatch(action):
+            return action
+        return action.squeeze_()
+
+    def unprocessAction(self, action, batch: bool):
+        return torch.from_numpy(action).to(self.device)
+
+    def getDist(self, params):
+        logits, m = [], 0
+        for n in self.actionShape:
+            logits.append(params[:,m:n])
+            m += n
+
+        return MultiCategorical(logits=logits)

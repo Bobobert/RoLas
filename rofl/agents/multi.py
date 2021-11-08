@@ -295,6 +295,13 @@ class AgentMaster(AgentType):
         s = self.name + ', with %d workers' % len(self.workers)
         return s
 
+    def currentState(self):
+        return {}
+
+    def loadState(self, state: dict):
+        pass
+
+
 class AgentSync(AgentMaster):
     name = 'Agent master sync'
 

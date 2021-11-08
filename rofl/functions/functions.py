@@ -31,6 +31,8 @@ Tdot = torch.dot
 Tsqrt = torch.sqrt
 Tstack = torch.stack
 noGrad = torch.no_grad
+Trelu = F.relu
+Tsoftmax = F.softmax
 
 #### LITTLE USEFUL FUNCTIONS ###
 def assertProb(sus: Union[float, int]) -> Union[float, int]:

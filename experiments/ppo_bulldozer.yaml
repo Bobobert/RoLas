@@ -42,7 +42,7 @@ policy:
     - 1
     learning_rate: 5.0e-05
     linear_1: 512
-    networkClass: FFActorCritic
+    networkClass: FFActorCriticV2
 
 train:
   epochs: 10000
