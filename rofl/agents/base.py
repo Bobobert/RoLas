@@ -503,7 +503,7 @@ class BaseAgent(AgentType):
                         accumulate_reward=self._acReward,
                         id=self.workerID)
     
-    def rndAction(self):
+    def rndAction(self, *args):
         """
             Returns a random action from the gym space
         """

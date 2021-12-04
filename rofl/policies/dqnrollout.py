@@ -1,6 +1,6 @@
 from rofl.policies import DqnPolicy, BasePolicy
-from rofl.functions.torch import *
-from rofl.functions.const import *
+from rofl.functions.torch import cloneNet, getListTParams, F, updateNet, torch
+from rofl.functions.const import NCPUS
 
 class simpleDQN(BasePolicy):
     """
@@ -11,18 +11,11 @@ class simpleDQN(BasePolicy):
         self.config = config
         self.dqnOnline = dqn
 
-    def new(self):
-        return simpleDQN(self.config, cloneNet(self.dqnOnline))
-
     def currentState(self):
-        return None
+        return {}
 
     def loadState(self, newState):
         pass
-
-    @property
-    def device(self):
-        return self.dqnOnline.device
 
 class DqnRollPolicy(DqnPolicy):
     name = "dqn rollout policy"
@@ -73,16 +66,13 @@ class DqnRollPolicy(DqnPolicy):
         if self.tbw != None:
             self.tbw.add_scalar('train/Loss', loss.item(), self.epochs)
             self.tbw.add_scalar('train/Mean TD Error', torch.mean(qTargets - qValues).item(), self.epochs)
-            max_g, mean_g = analysisGrad(self.dqnOnline, self.evalMeanGrad, self.evalMaxGrad)
-            self.tbw.add_scalar("train/max grad",  max_g, self.epochs)
-            self.tbw.add_scalar("train/mean grad",  mean_g, self.epochs)
+            self._evalActorTB()
         if self.epochs % self.updateTarget == 0:
-            # Updates the net
             updateNet(self.dqnTarget, self.dqnOnline.state_dict())
         self.epochs += 1
 
-    def syncParameters(self):
-        params = getListState(self.dqnOnline)
+    def __syncParameters(self):
+        params = getListTParams(self.dqnOnline)
         free, working, _ = self.master.listWorkers()
         if working != []:
             print("Warning: Actors from multiActor have working status")

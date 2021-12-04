@@ -134,7 +134,7 @@ class AgentMaster(AgentType):
 
         nWorkers = ncpus = config["agent"].get("workers", NCPUS)
         self._nWorkers = nWorkers = NCPUS if nWorkers < 0 else nWorkers # a worker per thread available if < 0
-        ncpus += 1 if ncpus == 1 else 0
+        ncpus += 1 if ncpus < 2 else 0
         ncpus = NCPUS if ncpus > NCPUS else ncpus
 
         import rofl.agents as agents
@@ -142,6 +142,12 @@ class AgentMaster(AgentType):
         ray.init(num_cpus = ncpus) # TODO, test and validate when more agents are needed than CPUS
         ragnt = ray.remote(agentClass)
 
+        # things that i need to know before to go on, can ray share the class memory?
+        # how can we modify the lock parameter throug lock, can we?
+        # if more agents would be needed this method is flawed! needs much more memory per process
+        # there's a hard limit in here, instead of working smart... python is such BS sometimes.., 
+        # ray is not efficient
+        
         workerPolicy = None
         nActor = policy.actor
         nBl = getattr(policy, 'baseline') if not getattr(policy, 'actorHasCritic', True) else None
@@ -176,6 +182,7 @@ class AgentMaster(AgentType):
         return results
 
     def envStep(self, actions, ids):
+        print("envStep not well defined")
         # distribute actions
         for i, Id in enumerate(ids):
             worker = self.workers[Id]
@@ -368,7 +375,7 @@ class AgentSync(AgentMaster):
         blParams_ = ray.put(blParams) if blParams != [] else []
         wrks = []
         for w in self.workers:
-            w.ref = w().updateParams.remote(piParams_, blParams)
+            w.ref = w().updateParams.remote(piParams_, blParams_)
             wrks.append(w)
 
         self.syncResolve(wrks)
