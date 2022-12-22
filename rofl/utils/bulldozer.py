@@ -130,7 +130,7 @@ def quickGridC(grid:ARRAY, shape,
         i += 1
     return img
 
-def checkSize(grid, obsShape) -> tuple[tuple, bool, bool]:
+def checkSize(grid, obsShape) -> Tuple[tuple, bool, bool]:
     gridShape = grid.shape[:2]
     rowBig = gridShape[0] > obsShape[0]
     colBig = gridShape[1] > obsShape[1]
